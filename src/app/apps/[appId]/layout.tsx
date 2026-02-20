@@ -2,21 +2,15 @@
 
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
-import { Clock, FileText, Image, LayoutDashboard, Smartphone, Star } from "lucide-react";
-import { use } from "react";
+import { LayoutDashboard, Rocket, Star } from "lucide-react";
 
-import { PageHeader } from "@/components/page-header";
-import { Badge } from "@/components/ui/badge";
-import { Skeleton } from "@/components/ui/skeleton";
 import { useApp } from "@/hooks/use-apps";
 import { cn } from "@/lib/utils";
 
-const TABS = [
-  { label: "Overview", icon: LayoutDashboard, suffix: "", exact: true },
-  { label: "Listings", icon: FileText, suffix: "/listings", exact: false },
-  { label: "Assets", icon: Image, suffix: "/assets", exact: false },
-  { label: "Reviews", icon: Star, suffix: "/reviews", exact: false },
-  { label: "History", icon: Clock, suffix: "/history", exact: false },
+const NAV_ITEMS = [
+  { label: "Dashboard", icon: LayoutDashboard, suffix: "/dashboard" },
+  { label: "Publish", icon: Rocket, suffix: "/publish" },
+  { label: "Reviews", icon: Star, suffix: "/reviews" },
 ] as const;
 
 export default function AppLayout({
@@ -32,90 +26,44 @@ export default function AppLayout({
   const basePath = `/apps/${appId}`;
 
   return (
-    <div className="flex flex-1 flex-col">
-      <PageHeader
-        title={app.data?.name ?? "App"}
-        action={
-          app.data && (
-            <Badge
-              variant={
-                app.data.platform === "android" ? "default" : "secondary"
-              }
-            >
-              {app.data.platform === "android"
-                ? "Google Play"
-                : "App Store"}
-            </Badge>
-          )
-        }
-      />
-
-      {app.isLoading && (
-        <div className="p-6">
-          <Skeleton className="mb-4 h-16 w-full" />
-          <Skeleton className="h-64 w-full" />
-        </div>
-      )}
-
-      {app.isError && (
-        <div className="flex flex-1 items-center justify-center">
-          <p className="text-sm text-muted-foreground">
-            Failed to load app. Please try again.
+    <div className="flex flex-1 overflow-hidden">
+      {/* Left nav — like Slack's Home/DMs/Activity */}
+      <div className="flex w-[200px] shrink-0 flex-col border-r border-border bg-[#1a1a1a]">
+        <div className="flex h-14 items-center border-b border-border px-4">
+          <p className="truncate text-sm font-bold tracking-tight text-foreground">
+            {app.data?.name ?? "Loading..."}
           </p>
         </div>
-      )}
 
-      {app.data && (
-        <>
-          <div className="flex items-center gap-4 border-b px-6 pt-4">
-            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-muted">
-              {app.data.iconUrl ? (
-                <img
-                  src={app.data.iconUrl}
-                  alt={app.data.name}
-                  className="h-full w-full object-cover"
-                />
-              ) : (
-                <Smartphone className="h-6 w-6 text-muted-foreground" />
-              )}
-            </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-medium">{app.data.name}</p>
-              <p className="truncate text-xs text-muted-foreground">
-                {app.data.bundleId}
-              </p>
-            </div>
-          </div>
+        <nav className="flex-1 space-y-0.5 px-2 py-3">
+          {NAV_ITEMS.map((item) => {
+            const href = `${basePath}${item.suffix}`;
+            const isActive = currentPath.startsWith(href);
+            return (
+              <Link
+                key={item.label}
+                href={href}
+                className={cn(
+                  "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
+                )}
+              >
+                <item.icon className="h-4 w-4" />
+                {item.label}
+              </Link>
+            );
+          })}
+        </nav>
+      </div>
 
-          <nav className="flex border-b px-6">
-            {TABS.map((tab) => {
-              const href = `${basePath}${tab.suffix}`;
-              const isActive = tab.exact
-                ? currentPath === href || currentPath === `${href}/`
-                : currentPath.startsWith(href);
-              return (
-                <Link
-                  key={tab.label}
-                  href={href}
-                  className={cn(
-                    "flex items-center gap-2 border-b-2 px-4 py-3 text-sm font-medium transition-colors",
-                    isActive
-                      ? "border-primary text-primary"
-                      : "border-transparent text-muted-foreground hover:text-foreground",
-                  )}
-                >
-                  <tab.icon className="h-4 w-4" />
-                  {tab.label}
-                </Link>
-              );
-            })}
-          </nav>
-
-          <div className="flex-1">
-            {children}
-          </div>
-        </>
-      )}
+      {/* Main content */}
+      <div className="flex flex-1 flex-col overflow-hidden">
+        <div className="flex-1 overflow-y-auto">
+          {children}
+        </div>
+      </div>
     </div>
   );
 }

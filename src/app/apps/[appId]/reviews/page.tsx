@@ -42,7 +42,7 @@ function StarRating({ rating, size = 16 }: { rating: number; size?: number }) {
         <Star
           key={i}
           className={cn(
-            i <= rating ? "fill-yellow-500 text-yellow-500" : "text-muted",
+            i <= rating ? "fill-yellow-500 text-yellow-500" : "text-muted/60",
           )}
           style={{ width: size, height: size }}
         />
@@ -67,11 +67,11 @@ function RatingBar({
       <Star className="h-3 w-3 fill-yellow-500 text-yellow-500" />
       <div className="h-2 flex-1 overflow-hidden rounded-full bg-muted">
         <div
-          className="h-full rounded-full bg-yellow-500 transition-all"
+          className="h-full rounded-full bg-yellow-500 transition-all duration-500"
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className="w-10 text-right text-xs text-muted-foreground">
+      <span className="w-10 text-right text-xs tabular-nums text-muted-foreground">
         {count}
       </span>
     </div>
@@ -120,7 +120,7 @@ function ReviewCard({
   };
 
   return (
-    <Card>
+    <Card className="transition-all hover:shadow-sm">
       <CardContent className="pt-6">
         <div className="mb-3 flex items-start justify-between gap-4">
           <div className="space-y-1">
@@ -147,8 +147,8 @@ function ReviewCard({
         <p className="text-sm text-muted-foreground">{review.body}</p>
 
         {review.replyText && !isReplying && (
-          <div className="mt-4 rounded-lg border bg-muted/50 p-3">
-            <p className="mb-1 text-xs font-medium text-muted-foreground">
+          <div className="mt-4 rounded-xl border bg-primary/5 p-3">
+            <p className="mb-1 text-xs font-medium text-primary">
               Your Reply
             </p>
             <p className="text-sm">{review.replyText}</p>
@@ -259,8 +259,8 @@ export default function ReviewsManager() {
     <div className="p-6">
       {stats.isLoading && (
         <div className="mb-6 grid gap-4 md:grid-cols-2">
-          <Skeleton className="h-32" />
-          <Skeleton className="h-32" />
+          <Skeleton className="h-40 rounded-xl" />
+          <Skeleton className="h-40 rounded-xl" />
         </div>
       )}
 
@@ -273,12 +273,12 @@ export default function ReviewsManager() {
             <CardContent>
               <div className="flex items-center gap-6">
                 <div className="text-center">
-                  <p className="text-4xl font-bold">
+                  <p className="text-5xl font-bold tabular-nums">
                     {stats.data.averageRating.toFixed(1)}
                   </p>
                   <StarRating
                     rating={Math.round(stats.data.averageRating)}
-                    size={14}
+                    size={16}
                   />
                   <p className="mt-1 text-xs text-muted-foreground">
                     {stats.data.totalReviews} reviews
@@ -301,14 +301,14 @@ export default function ReviewsManager() {
             <CardHeader>
               <CardTitle className="text-base">Quick Stats</CardTitle>
             </CardHeader>
-            <CardContent className="space-y-3">
+            <CardContent className="space-y-4">
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Total Reviews</span>
-                <span className="font-medium">{stats.data.totalReviews}</span>
+                <span className="font-bold tabular-nums">{stats.data.totalReviews}</span>
               </div>
               <div className="flex justify-between text-sm">
                 <span className="text-muted-foreground">Unreplied</span>
-                <span className="font-medium text-yellow-500">
+                <span className="inline-flex items-center rounded-md bg-yellow-500/10 px-2 py-0.5 text-xs font-bold tabular-nums text-yellow-500">
                   {stats.data.noReplyCount}
                 </span>
               </div>
@@ -318,12 +318,12 @@ export default function ReviewsManager() {
       )}
 
       <div className="mb-6 flex flex-wrap items-center gap-3">
-        <Select value={ratingFilter} onValueChange={setRatingFilter}>
+        <Select value={ratingFilter || "all"} onValueChange={(v) => setRatingFilter(v === "all" ? "" : v)}>
           <SelectTrigger className="w-36">
             <SelectValue placeholder="All Ratings" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All Ratings</SelectItem>
+            <SelectItem value="all">All Ratings</SelectItem>
             {[5, 4, 3, 2, 1].map((r) => (
               <SelectItem key={r} value={String(r)}>
                 {r} Stars
@@ -332,12 +332,12 @@ export default function ReviewsManager() {
           </SelectContent>
         </Select>
 
-        <Select value={replyFilter} onValueChange={setReplyFilter}>
+        <Select value={replyFilter || "all"} onValueChange={(v) => setReplyFilter(v === "all" ? "" : v)}>
           <SelectTrigger className="w-36">
             <SelectValue placeholder="All Replies" />
           </SelectTrigger>
           <SelectContent>
-            <SelectItem value="">All</SelectItem>
+            <SelectItem value="all">All</SelectItem>
             <SelectItem value="true">Has Reply</SelectItem>
             <SelectItem value="false">No Reply</SelectItem>
           </SelectContent>
@@ -363,7 +363,7 @@ export default function ReviewsManager() {
       {reviews.isLoading && (
         <div className="space-y-4">
           {[1, 2, 3].map((i) => (
-            <Skeleton key={i} className="h-32" />
+            <Skeleton key={i} className="h-36 rounded-xl" />
           ))}
         </div>
       )}

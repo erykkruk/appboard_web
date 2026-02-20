@@ -43,7 +43,7 @@ function StepIndicator({
         <div
           key={`step-${i + 1}`}
           className={`h-2 w-8 rounded-full transition-colors ${
-            i + 1 <= currentStep ? "bg-primary" : "bg-muted"
+            i + 1 <= currentStep ? "bg-foreground" : "bg-muted"
           }`}
         />
       ))}
@@ -64,13 +64,13 @@ function StoreTypeStep({
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
         <Card
-          className="cursor-pointer transition-colors hover:border-primary"
+          className="cursor-pointer transition-colors hover:border-foreground/30"
           onClick={() => onSelect("google_play")}
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-green-500/10">
-                <span className="text-xl">GP</span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#2a2a2a]">
+                <span className="text-sm font-bold text-muted-foreground">GP</span>
               </div>
               Google Play
             </CardTitle>
@@ -82,13 +82,13 @@ function StoreTypeStep({
         </Card>
 
         <Card
-          className="cursor-pointer transition-colors hover:border-primary"
+          className="cursor-pointer transition-colors hover:border-foreground/30"
           onClick={() => onSelect("app_store")}
         >
           <CardHeader>
             <CardTitle className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-500/10">
-                <span className="text-xl">AS</span>
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#2a2a2a]">
+                <span className="text-sm font-bold text-muted-foreground">AS</span>
               </div>
               App Store
             </CardTitle>
@@ -315,7 +315,7 @@ function AppStoreCredentials({
 function ConnectingStep() {
   return (
     <div className="flex flex-col items-center justify-center py-12">
-      <Loader2 className="mb-4 h-12 w-12 animate-spin text-primary" />
+      <Loader2 className="mb-4 h-12 w-12 animate-spin text-foreground" />
       <h3 className="text-lg font-semibold">Connecting...</h3>
       <p className="mt-2 text-sm text-muted-foreground">
         Verifying your credentials and fetching app data.
@@ -421,7 +421,7 @@ export default function OnboardingPage() {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title="Connect a Store" />
-      <div className="mx-auto w-full max-w-2xl p-6">
+      <div className="mx-auto w-full max-w-2xl overflow-y-auto p-6">
         <div className="mb-8">
           <StepIndicator currentStep={step} totalSteps={TOTAL_STEPS} />
         </div>

@@ -8,6 +8,8 @@ import type {
   GenerateReleaseNotesRequest,
   HistoryEntry,
   Listing,
+  PublishResult,
+  PublishingOverview,
   Review,
   ReviewStats,
   SettingRow,
@@ -15,6 +17,7 @@ import type {
   Store,
   SuggestKeywordsRequest,
   TranslateRequest,
+  VersionInfo,
 } from "./types";
 
 const API_URL = "";
@@ -85,9 +88,9 @@ export const api = {
         (r) => r.listings,
       ),
     get: (appId: string, language: string) =>
-      fetchApi<{ listing: Listing }>(
+      fetchApi<{ draft: Listing | null; remote: Listing | null }>(
         `/api/apps/${appId}/listings/${language}`,
-      ).then((r) => r.listing),
+      ).then((r) => r.draft ?? r.remote),
     update: (appId: string, language: string, data: Partial<Listing>) =>
       fetchApi<{ listing: Listing }>(`/api/apps/${appId}/listings/${language}`, {
         method: "PUT",
@@ -198,6 +201,37 @@ export const api = {
       fetchApi<void>(`/api/apps/${appId}/history/${historyId}/rollback`, {
         method: "POST",
       }),
+  },
+
+  publishing: {
+    overview: (appId: string) =>
+      fetchApi<PublishingOverview>(
+        `/api/apps/${appId}/publishing/overview`,
+      ),
+    publish: (appId: string, submitForReview?: boolean) =>
+      fetchApi<PublishResult>(`/api/apps/${appId}/publishing/publish`, {
+        method: "POST",
+        body: JSON.stringify(
+          submitForReview ? { submitForReview: true } : {},
+        ),
+      }),
+    version: (appId: string) =>
+      fetchApi<{ version: VersionInfo | null }>(
+        `/api/apps/${appId}/publishing/version`,
+      ).then((r) => r.version),
+    createVersion: (appId: string, versionString: string) =>
+      fetchApi<{ version: { versionString: string; state: string } }>(
+        `/api/apps/${appId}/publishing/create-version`,
+        {
+          method: "POST",
+          body: JSON.stringify({ versionString }),
+        },
+      ).then((r) => r.version),
+    submitReview: (appId: string) =>
+      fetchApi<{ submitted: boolean }>(
+        `/api/apps/${appId}/publishing/submit-review`,
+        { method: "POST" },
+      ),
   },
 
   settings: {

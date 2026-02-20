@@ -3,7 +3,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { useState, type ReactNode } from "react";
 
-import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "sonner";
 
@@ -26,12 +25,14 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <SidebarProvider defaultOpen={false}>
+        <div className="flex h-screen overflow-hidden">
           <AppSidebar />
-          <SidebarInset>{children}</SidebarInset>
-        </SidebarProvider>
+          <div className="flex flex-1 flex-col overflow-hidden">
+            {children}
+          </div>
+        </div>
       </TooltipProvider>
-      <Toaster theme="dark" richColors position="bottom-right" />
+      <Toaster richColors position="bottom-right" />
     </QueryClientProvider>
   );
 }

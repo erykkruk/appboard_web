@@ -147,3 +147,33 @@ export interface GenerateReleaseNotesRequest {
   changes: string;
   appName: string;
 }
+
+export interface PublishingOverview {
+  listings: {
+    count: number;
+    changes: { language: string; fields: string[] }[];
+  };
+  assets: {
+    count: number;
+    added: number;
+    removed: number;
+  };
+  hasPendingChanges: boolean;
+  version: {
+    versionString: string;
+    state: string;
+    isEditable: boolean;
+    suggestedVersion: string | null;
+  } | null;
+}
+
+export interface PublishResult {
+  listings: { published: number };
+  assets: { published: number };
+}
+
+export interface VersionInfo {
+  versionString: string;
+  state: string;
+  isEditable: boolean;
+}
