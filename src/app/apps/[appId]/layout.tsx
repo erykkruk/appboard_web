@@ -4,6 +4,8 @@ import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
 import {
   ChevronDown,
+  FileText,
+  Image,
   LayoutDashboard,
   Loader2,
   Plus,
@@ -30,6 +32,11 @@ const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, suffix: "/dashboard" },
   { label: "Publish", icon: Rocket, suffix: "/publish" },
   { label: "Reviews", icon: Star, suffix: "/reviews" },
+] as const;
+
+const VERSION_NAV_ITEMS = [
+  { label: "Listings", icon: FileText, suffix: "" },
+  { label: "Previews & Screenshots", icon: Image, suffix: "/screenshots" },
 ] as const;
 
 const STATE_BAR_COLORS: Record<string, string> = {
@@ -225,6 +232,34 @@ export default function AppLayout({
                         "Add"
                       )}
                     </Button>
+                  </div>
+                )}
+
+                {/* Version sub-navigation */}
+                {selectedVersionId && (
+                  <div className="mt-1 space-y-0.5">
+                    {VERSION_NAV_ITEMS.map((item) => {
+                      const href = `${basePath}/versions/${selectedVersionId}${item.suffix}`;
+                      const isActive =
+                        item.suffix === ""
+                          ? currentPath === `${basePath}/versions/${selectedVersionId}`
+                          : currentPath.startsWith(href);
+                      return (
+                        <Link
+                          key={item.label}
+                          href={href}
+                          className={cn(
+                            "flex items-center gap-3 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                            isActive
+                              ? "bg-[#2a2a2a] text-foreground"
+                              : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
+                          )}
+                        >
+                          <item.icon className="h-3.5 w-3.5" />
+                          {item.label}
+                        </Link>
+                      );
+                    })}
                   </div>
                 )}
               </div>
