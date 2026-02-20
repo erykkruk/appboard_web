@@ -274,14 +274,16 @@ export function AppSidebar() {
             {storesList.map((store) => {
               const Icon = STORE_ICONS[store.type] ?? Store;
               return (
-                <DropdownMenuItem key={store.id} className="gap-3">
-                  <Icon className="h-4 w-4" />
-                  <div>
-                    <p className="font-medium">{store.name}</p>
-                    <p className="text-xs text-muted-foreground">
-                      {store.type === "app_store" ? "App Store" : "Google Play"}
-                    </p>
-                  </div>
+                <DropdownMenuItem key={store.id} asChild>
+                  <Link href="/dashboard" className="gap-3">
+                    <Icon className="h-4 w-4" />
+                    <div>
+                      <p className="font-medium">{store.name}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {store.type === "app_store" ? "App Store" : "Google Play"}
+                      </p>
+                    </div>
+                  </Link>
                 </DropdownMenuItem>
               );
             })}
