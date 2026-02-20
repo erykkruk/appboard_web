@@ -2,7 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import {
   Apple,
   Check,
@@ -22,7 +36,6 @@ import {
   DialogDescription,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog";
 import {
   DropdownMenu,
@@ -47,6 +60,7 @@ import {
   useStores,
   useSyncStore,
 } from "@/hooks/use-stores";
+import type { App } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const STORE_ICONS: Record<string, typeof Apple> = {
@@ -55,22 +69,9 @@ const STORE_ICONS: Record<string, typeof Apple> = {
 };
 
 const APP_COLORS = [
-  "#e11d48", // rose
-  "#db2777", // pink
-  "#c026d3", // fuchsia
-  "#9333ea", // purple
-  "#7c3aed", // violet
-  "#4f46e5", // indigo
-  "#2563eb", // blue
-  "#0284c7", // sky
-  "#0891b2", // cyan
-  "#0d9488", // teal
-  "#059669", // emerald
-  "#16a34a", // green
-  "#65a30d", // lime
-  "#ca8a04", // yellow
-  "#ea580c", // orange
-  "#dc2626", // red
+  "#e11d48", "#db2777", "#c026d3", "#9333ea", "#7c3aed", "#4f46e5",
+  "#2563eb", "#0284c7", "#0891b2", "#0d9488", "#059669", "#16a34a",
+  "#65a30d", "#ca8a04", "#ea580c", "#dc2626",
 ];
 
 function hashString(str: string): number {
@@ -122,6 +123,49 @@ function useAppColors() {
   return { getColor, setColor };
 }
 
+function useAppOrder(apps: App[]) {
+  const [order, setOrder] = useState<string[]>([]);
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("appboard:app-order");
+      if (stored) setOrder(JSON.parse(stored));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const sortedApps = useMemo(() => {
+    if (order.length === 0) return apps;
+
+    const orderMap = new Map(order.map((id, idx) => [id, idx]));
+    return [...apps].sort((a, b) => {
+      const aIdx = orderMap.get(a.id) ?? Infinity;
+      const bIdx = orderMap.get(b.id) ?? Infinity;
+      return aIdx - bIdx;
+    });
+  }, [apps, order]);
+
+  const reorder = useCallback(
+    (activeId: string, overId: string) => {
+      const ids = sortedApps.map((a) => a.id);
+      const oldIndex = ids.indexOf(activeId);
+      const newIndex = ids.indexOf(overId);
+      if (oldIndex === -1 || newIndex === -1) return;
+
+      const next = [...ids];
+      next.splice(oldIndex, 1);
+      next.splice(newIndex, 0, activeId);
+
+      setOrder(next);
+      localStorage.setItem("appboard:app-order", JSON.stringify(next));
+    },
+    [sortedApps],
+  );
+
+  return { sortedApps, reorder };
+}
+
 function formatDate(date: string | null) {
   if (!date) return "Never";
   return new Date(date).toLocaleDateString("en-US", {
@@ -132,18 +176,32 @@ function formatDate(date: string | null) {
   });
 }
 
-function AppIcon({
+function SortableAppIcon({
   app,
   isActive,
   color,
   onColorChange,
 }: {
-  app: { id: string; name: string; iconUrl?: string | null; platform: string };
+  app: App;
   isActive: boolean;
   color: string;
   onColorChange: (color: string) => void;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
+
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: app.id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  };
 
   const iconContent = app.iconUrl ? (
     <img
@@ -156,64 +214,79 @@ function AppIcon({
   );
 
   return (
-    <Popover open={menuOpen} onOpenChange={setMenuOpen}>
-      <PopoverTrigger asChild>
-        <div
-          className="relative"
-          onPointerDown={(e) => {
-            // Prevent Popover from toggling on left-click — only right-click opens it
-            if (e.button === 0) e.stopPropagation();
-          }}
-        >
-          <Link
-            href={`/apps/${app.id}/dashboard`}
-            className={cn(
-              "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white transition-all select-none",
-              app.iconUrl && "overflow-hidden",
-              isActive
-                ? "ring-2 ring-primary ring-offset-2 ring-offset-[#111111]"
-                : "opacity-60 hover:opacity-100",
-            )}
-            style={app.iconUrl ? undefined : { backgroundColor: color }}
-            onContextMenu={(e) => {
-              e.preventDefault();
-              setMenuOpen(true);
-            }}
-          >
-            {iconContent}
-          </Link>
-        </div>
-      </PopoverTrigger>
-      <PopoverContent
-        side="right"
-        align="start"
-        className="w-auto p-2"
-        onOpenAutoFocus={(e) => e.preventDefault()}
-      >
-        <p className="mb-1.5 px-1 text-xs font-medium text-muted-foreground">
-          Choose color
-        </p>
-        <div className="grid grid-cols-4 gap-1.5">
-          {APP_COLORS.map((c) => (
-            <button
-              key={c}
-              type="button"
-              className={cn(
-                "flex h-7 w-7 items-center justify-center rounded-lg transition-transform hover:scale-110",
-                color === c && "ring-2 ring-white ring-offset-1 ring-offset-background",
-              )}
-              style={{ backgroundColor: c }}
-              onClick={() => {
-                onColorChange(c);
-                setMenuOpen(false);
-              }}
-            >
-              {color === c && <Check className="h-3.5 w-3.5 text-white" />}
-            </button>
-          ))}
-        </div>
-      </PopoverContent>
-    </Popover>
+    <div ref={setNodeRef} style={style} {...attributes}>
+      <Tooltip delayDuration={0}>
+        <TooltipTrigger asChild>
+          <div>
+            <Popover open={menuOpen} onOpenChange={setMenuOpen}>
+              <PopoverTrigger asChild>
+                <div
+                  className="relative"
+                  onPointerDown={(e) => {
+                    if (e.button === 0) e.stopPropagation();
+                  }}
+                >
+                  <Link
+                    href={`/apps/${app.id}/dashboard`}
+                    className={cn(
+                      "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white transition-all select-none",
+                      app.iconUrl && "overflow-hidden",
+                      isDragging && "z-50 opacity-80 shadow-lg ring-2 ring-primary",
+                      !isDragging && isActive
+                        ? "ring-2 ring-primary ring-offset-2 ring-offset-[#111111]"
+                        : !isDragging && "opacity-60 hover:opacity-100",
+                    )}
+                    style={app.iconUrl ? undefined : { backgroundColor: color }}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      setMenuOpen(true);
+                    }}
+                    {...listeners}
+                  >
+                    {iconContent}
+                  </Link>
+                </div>
+              </PopoverTrigger>
+              <PopoverContent
+                side="right"
+                align="start"
+                className="w-auto p-2"
+                onOpenAutoFocus={(e) => e.preventDefault()}
+              >
+                <p className="mb-1.5 px-1 text-xs font-medium text-muted-foreground">
+                  Choose color
+                </p>
+                <div className="grid grid-cols-4 gap-1.5">
+                  {APP_COLORS.map((c) => (
+                    <button
+                      key={c}
+                      type="button"
+                      className={cn(
+                        "flex h-7 w-7 items-center justify-center rounded-lg transition-transform hover:scale-110",
+                        color === c && "ring-2 ring-white ring-offset-1 ring-offset-background",
+                      )}
+                      style={{ backgroundColor: c }}
+                      onClick={() => {
+                        onColorChange(c);
+                        setMenuOpen(false);
+                      }}
+                    >
+                      {color === c && <Check className="h-3.5 w-3.5 text-white" />}
+                    </button>
+                  ))}
+                </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </TooltipTrigger>
+        <TooltipContent side="right" sideOffset={8}>
+          <p className="font-medium">{app.name}</p>
+          <p className="text-xs text-muted-foreground">
+            {app.platform === "ios" ? "App Store" : "Google Play"}
+          </p>
+        </TooltipContent>
+      </Tooltip>
+    </div>
   );
 }
 
@@ -228,6 +301,20 @@ export function AppSidebar() {
 
   const storesList = stores.data ?? [];
   const appsList = apps.data ?? [];
+  const { sortedApps, reorder } = useAppOrder(appsList);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: { distance: 5 },
+    }),
+  );
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (over && active.id !== over.id) {
+      reorder(active.id as string, over.id as string);
+    }
+  };
 
   const handleSync = async (storeId: string) => {
     try {
@@ -325,35 +412,35 @@ export function AppSidebar() {
       {/* Divider */}
       <div className="mx-auto mb-2 h-px w-8 bg-border" />
 
-      {/* App icons */}
+      {/* App icons — drag & drop sortable */}
       <div className="flex flex-1 flex-col items-center gap-2.5 overflow-y-auto px-1">
         {apps.isLoading && (
           <Loader2 className="mt-4 h-4 w-4 animate-spin text-muted-foreground" />
         )}
 
-        {appsList.map((app) => {
-          const isActive = currentPath.startsWith(`/apps/${app.id}`);
-          return (
-            <Tooltip key={app.id} delayDuration={0}>
-              <TooltipTrigger asChild>
-                <div>
-                  <AppIcon
-                    app={app}
-                    isActive={isActive}
-                    color={getColor(app.id)}
-                    onColorChange={(c) => setColor(app.id, c)}
-                  />
-                </div>
-              </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={8}>
-                <p className="font-medium">{app.name}</p>
-                <p className="text-xs text-muted-foreground">
-                  {app.platform === "ios" ? "App Store" : "Google Play"}
-                </p>
-              </TooltipContent>
-            </Tooltip>
-          );
-        })}
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={sortedApps.map((a) => a.id)}
+            strategy={verticalListSortingStrategy}
+          >
+            {sortedApps.map((app) => {
+              const isActive = currentPath.startsWith(`/apps/${app.id}`);
+              return (
+                <SortableAppIcon
+                  key={app.id}
+                  app={app}
+                  isActive={isActive}
+                  color={getColor(app.id)}
+                  onColorChange={(c) => setColor(app.id, c)}
+                />
+              );
+            })}
+          </SortableContext>
+        </DndContext>
       </div>
 
       {/* Bottom: Settings */}
