@@ -1,12 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useParams } from "next/navigation";
-import { LayoutDashboard, Loader2, Plus, Rocket, Star } from "lucide-react";
+import { usePathname, useParams, useRouter } from "next/navigation";
+import {
+  ChevronDown,
+  LayoutDashboard,
+  Loader2,
+  Plus,
+  Rocket,
+  Star,
+} from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useApp } from "@/hooks/use-apps";
 import { useCreateVersion, useVersions } from "@/hooks/use-publishing";
@@ -36,6 +50,7 @@ export default function AppLayout({
   const params = useParams<{ appId: string }>();
   const appId = params.appId;
   const currentPath = usePathname();
+  const router = useRouter();
   const app = useApp(appId);
   const versions = useVersions(appId);
   const createVersion = useCreateVersion(appId);
@@ -47,6 +62,12 @@ export default function AppLayout({
   const versionList = versions.data ?? [];
   const draftVersion = versionList.find((v) => v.isEditable);
   const isIos = app.data?.platform === "ios";
+
+  // Detect which version is currently selected from URL
+  const versionMatch = currentPath.match(/\/versions\/([^/]+)/);
+  const selectedVersionId = versionMatch?.[1] ?? null;
+  const selectedVersion = versionList.find((v) => v.id === selectedVersionId);
+  const isVersionPage = currentPath.includes("/versions/");
 
   const handleCreateVersion = async () => {
     if (!newVersion.trim()) return;
@@ -74,7 +95,8 @@ export default function AppLayout({
           <div className="space-y-0.5">
             {NAV_ITEMS.map((item) => {
               const href = `${basePath}${item.suffix}`;
-              const isActive = currentPath.startsWith(href);
+              const isActive =
+                currentPath.startsWith(href) && !isVersionPage;
               return (
                 <Link
                   key={item.label}
@@ -93,28 +115,88 @@ export default function AppLayout({
             })}
           </div>
 
-          {/* Versions section — App Store only */}
+          {/* Version select — App Store only */}
           {isIos && (
             <>
               <div className="mx-3 my-3 h-px bg-border" />
-              <div className="px-1">
-                <div className="mb-2 flex items-center justify-between px-2">
-                  <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                    Versions
-                  </p>
-                  {!draftVersion && !showNewVersion && (
+              <div className="space-y-1">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
                     <button
                       type="button"
-                      className="text-muted-foreground transition-colors hover:text-foreground"
-                      onClick={() => setShowNewVersion(true)}
+                      className={cn(
+                        "flex w-full items-center gap-2.5 rounded-lg py-2 pl-2 pr-3 text-sm font-medium transition-colors",
+                        isVersionPage
+                          ? "bg-primary text-primary-foreground"
+                          : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
+                      )}
                     >
-                      <Plus className="h-3.5 w-3.5" />
+                      {selectedVersion ? (
+                        <div
+                          className={cn(
+                            "h-4 w-1 shrink-0 rounded-full",
+                            STATE_BAR_COLORS[selectedVersion.state] ??
+                              "bg-muted-foreground",
+                          )}
+                        />
+                      ) : (
+                        <div className="h-4 w-1 shrink-0 rounded-full bg-muted-foreground" />
+                      )}
+                      <span className="flex-1 truncate text-left">
+                        {selectedVersion
+                          ? `Version ${selectedVersion.versionString}`
+                          : "Version"}
+                      </span>
+                      <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
                     </button>
-                  )}
-                </div>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent
+                    side="bottom"
+                    align="start"
+                    className="w-[176px]"
+                  >
+                    {versions.isLoading && (
+                      <div className="flex justify-center py-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
+                    {versionList.map((v) => (
+                      <DropdownMenuItem
+                        key={v.id}
+                        className="gap-2.5"
+                        onSelect={() =>
+                          router.push(`${basePath}/versions/${v.id}`)
+                        }
+                      >
+                        <div
+                          className={cn(
+                            "h-4 w-1 shrink-0 rounded-full",
+                            STATE_BAR_COLORS[v.state] ??
+                              "bg-muted-foreground",
+                          )}
+                        />
+                        <span className="truncate">{v.versionString}</span>
+                      </DropdownMenuItem>
+                    ))}
+                    {!draftVersion && versionList.length > 0 && (
+                      <DropdownMenuSeparator />
+                    )}
+                    {!draftVersion && (
+                      <DropdownMenuItem
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          setShowNewVersion(true);
+                        }}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>New Version</span>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
 
                 {showNewVersion && (
-                  <div className="mb-2 flex items-center gap-1.5 px-1">
+                  <div className="flex items-center gap-1.5 px-1">
                     <Input
                       value={newVersion}
                       onChange={(e) => setNewVersion(e.target.value)}
@@ -122,7 +204,10 @@ export default function AppLayout({
                       className="h-7 text-xs"
                       onKeyDown={(e) => {
                         if (e.key === "Enter") handleCreateVersion();
-                        if (e.key === "Escape") setShowNewVersion(false);
+                        if (e.key === "Escape") {
+                          setShowNewVersion(false);
+                          setNewVersion("");
+                        }
                       }}
                       autoFocus
                     />
@@ -130,7 +215,9 @@ export default function AppLayout({
                       size="sm"
                       className="h-7 px-2 text-xs"
                       onClick={handleCreateVersion}
-                      disabled={createVersion.isPending || !newVersion.trim()}
+                      disabled={
+                        createVersion.isPending || !newVersion.trim()
+                      }
                     >
                       {createVersion.isPending ? (
                         <Loader2 className="h-3 w-3 animate-spin" />
@@ -140,39 +227,6 @@ export default function AppLayout({
                     </Button>
                   </div>
                 )}
-
-                {versions.isLoading && (
-                  <div className="flex justify-center py-2">
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                  </div>
-                )}
-
-                <div className="space-y-0.5">
-                  {versionList.map((v) => {
-                    const href = `${basePath}/versions/${v.id}`;
-                    const isActive = currentPath === href;
-                    return (
-                      <Link
-                        key={v.id}
-                        href={href}
-                        className={cn(
-                          "flex items-center gap-2.5 rounded-lg py-2 pl-1.5 pr-3 text-sm font-medium transition-colors",
-                          isActive
-                            ? "bg-[#2a2a2a] text-foreground"
-                            : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
-                        )}
-                      >
-                        <div
-                          className={cn(
-                            "h-5 w-1 shrink-0 rounded-full",
-                            STATE_BAR_COLORS[v.state] ?? "bg-muted-foreground",
-                          )}
-                        />
-                        <span className="truncate">{v.versionString}</span>
-                      </Link>
-                    );
-                  })}
-                </div>
               </div>
             </>
           )}
