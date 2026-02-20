@@ -60,6 +60,14 @@ export function useVersionDetail(appId: string, versionId: string) {
   });
 }
 
+export function useVersionScreenshots(appId: string, versionId: string) {
+  return useQuery({
+    queryKey: ["publishing", appId, "versions", versionId, "screenshots"],
+    queryFn: () => api.publishing.versionScreenshots(appId, versionId),
+    enabled: !!appId && !!versionId,
+  });
+}
+
 export function useSubmitForReview(appId: string) {
   const queryClient = useQueryClient();
   return useMutation({

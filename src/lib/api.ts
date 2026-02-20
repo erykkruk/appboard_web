@@ -20,6 +20,7 @@ import type {
   TranslateRequest,
   VersionDetail,
   VersionInfo,
+  VersionScreenshot,
 } from "./types";
 
 const API_URL = "";
@@ -229,6 +230,10 @@ export const api = {
       fetchApi<VersionDetail>(
         `/api/apps/${appId}/publishing/versions/${versionId}`,
       ),
+    versionScreenshots: (appId: string, versionId: string) =>
+      fetchApi<{ screenshots: VersionScreenshot[] }>(
+        `/api/apps/${appId}/publishing/versions/${versionId}/screenshots`,
+      ).then((r) => r.screenshots),
     createVersion: (appId: string, versionString: string) =>
       fetchApi<{ version: { versionString: string; state: string } }>(
         `/api/apps/${appId}/publishing/create-version`,

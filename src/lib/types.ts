@@ -203,3 +203,12 @@ export interface VersionDetail {
   state: string;
   localizations: VersionLocalization[];
 }
+
+export interface VersionScreenshot {
+  language: string;
+  deviceType: string;
+  displayType: string;
+  url: string;
+  width: number | null;
+  height: number | null;
+}
