@@ -413,7 +413,7 @@ export function AppSidebar() {
       <div className="mx-auto mb-2 h-px w-8 bg-border" />
 
       {/* App icons — drag & drop sortable */}
-      <div className="flex flex-1 flex-col items-center gap-2.5 overflow-y-auto px-1">
+      <div className="flex flex-1 flex-col items-center gap-2.5 overflow-y-auto px-1 pt-1">
         {apps.isLoading && (
           <Loader2 className="mt-4 h-4 w-4 animate-spin text-muted-foreground" />
         )}
