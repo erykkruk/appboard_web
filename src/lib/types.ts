@@ -177,3 +177,10 @@ export interface VersionInfo {
   state: string;
   isEditable: boolean;
 }
+
+export interface AppVersion {
+  id: string;
+  versionString: string;
+  state: string;
+  isEditable: boolean;
+}

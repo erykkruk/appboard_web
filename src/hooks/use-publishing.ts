@@ -44,6 +44,14 @@ export function useCreateVersion(appId: string) {
   });
 }
 
+export function useVersions(appId: string) {
+  return useQuery({
+    queryKey: ["publishing", appId, "versions"],
+    queryFn: () => api.publishing.versions(appId),
+    enabled: !!appId,
+  });
+}
+
 export function useSubmitForReview(appId: string) {
   const queryClient = useQueryClient();
   return useMutation({

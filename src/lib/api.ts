@@ -1,6 +1,7 @@
 import type {
   AiResponse,
   App,
+  AppVersion,
   Asset,
   ConnectStoreData,
   DraftReplyRequest,
@@ -219,6 +220,10 @@ export const api = {
       fetchApi<{ version: VersionInfo | null }>(
         `/api/apps/${appId}/publishing/version`,
       ).then((r) => r.version),
+    versions: (appId: string) =>
+      fetchApi<{ versions: AppVersion[] }>(
+        `/api/apps/${appId}/publishing/versions`,
+      ).then((r) => r.versions),
     createVersion: (appId: string, versionString: string) =>
       fetchApi<{ version: { versionString: string; state: string } }>(
         `/api/apps/${appId}/publishing/create-version`,
