@@ -2,14 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
-import {
-  Circle,
-  LayoutDashboard,
-  Loader2,
-  Plus,
-  Rocket,
-  Star,
-} from "lucide-react";
+import { LayoutDashboard, Loader2, Plus, Rocket, Star } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
@@ -25,24 +18,14 @@ const NAV_ITEMS = [
   { label: "Reviews", icon: Star, suffix: "/reviews" },
 ] as const;
 
-const STATE_COLORS: Record<string, string> = {
-  PREPARE_FOR_SUBMISSION: "text-yellow-400",
-  READY_FOR_SALE: "text-green-400",
-  WAITING_FOR_REVIEW: "text-blue-400",
-  IN_REVIEW: "text-blue-400",
-  DEVELOPER_REJECTED: "text-orange-400",
-  REJECTED: "text-red-400",
-  PENDING_DEVELOPER_RELEASE: "text-purple-400",
-};
-
-const STATE_LABELS: Record<string, string> = {
-  PREPARE_FOR_SUBMISSION: "Draft",
-  READY_FOR_SALE: "Live",
-  WAITING_FOR_REVIEW: "In Review",
-  IN_REVIEW: "In Review",
-  DEVELOPER_REJECTED: "Rejected",
-  REJECTED: "Rejected",
-  PENDING_DEVELOPER_RELEASE: "Pending Release",
+const STATE_BAR_COLORS: Record<string, string> = {
+  PREPARE_FOR_SUBMISSION: "bg-yellow-400",
+  READY_FOR_SALE: "bg-green-400",
+  WAITING_FOR_REVIEW: "bg-blue-400",
+  IN_REVIEW: "bg-blue-400",
+  DEVELOPER_REJECTED: "bg-orange-400",
+  REJECTED: "bg-red-400",
+  PENDING_DEVELOPER_RELEASE: "bg-purple-400",
 };
 
 export default function AppLayout({
@@ -114,8 +97,8 @@ export default function AppLayout({
           {isIos && (
             <>
               <div className="mx-3 my-3 h-px bg-border" />
-              <div className="px-3">
-                <div className="mb-2 flex items-center justify-between">
+              <div className="px-1">
+                <div className="mb-2 flex items-center justify-between px-2">
                   <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
                     Versions
                   </p>
@@ -131,7 +114,7 @@ export default function AppLayout({
                 </div>
 
                 {showNewVersion && (
-                  <div className="mb-2 flex items-center gap-1.5">
+                  <div className="mb-2 flex items-center gap-1.5 px-1">
                     <Input
                       value={newVersion}
                       onChange={(e) => setNewVersion(e.target.value)}
@@ -165,32 +148,30 @@ export default function AppLayout({
                 )}
 
                 <div className="space-y-0.5">
-                  {versionList.map((v) => (
-                    <div
-                      key={v.id}
-                      className="flex items-center justify-between rounded-md px-1 py-1.5 text-xs"
-                    >
-                      <div className="flex items-center gap-2">
-                        <Circle
-                          className={cn(
-                            "h-2 w-2 fill-current",
-                            STATE_COLORS[v.state] ?? "text-muted-foreground",
-                          )}
-                        />
-                        <span className="font-medium text-foreground">
-                          {v.versionString}
-                        </span>
-                      </div>
-                      <span
+                  {versionList.map((v) => {
+                    const href = `${basePath}/versions/${v.id}`;
+                    const isActive = currentPath === href;
+                    return (
+                      <Link
+                        key={v.id}
+                        href={href}
                         className={cn(
-                          "text-[10px]",
-                          STATE_COLORS[v.state] ?? "text-muted-foreground",
+                          "flex items-center gap-2.5 rounded-lg py-2 pl-1.5 pr-3 text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-[#2a2a2a] text-foreground"
+                            : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
                         )}
                       >
-                        {STATE_LABELS[v.state] ?? v.state}
-                      </span>
-                    </div>
-                  ))}
+                        <div
+                          className={cn(
+                            "h-5 w-1 shrink-0 rounded-full",
+                            STATE_BAR_COLORS[v.state] ?? "bg-muted-foreground",
+                          )}
+                        />
+                        <span className="truncate">{v.versionString}</span>
+                      </Link>
+                    );
+                  })}
                 </div>
               </div>
             </>

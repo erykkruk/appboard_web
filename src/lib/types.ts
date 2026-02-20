@@ -184,3 +184,22 @@ export interface AppVersion {
   state: string;
   isEditable: boolean;
 }
+
+export interface VersionLocalization {
+  language: string;
+  title: string;
+  subtitle: string;
+  description: string;
+  keywords: string;
+  whatsNew?: string;
+  promotionalText?: string;
+  marketingUrl?: string;
+  supportUrl?: string;
+}
+
+export interface VersionDetail {
+  versionId: string;
+  versionString: string;
+  state: string;
+  localizations: VersionLocalization[];
+}

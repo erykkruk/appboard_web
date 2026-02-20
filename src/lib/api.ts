@@ -18,6 +18,7 @@ import type {
   Store,
   SuggestKeywordsRequest,
   TranslateRequest,
+  VersionDetail,
   VersionInfo,
 } from "./types";
 
@@ -224,6 +225,10 @@ export const api = {
       fetchApi<{ versions: AppVersion[] }>(
         `/api/apps/${appId}/publishing/versions`,
       ).then((r) => r.versions),
+    versionDetail: (appId: string, versionId: string) =>
+      fetchApi<VersionDetail>(
+        `/api/apps/${appId}/publishing/versions/${versionId}`,
+      ),
     createVersion: (appId: string, versionString: string) =>
       fetchApi<{ version: { versionString: string; state: string } }>(
         `/api/apps/${appId}/publishing/create-version`,
