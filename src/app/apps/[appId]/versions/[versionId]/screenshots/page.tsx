@@ -273,7 +273,7 @@ export default function VersionScreenshotsPage() {
   const notLocalizedLanguages = useMemo(
     () =>
       APP_STORE_LANGUAGES.filter(
-        (lang) => !localizedLanguages.includes(lang),
+        (lang) => !localizedLanguages.includes(lang.locale),
       ),
     [localizedLanguages],
   );
@@ -363,8 +363,8 @@ export default function VersionScreenshotsPage() {
                 <SelectGroup>
                   <SelectLabel>Not Localized</SelectLabel>
                   {notLocalizedLanguages.map((lang) => (
-                    <SelectItem key={lang} value={lang}>
-                      {lang}
+                    <SelectItem key={lang.locale} value={lang.locale}>
+                      {lang.label}
                     </SelectItem>
                   ))}
                 </SelectGroup>

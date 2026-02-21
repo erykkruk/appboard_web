@@ -1,5 +1,6 @@
 "use client";
 
+import packageJson from "../../package.json";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -463,7 +464,7 @@ export function AppSidebar() {
             Settings
           </TooltipContent>
         </Tooltip>
-        <span className="text-[10px] text-muted-foreground/50">v0.5.0</span>
+        <span className="text-[10px] text-muted-foreground/50">v{packageJson.version}</span>
       </div>
 
       {/* Manage stores dialog */}

@@ -312,6 +312,20 @@ export const api = {
         `/api/apps/${appId}/publishing/screenshot-sets/${screenshotSetId}`,
         { method: "DELETE" },
       ),
+    addLocalization: (appId: string, versionId: string, locale: string) =>
+      fetchApi<{ added: boolean; language: string }>(
+        `/api/apps/${appId}/publishing/versions/${versionId}/localizations`,
+        { method: "POST", body: JSON.stringify({ locale }) },
+      ),
+    deleteLocalization: (
+      appId: string,
+      versionId: string,
+      localizationId: string,
+    ) =>
+      fetchApi<{ deleted: boolean }>(
+        `/api/apps/${appId}/publishing/versions/${versionId}/localizations/${localizationId}`,
+        { method: "DELETE" },
+      ),
     submitReview: (appId: string) =>
       fetchApi<{ submitted: boolean }>(
         `/api/apps/${appId}/publishing/submit-review`,

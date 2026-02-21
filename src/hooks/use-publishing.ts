@@ -142,6 +142,32 @@ export function useDeleteAllScreenshots(appId: string, versionId: string) {
   });
 }
 
+export function useAddLocalization(appId: string, versionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (locale: string) =>
+      api.publishing.addLocalization(appId, versionId, locale),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["publishing", appId, "versions", versionId],
+      });
+    },
+  });
+}
+
+export function useDeleteLocalization(appId: string, versionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (localizationId: string) =>
+      api.publishing.deleteLocalization(appId, versionId, localizationId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["publishing", appId, "versions", versionId],
+      });
+    },
+  });
+}
+
 export function useSubmitForReview(appId: string) {
   const queryClient = useQueryClient();
   return useMutation({

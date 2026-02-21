@@ -5,6 +5,7 @@ import { usePathname, useParams, useRouter } from "next/navigation";
 import {
   ChevronDown,
   FileText,
+  Globe,
   Image,
   LayoutDashboard,
   Loader2,
@@ -35,6 +36,7 @@ const NAV_ITEMS = [
 ] as const;
 
 const VERSION_NAV_ITEMS = [
+  { label: "Languages", icon: Globe, suffix: "/languages" },
   { label: "Listings", icon: FileText, suffix: "" },
   { label: "Previews & Screenshots", icon: Image, suffix: "/screenshots" },
 ] as const;
@@ -70,20 +72,32 @@ export default function AppLayout({
   const draftVersion = versionList.find((v) => v.isEditable);
   const isIos = app.data?.platform === "ios";
 
-  // Detect which version is currently selected from URL
+  // Detect version from URL
   const versionMatch = currentPath.match(/\/versions\/([^/]+)/);
-  const selectedVersionId = versionMatch?.[1] ?? null;
-  const selectedVersion = versionList.find((v) => v.id === selectedVersionId);
+  const urlVersionId = versionMatch?.[1] ?? null;
   const isVersionPage = currentPath.includes("/versions/");
 
-  // Auto-select draft version (or first version) when none is selected
+  // Persist selected version across navigation
+  const [rememberedVersionId, setRememberedVersionId] = useState<string | null>(null);
+
+  // Sync URL version → remembered state
   useEffect(() => {
-    if (!isIos || versionList.length === 0 || selectedVersionId) return;
+    if (urlVersionId) {
+      setRememberedVersionId(urlVersionId);
+    }
+  }, [urlVersionId]);
+
+  // Auto-select draft (or first) version when none remembered yet
+  useEffect(() => {
+    if (!isIos || versionList.length === 0 || rememberedVersionId) return;
     const target = draftVersion ?? versionList[0];
     if (target) {
-      router.replace(`${basePath}/versions/${target.id}`);
+      setRememberedVersionId(target.id);
     }
-  }, [isIos, versionList, selectedVersionId, draftVersion, basePath, router]);
+  }, [isIos, versionList, rememberedVersionId, draftVersion]);
+
+  const selectedVersionId = rememberedVersionId;
+  const selectedVersion = versionList.find((v) => v.id === selectedVersionId);
 
   const handleCreateVersion = async () => {
     if (!newVersion.trim()) return;
@@ -258,13 +272,13 @@ export default function AppLayout({
                           key={item.label}
                           href={href}
                           className={cn(
-                            "flex items-center gap-3 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors",
+                            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
                             isActive
                               ? "bg-[#2a2a2a] text-foreground"
                               : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
                           )}
                         >
-                          <item.icon className="h-3.5 w-3.5" />
+                          <item.icon className="h-4 w-4" />
                           {item.label}
                         </Link>
                       );
