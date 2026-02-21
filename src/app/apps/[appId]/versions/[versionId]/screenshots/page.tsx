@@ -28,9 +28,17 @@ import {
   useVersionDetail,
   useVersionScreenshots,
 } from "@/hooks/use-publishing";
+import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { APP_STORE_LANGUAGES, type VersionScreenshot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   Select,
   SelectContent,
@@ -61,120 +69,6 @@ const STATE_COLORS: Record<string, string> = {
 const IPHONE_65_DISPLAY = "APP_IPHONE_65";
 const IPAD_PRO_129_DISPLAY = "APP_IPAD_PRO_129";
 const MAX_SCREENSHOTS = 10;
-
-const REQUIRED_SIZES: Record<string, [number, number][]> = {
-  [IPHONE_65_DISPLAY]: [
-    [1242, 2688],
-    [2688, 1242],
-    [1284, 2778],
-    [2778, 1284],
-  ],
-  [IPAD_PRO_129_DISPLAY]: [
-    [2064, 2752],
-    [2752, 2064],
-    [2048, 2732],
-    [2732, 2048],
-  ],
-};
-
-function pickTargetSize(
-  imgW: number,
-  imgH: number,
-  displayType: string,
-  existing: VersionScreenshot[],
-): [number, number] {
-  // If we have existing screenshots, match their size
-  const first = existing.find((s) => s.width && s.height);
-  if (first?.width && first?.height) {
-    return [first.width, first.height];
-  }
-
-  // Otherwise pick the closest required size based on orientation
-  const sizes = REQUIRED_SIZES[displayType] ?? REQUIRED_SIZES[IPHONE_65_DISPLAY];
-  const isPortrait = imgH >= imgW;
-
-  // Filter to same orientation, fallback to all
-  const candidates = sizes.filter(([w, h]) =>
-    isPortrait ? h >= w : w >= h,
-  );
-  const pool = candidates.length > 0 ? candidates : sizes;
-
-  // Pick closest by aspect ratio
-  const imgAspect = imgW / imgH;
-  let best = pool[0];
-  let bestDiff = Math.abs(best[0] / best[1] - imgAspect);
-  for (const size of pool) {
-    const diff = Math.abs(size[0] / size[1] - imgAspect);
-    if (diff < bestDiff) {
-      best = size;
-      bestDiff = diff;
-    }
-  }
-  return best;
-}
-
-function cropAndResize(
-  file: File,
-  targetW: number,
-  targetH: number,
-): Promise<File> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () => {
-      const { naturalWidth: sw, naturalHeight: sh } = img;
-
-      // Calculate crop region (center crop to target aspect ratio)
-      const targetAspect = targetW / targetH;
-      const srcAspect = sw / sh;
-
-      let cropW: number;
-      let cropH: number;
-      if (srcAspect > targetAspect) {
-        // Source is wider — crop sides
-        cropH = sh;
-        cropW = sh * targetAspect;
-      } else {
-        // Source is taller — crop top/bottom
-        cropW = sw;
-        cropH = sw / targetAspect;
-      }
-      const cropX = (sw - cropW) / 2;
-      const cropY = (sh - cropH) / 2;
-
-      const canvas = document.createElement("canvas");
-      canvas.width = targetW;
-      canvas.height = targetH;
-      const ctx = canvas.getContext("2d")!;
-      ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
-
-      canvas.toBlob(
-        (blob) => {
-          if (!blob) return reject(new Error("Canvas toBlob failed"));
-          resolve(
-            new File([blob], file.name.replace(/\.\w+$/, ".png"), {
-              type: "image/png",
-            }),
-          );
-        },
-        "image/png",
-      );
-    };
-    img.onerror = () => reject(new Error("Failed to load image"));
-    img.src = URL.createObjectURL(file);
-  });
-}
-
-function getImageDimensions(
-  file: File,
-): Promise<{ width: number; height: number }> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.onload = () =>
-      resolve({ width: img.naturalWidth, height: img.naturalHeight });
-    img.onerror = () => reject(new Error("Failed to load image"));
-    img.src = URL.createObjectURL(file);
-  });
-}
 
 function SortableScreenshot({
   screenshot,
@@ -247,6 +141,14 @@ export default function VersionScreenshotsPage() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>("");
   const [localOrder, setLocalOrder] = useState<string[] | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [previewData, setPreviewData] = useState<{
+    displayType: string;
+    file: File;
+    height: number;
+    previewUrl: string;
+    width: number;
+  } | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
   const uploadDisplayTypeRef = useRef(IPHONE_65_DISPLAY);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -363,43 +265,53 @@ export default function VersionScreenshotsPage() {
     if (!files?.length || !activeLang) return;
 
     const displayType = uploadDisplayTypeRef.current;
-
-    for (const file of Array.from(files)) {
-      let fileToUpload = file;
-
-      try {
-        const dims = await getImageDimensions(file);
-        const [tw, th] = pickTargetSize(
-          dims.width,
-          dims.height,
-          displayType,
-          currentScreenshots,
-        );
-
-        if (dims.width !== tw || dims.height !== th) {
-          fileToUpload = await cropAndResize(file, tw, th);
-        }
-      } catch {
-        // Use original if crop fails
-      }
-
-      uploadScreenshot.mutate(
-        {
-          language: activeLang,
-          displayType,
-          file: fileToUpload,
-        },
-        {
-          onError: (err) => {
-            setUploadError(
-              err instanceof Error ? err.message : "Upload failed",
-            );
-          },
-        },
-      );
-    }
-
+    const file = files[0];
     e.target.value = "";
+
+    setUploadError(null);
+    setIsProcessing(true);
+
+    try {
+      const result = await api.publishing.previewScreenshot(
+        params.appId,
+        displayType,
+        file,
+      );
+      setPreviewData({
+        displayType,
+        file,
+        height: result.height,
+        previewUrl: result.preview,
+        width: result.width,
+      });
+    } catch (err) {
+      setUploadError(
+        err instanceof Error ? err.message : "Failed to process image",
+      );
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleConfirmUpload = () => {
+    if (!previewData || !activeLang) return;
+
+    uploadScreenshot.mutate(
+      {
+        language: activeLang,
+        displayType: previewData.displayType,
+        file: previewData.file,
+      },
+      {
+        onSuccess: () => setPreviewData(null),
+        onError: (err) => {
+          setPreviewData(null);
+          setUploadError(
+            err instanceof Error ? err.message : "Upload failed",
+          );
+        },
+      },
+    );
   };
 
   const notLocalizedLanguages = useMemo(
@@ -439,7 +351,6 @@ export default function VersionScreenshotsPage() {
         ref={fileInputRef}
         type="file"
         accept="image/png,image/jpeg"
-        multiple
         className="hidden"
         onChange={handleFileChange}
       />
@@ -579,12 +490,14 @@ export default function VersionScreenshotsPage() {
               <button
                 type="button"
                 onClick={() => handleChooseFile(IPHONE_65_DISPLAY)}
-                disabled={isUploading || count >= MAX_SCREENSHOTS || !hasLanguage}
+                disabled={isUploading || isProcessing || count >= MAX_SCREENSHOTS || !hasLanguage}
                 className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
               >
-                {isUploading && uploadDisplayTypeRef.current === IPHONE_65_DISPLAY
-                  ? "Uploading..."
-                  : "Choose File"}
+                {isProcessing && uploadDisplayTypeRef.current === IPHONE_65_DISPLAY
+                  ? "Processing..."
+                  : isUploading && uploadDisplayTypeRef.current === IPHONE_65_DISPLAY
+                    ? "Uploading..."
+                    : "Choose File"}
               </button>
               {count > 0 && (
                 <>
@@ -632,12 +545,14 @@ export default function VersionScreenshotsPage() {
               <button
                 type="button"
                 onClick={() => handleChooseFile(IPAD_PRO_129_DISPLAY)}
-                disabled={isUploading || !hasLanguage}
+                disabled={isUploading || isProcessing || !hasLanguage}
                 className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
               >
-                {isUploading && uploadDisplayTypeRef.current === IPAD_PRO_129_DISPLAY
-                  ? "Uploading..."
-                  : "Choose File"}
+                {isProcessing && uploadDisplayTypeRef.current === IPAD_PRO_129_DISPLAY
+                  ? "Processing..."
+                  : isUploading && uploadDisplayTypeRef.current === IPAD_PRO_129_DISPLAY
+                    ? "Uploading..."
+                    : "Choose File"}
               </button>
               <span className="mx-1">|</span>
               <span className="text-muted-foreground/50">Delete All</span>
@@ -645,6 +560,51 @@ export default function VersionScreenshotsPage() {
           </div>
         </TabsContent>
       </Tabs>
+
+      {/* Preview dialog */}
+      <Dialog
+        open={!!previewData}
+        onOpenChange={(open) => !open && setPreviewData(null)}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Screenshot Preview</DialogTitle>
+          </DialogHeader>
+          {previewData && (
+            <div className="space-y-3">
+              <div className="flex justify-center rounded-lg border border-border bg-[#111] p-3">
+                <img
+                  src={previewData.previewUrl}
+                  alt="Processed screenshot"
+                  className="max-h-[400px] w-auto rounded object-contain"
+                />
+              </div>
+              <p className="text-center text-xs text-muted-foreground">
+                {previewData.width} × {previewData.height}px — cropped, resized
+                &amp; alpha flattened
+              </p>
+            </div>
+          )}
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPreviewData(null)}
+              disabled={uploadScreenshot.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleConfirmUpload}
+              disabled={uploadScreenshot.isPending}
+            >
+              {uploadScreenshot.isPending && (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              )}
+              Upload to App Store
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Save / Discard bar */}
       {hasOrderChanges && (

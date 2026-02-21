@@ -31,7 +31,11 @@ class ApiError extends Error {
   data?: unknown;
 
   constructor(status: number, code: string, data?: unknown) {
-    super(`API Error: ${code} (${status})`);
+    const info =
+      data && typeof data === "object" && "info" in data
+        ? (data as { info: string }).info
+        : undefined;
+    super(info ?? `API Error: ${code} (${status})`);
     this.name = "ApiError";
     this.status = status;
     this.code = code;
@@ -242,6 +246,15 @@ export const api = {
           body: JSON.stringify({ versionString }),
         },
       ).then((r) => r.version),
+    previewScreenshot: (appId: string, displayType: string, file: File) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("displayType", displayType);
+      return fetchApi<{ preview: string; width: number; height: number }>(
+        `/api/apps/${appId}/publishing/screenshots/preview`,
+        { method: "POST", headers: {}, body: formData },
+      );
+    },
     uploadScreenshot: (
       appId: string,
       versionId: string,
