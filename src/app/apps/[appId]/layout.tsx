@@ -12,7 +12,7 @@ import {
   Rocket,
   Star,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -75,6 +75,15 @@ export default function AppLayout({
   const selectedVersionId = versionMatch?.[1] ?? null;
   const selectedVersion = versionList.find((v) => v.id === selectedVersionId);
   const isVersionPage = currentPath.includes("/versions/");
+
+  // Auto-select draft version (or first version) when none is selected
+  useEffect(() => {
+    if (!isIos || versionList.length === 0 || selectedVersionId) return;
+    const target = draftVersion ?? versionList[0];
+    if (target) {
+      router.replace(`${basePath}/versions/${target.id}`);
+    }
+  }, [isIos, versionList, selectedVersionId, draftVersion, basePath, router]);
 
   const handleCreateVersion = async () => {
     if (!newVersion.trim()) return;
