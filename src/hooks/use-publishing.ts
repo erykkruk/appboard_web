@@ -75,10 +75,12 @@ export function useUploadScreenshot(appId: string, versionId: string) {
       language,
       displayType,
       file,
+      crop,
     }: {
       language: string;
       displayType: string;
       file: File;
+      crop?: { x: number; y: number; width: number; height: number };
     }) =>
       api.publishing.uploadScreenshot(
         appId,
@@ -86,6 +88,7 @@ export function useUploadScreenshot(appId: string, versionId: string) {
         language,
         displayType,
         file,
+        crop,
       ),
     onSuccess: () => {
       queryClient.invalidateQueries({

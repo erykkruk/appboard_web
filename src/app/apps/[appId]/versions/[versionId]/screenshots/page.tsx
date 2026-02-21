@@ -28,17 +28,10 @@ import {
   useVersionDetail,
   useVersionScreenshots,
 } from "@/hooks/use-publishing";
-import { api } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { APP_STORE_LANGUAGES, type VersionScreenshot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { ScreenshotCropDialog } from "@/components/screenshot-crop-dialog";
 import {
   Select,
   SelectContent,
@@ -107,7 +100,7 @@ function SortableScreenshot({
       {...listeners}
     >
       <img
-        src={screenshot.url}
+        src={screenshot.url || undefined}
         alt={`Screenshot ${index + 1}`}
         className="h-[340px] w-auto rounded-lg border border-border object-contain"
         loading="lazy"
@@ -139,18 +132,14 @@ export default function VersionScreenshotsPage() {
   const uploadScreenshot = useUploadScreenshot(params.appId, params.versionId);
 
   const [selectedLanguage, setSelectedLanguage] = useState<string>("");
-  const [localOrder, setLocalOrder] = useState<string[] | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [previewData, setPreviewData] = useState<{
-    displayType: string;
-    file: File;
-    height: number;
-    previewUrl: string;
-    width: number;
-  } | null>(null);
-  const [isProcessing, setIsProcessing] = useState(false);
+  const [fileQueue, setFileQueue] = useState<File[]>([]);
+  const [uploadsInProgress, setUploadsInProgress] = useState(0);
   const uploadDisplayTypeRef = useRef(IPHONE_65_DISPLAY);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Current file being cropped = first in queue
+  const cropFile = fileQueue[0] ?? null;
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 8 } }),
@@ -167,7 +156,7 @@ export default function VersionScreenshotsPage() {
   );
 
   // Group screenshots by language, filter iPhone 6.5" only
-  const { screenshotLanguages, screenshotsByLanguage } = useMemo(() => {
+  const { screenshotsByLanguage } = useMemo(() => {
     const byLang = new Map<string, VersionScreenshot[]>();
 
     for (const s of screenshots.data ?? []) {
@@ -178,10 +167,7 @@ export default function VersionScreenshotsPage() {
       byLang.get(s.language)!.push(s);
     }
 
-    return {
-      screenshotLanguages: new Set(byLang.keys()),
-      screenshotsByLanguage: byLang,
-    };
+    return { screenshotsByLanguage: byLang };
   }, [screenshots.data]);
 
   // Localized = languages from version localizations (from ASC)
@@ -192,31 +178,15 @@ export default function VersionScreenshotsPage() {
     ? selectedLanguage
     : localizedLanguages[0] ?? "";
 
-  const originalScreenshots = useMemo(
+  const currentScreenshots = useMemo(
     () => screenshotsByLanguage.get(activeLang) ?? [],
     [screenshotsByLanguage, activeLang],
   );
-
-  const currentScreenshots = useMemo(() => {
-    if (!localOrder) return originalScreenshots;
-
-    const byId = new Map(originalScreenshots.map((s) => [s.externalId, s]));
-    return localOrder
-      .map((id) => byId.get(id))
-      .filter((s): s is VersionScreenshot => !!s);
-  }, [originalScreenshots, localOrder]);
-
-  const hasOrderChanges = useMemo(() => {
-    if (!localOrder) return false;
-    const originalIds = originalScreenshots.map((s) => s.externalId);
-    return localOrder.some((id, i) => id !== originalIds[i]);
-  }, [localOrder, originalScreenshots]);
 
   const screenshotSetId = currentScreenshots[0]?.screenshotSetId ?? "";
 
   const handleLanguageChange = (lang: string) => {
     setSelectedLanguage(lang);
-    setLocalOrder(null);
   };
 
   const handleDragEnd = useCallback(
@@ -227,22 +197,18 @@ export default function VersionScreenshotsPage() {
       const ids = currentScreenshots.map((s) => s.externalId);
       const oldIndex = ids.indexOf(active.id as string);
       const newIndex = ids.indexOf(over.id as string);
-      setLocalOrder(arrayMove(ids, oldIndex, newIndex));
+      const newOrder = arrayMove(ids, oldIndex, newIndex);
+
+      // Save reorder immediately
+      if (screenshotSetId) {
+        reorderScreenshots.mutate({
+          screenshotSetId,
+          screenshotIds: newOrder,
+        });
+      }
     },
-    [currentScreenshots],
+    [currentScreenshots, screenshotSetId, reorderScreenshots],
   );
-
-  const handleSave = () => {
-    if (!localOrder || !screenshotSetId) return;
-    reorderScreenshots.mutate(
-      { screenshotSetId, screenshotIds: localOrder },
-      { onSuccess: () => setLocalOrder(null) },
-    );
-  };
-
-  const handleDiscard = () => {
-    setLocalOrder(null);
-  };
 
   const handleDelete = (screenshotId: string) => {
     deleteScreenshot.mutate(screenshotId);
@@ -260,58 +226,48 @@ export default function VersionScreenshotsPage() {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length || !activeLang) return;
 
-    const displayType = uploadDisplayTypeRef.current;
-    const file = files[0];
+    const selected = Array.from(files);
     e.target.value = "";
 
     setUploadError(null);
-    setIsProcessing(true);
-
-    try {
-      const result = await api.publishing.previewScreenshot(
-        params.appId,
-        displayType,
-        file,
-      );
-      setPreviewData({
-        displayType,
-        file,
-        height: result.height,
-        previewUrl: result.preview,
-        width: result.width,
-      });
-    } catch (err) {
-      setUploadError(
-        err instanceof Error ? err.message : "Failed to process image",
-      );
-    } finally {
-      setIsProcessing(false);
-    }
+    setFileQueue((prev) => [...prev, ...selected]);
   };
 
-  const handleConfirmUpload = () => {
-    if (!previewData || !activeLang) return;
+  const advanceQueue = () => {
+    setFileQueue((prev) => prev.slice(1));
+  };
 
-    uploadScreenshot.mutate(
-      {
+  const handleCropConfirm = (
+    file: File,
+    crop: { x: number; y: number; width: number; height: number },
+  ) => {
+    const displayType = uploadDisplayTypeRef.current;
+    advanceQueue();
+
+    // Upload immediately to ASC — use mutateAsync so .finally() fires per-call
+    setUploadsInProgress((n) => n + 1);
+    uploadScreenshot
+      .mutateAsync({
         language: activeLang,
-        displayType: previewData.displayType,
-        file: previewData.file,
-      },
-      {
-        onSuccess: () => setPreviewData(null),
-        onError: (err) => {
-          setPreviewData(null);
-          setUploadError(
-            err instanceof Error ? err.message : "Upload failed",
-          );
-        },
-      },
-    );
+        displayType,
+        file,
+        crop,
+      })
+      .catch((err) => {
+        setUploadError(
+          err instanceof Error ? err.message : "Upload failed",
+        );
+      })
+      .finally(() => setUploadsInProgress((n) => n - 1));
+  };
+
+  const handleCropCancel = () => {
+    // Skip this file, move to next
+    advanceQueue();
   };
 
   const notLocalizedLanguages = useMemo(
@@ -339,8 +295,7 @@ export default function VersionScreenshotsPage() {
   }
 
   const { versionString, state } = detail.data;
-  const isSaving = reorderScreenshots.isPending;
-  const isUploading = uploadScreenshot.isPending;
+  const isUploading = uploadsInProgress > 0;
   const count = currentScreenshots.length;
   const hasLanguage = !!activeLang;
 
@@ -351,6 +306,7 @@ export default function VersionScreenshotsPage() {
         ref={fileInputRef}
         type="file"
         accept="image/png,image/jpeg"
+        multiple
         className="hidden"
         onChange={handleFileChange}
       />
@@ -446,7 +402,7 @@ export default function VersionScreenshotsPage() {
               )}
             </div>
 
-            {count === 0 ? (
+            {count === 0 && !isUploading ? (
               <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-14 text-center text-muted-foreground">
                 <p className="text-sm">
                   Drag up to 3 app previews and 10 screenshots here.
@@ -476,6 +432,16 @@ export default function VersionScreenshotsPage() {
                         isDeleting={deleteScreenshot.isPending}
                       />
                     ))}
+                    {isUploading && (
+                      <div className="flex h-[340px] w-[157px] shrink-0 flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary/30">
+                        <Loader2 className="h-6 w-6 animate-spin text-primary/50" />
+                        {uploadsInProgress > 1 && (
+                          <span className="text-xs text-muted-foreground">
+                            {uploadsInProgress} uploading
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
                 </SortableContext>
               </DndContext>
@@ -490,14 +456,12 @@ export default function VersionScreenshotsPage() {
               <button
                 type="button"
                 onClick={() => handleChooseFile(IPHONE_65_DISPLAY)}
-                disabled={isUploading || isProcessing || count >= MAX_SCREENSHOTS || !hasLanguage}
+                disabled={isUploading || count >= MAX_SCREENSHOTS || !hasLanguage}
                 className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
               >
-                {isProcessing && uploadDisplayTypeRef.current === IPHONE_65_DISPLAY
-                  ? "Processing..."
-                  : isUploading && uploadDisplayTypeRef.current === IPHONE_65_DISPLAY
-                    ? "Uploading..."
-                    : "Choose File"}
+                {isUploading
+                  ? `Uploading${uploadsInProgress > 1 ? ` (${uploadsInProgress})` : ""}...`
+                  : "Choose File"}
               </button>
               {count > 0 && (
                 <>
@@ -545,14 +509,10 @@ export default function VersionScreenshotsPage() {
               <button
                 type="button"
                 onClick={() => handleChooseFile(IPAD_PRO_129_DISPLAY)}
-                disabled={isUploading || isProcessing || !hasLanguage}
+                disabled={isUploading || !hasLanguage}
                 className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
               >
-                {isProcessing && uploadDisplayTypeRef.current === IPAD_PRO_129_DISPLAY
-                  ? "Processing..."
-                  : isUploading && uploadDisplayTypeRef.current === IPAD_PRO_129_DISPLAY
-                    ? "Uploading..."
-                    : "Choose File"}
+                Choose File
               </button>
               <span className="mx-1">|</span>
               <span className="text-muted-foreground/50">Delete All</span>
@@ -561,73 +521,13 @@ export default function VersionScreenshotsPage() {
         </TabsContent>
       </Tabs>
 
-      {/* Preview dialog */}
-      <Dialog
-        open={!!previewData}
-        onOpenChange={(open) => !open && setPreviewData(null)}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>Screenshot Preview</DialogTitle>
-          </DialogHeader>
-          {previewData && (
-            <div className="space-y-3">
-              <div className="flex justify-center rounded-lg border border-border bg-[#111] p-3">
-                <img
-                  src={previewData.previewUrl}
-                  alt="Processed screenshot"
-                  className="max-h-[400px] w-auto rounded object-contain"
-                />
-              </div>
-              <p className="text-center text-xs text-muted-foreground">
-                {previewData.width} × {previewData.height}px — cropped, resized
-                &amp; alpha flattened
-              </p>
-            </div>
-          )}
-          <DialogFooter>
-            <Button
-              variant="outline"
-              onClick={() => setPreviewData(null)}
-              disabled={uploadScreenshot.isPending}
-            >
-              Cancel
-            </Button>
-            <Button
-              onClick={handleConfirmUpload}
-              disabled={uploadScreenshot.isPending}
-            >
-              {uploadScreenshot.isPending && (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              )}
-              Upload to App Store
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Save / Discard bar */}
-      {hasOrderChanges && (
-        <div className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-lg border border-border bg-background px-4 py-3 shadow-lg">
-          <p className="mr-2 text-sm text-muted-foreground">
-            Unsaved order changes
-          </p>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={handleDiscard}
-            disabled={isSaving}
-          >
-            Discard
-          </Button>
-          <Button size="sm" onClick={handleSave} disabled={isSaving}>
-            {isSaving && (
-              <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-            )}
-            Save
-          </Button>
-        </div>
-      )}
+      {/* Crop dialog */}
+      <ScreenshotCropDialog
+        file={cropFile}
+        displayType={uploadDisplayTypeRef.current}
+        onConfirm={handleCropConfirm}
+        onCancel={handleCropCancel}
+      />
     </div>
   );
 }

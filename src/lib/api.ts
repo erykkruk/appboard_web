@@ -246,10 +246,21 @@ export const api = {
           body: JSON.stringify({ versionString }),
         },
       ).then((r) => r.version),
-    previewScreenshot: (appId: string, displayType: string, file: File) => {
+    previewScreenshot: (
+      appId: string,
+      displayType: string,
+      file: File,
+      crop?: { x: number; y: number; width: number; height: number },
+    ) => {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("displayType", displayType);
+      if (crop) {
+        formData.append("cropX", String(crop.x));
+        formData.append("cropY", String(crop.y));
+        formData.append("cropWidth", String(crop.width));
+        formData.append("cropHeight", String(crop.height));
+      }
       return fetchApi<{ preview: string; width: number; height: number }>(
         `/api/apps/${appId}/publishing/screenshots/preview`,
         { method: "POST", headers: {}, body: formData },
@@ -261,12 +272,19 @@ export const api = {
       language: string,
       displayType: string,
       file: File,
+      crop?: { x: number; y: number; width: number; height: number },
     ) => {
       const formData = new FormData();
       formData.append("file", file);
       formData.append("versionId", versionId);
       formData.append("language", language);
       formData.append("displayType", displayType);
+      if (crop) {
+        formData.append("cropX", String(crop.x));
+        formData.append("cropY", String(crop.y));
+        formData.append("cropWidth", String(crop.width));
+        formData.append("cropHeight", String(crop.height));
+      }
       return fetchApi<{ uploaded: boolean; screenshotId: string }>(
         `/api/apps/${appId}/publishing/screenshots/upload`,
         { method: "POST", headers: {}, body: formData },
