@@ -254,8 +254,17 @@ export default function VersionScreenshotsPage() {
     useSensor(KeyboardSensor),
   );
 
+  // Languages from version localizations (always available, even without screenshots)
+  const versionLanguages = useMemo(
+    () =>
+      (detail.data?.localizations ?? [])
+        .map((l) => l.language)
+        .sort(),
+    [detail.data?.localizations],
+  );
+
   // Group screenshots by language, filter iPhone 6.5" only
-  const { localizedLanguages, screenshotsByLanguage } = useMemo(() => {
+  const { screenshotLanguages, screenshotsByLanguage } = useMemo(() => {
     const byLang = new Map<string, VersionScreenshot[]>();
 
     for (const s of screenshots.data ?? []) {
@@ -267,16 +276,18 @@ export default function VersionScreenshotsPage() {
     }
 
     return {
-      localizedLanguages: Array.from(byLang.keys()).sort(),
+      screenshotLanguages: new Set(byLang.keys()),
       screenshotsByLanguage: byLang,
     };
   }, [screenshots.data]);
 
+  // Localized = languages from version localizations (from ASC)
+  const localizedLanguages = versionLanguages;
+
   // Auto-select first language
-  const activeLang =
-    selectedLanguage && screenshotsByLanguage.has(selectedLanguage)
-      ? selectedLanguage
-      : localizedLanguages[0] ?? "";
+  const activeLang = selectedLanguage
+    ? selectedLanguage
+    : localizedLanguages[0] ?? "";
 
   const originalScreenshots = useMemo(
     () => screenshotsByLanguage.get(activeLang) ?? [],
