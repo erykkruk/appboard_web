@@ -62,6 +62,120 @@ const IPHONE_65_DISPLAY = "APP_IPHONE_65";
 const IPAD_PRO_129_DISPLAY = "APP_IPAD_PRO_129";
 const MAX_SCREENSHOTS = 10;
 
+const REQUIRED_SIZES: Record<string, [number, number][]> = {
+  [IPHONE_65_DISPLAY]: [
+    [1242, 2688],
+    [2688, 1242],
+    [1284, 2778],
+    [2778, 1284],
+  ],
+  [IPAD_PRO_129_DISPLAY]: [
+    [2064, 2752],
+    [2752, 2064],
+    [2048, 2732],
+    [2732, 2048],
+  ],
+};
+
+function pickTargetSize(
+  imgW: number,
+  imgH: number,
+  displayType: string,
+  existing: VersionScreenshot[],
+): [number, number] {
+  // If we have existing screenshots, match their size
+  const first = existing.find((s) => s.width && s.height);
+  if (first?.width && first?.height) {
+    return [first.width, first.height];
+  }
+
+  // Otherwise pick the closest required size based on orientation
+  const sizes = REQUIRED_SIZES[displayType] ?? REQUIRED_SIZES[IPHONE_65_DISPLAY];
+  const isPortrait = imgH >= imgW;
+
+  // Filter to same orientation, fallback to all
+  const candidates = sizes.filter(([w, h]) =>
+    isPortrait ? h >= w : w >= h,
+  );
+  const pool = candidates.length > 0 ? candidates : sizes;
+
+  // Pick closest by aspect ratio
+  const imgAspect = imgW / imgH;
+  let best = pool[0];
+  let bestDiff = Math.abs(best[0] / best[1] - imgAspect);
+  for (const size of pool) {
+    const diff = Math.abs(size[0] / size[1] - imgAspect);
+    if (diff < bestDiff) {
+      best = size;
+      bestDiff = diff;
+    }
+  }
+  return best;
+}
+
+function cropAndResize(
+  file: File,
+  targetW: number,
+  targetH: number,
+): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      const { naturalWidth: sw, naturalHeight: sh } = img;
+
+      // Calculate crop region (center crop to target aspect ratio)
+      const targetAspect = targetW / targetH;
+      const srcAspect = sw / sh;
+
+      let cropW: number;
+      let cropH: number;
+      if (srcAspect > targetAspect) {
+        // Source is wider — crop sides
+        cropH = sh;
+        cropW = sh * targetAspect;
+      } else {
+        // Source is taller — crop top/bottom
+        cropW = sw;
+        cropH = sw / targetAspect;
+      }
+      const cropX = (sw - cropW) / 2;
+      const cropY = (sh - cropH) / 2;
+
+      const canvas = document.createElement("canvas");
+      canvas.width = targetW;
+      canvas.height = targetH;
+      const ctx = canvas.getContext("2d")!;
+      ctx.drawImage(img, cropX, cropY, cropW, cropH, 0, 0, targetW, targetH);
+
+      canvas.toBlob(
+        (blob) => {
+          if (!blob) return reject(new Error("Canvas toBlob failed"));
+          resolve(
+            new File([blob], file.name.replace(/\.\w+$/, ".png"), {
+              type: "image/png",
+            }),
+          );
+        },
+        "image/png",
+      );
+    };
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
+function getImageDimensions(
+  file: File,
+): Promise<{ width: number; height: number }> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () =>
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    img.onerror = () => reject(new Error("Failed to load image"));
+    img.src = URL.createObjectURL(file);
+  });
+}
+
 function SortableScreenshot({
   screenshot,
   index,
@@ -231,16 +345,37 @@ export default function VersionScreenshotsPage() {
     fileInputRef.current?.click();
   };
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length || !activeLang) return;
 
     for (const file of Array.from(files)) {
-      uploadScreenshot.mutate({
-        language: activeLang,
-        displayType: uploadDisplayType,
-        file,
-      });
+      try {
+        const dims = await getImageDimensions(file);
+        const [tw, th] = pickTargetSize(
+          dims.width,
+          dims.height,
+          uploadDisplayType,
+          currentScreenshots,
+        );
+
+        // Skip crop if already exact size
+        const needsCrop = dims.width !== tw || dims.height !== th;
+        const processed = needsCrop ? await cropAndResize(file, tw, th) : file;
+
+        uploadScreenshot.mutate({
+          language: activeLang,
+          displayType: uploadDisplayType,
+          file: processed,
+        });
+      } catch {
+        // Fallback: upload original if crop fails
+        uploadScreenshot.mutate({
+          language: activeLang,
+          displayType: uploadDisplayType,
+          file,
+        });
+      }
     }
 
     e.target.value = "";
@@ -364,7 +499,7 @@ export default function VersionScreenshotsPage() {
               {count > 0 && (
                 <Tooltip delayDuration={0}>
                   <TooltipTrigger asChild>
-                    <Info className="h-3.5 w-3.5 text-muted-foreground/50 hover:text-muted-foreground" />
+                    <Info className="h-5 w-5 text-muted-foreground/50 hover:text-muted-foreground" />
                   </TooltipTrigger>
                   <TooltipContent side="right" className="max-w-xs text-center">
                     <p>
