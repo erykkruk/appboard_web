@@ -17,7 +17,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Loader2, Smartphone, Tablet, Trash2 } from "lucide-react";
+import { Info, Loader2, Smartphone, Tablet, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
@@ -42,6 +42,11 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const STATE_COLORS: Record<string, string> = {
   PREPARE_FOR_SUBMISSION: "bg-yellow-400",
@@ -348,20 +353,40 @@ export default function VersionScreenshotsPage() {
         {/* iPhone Tab */}
         <TabsContent value="iphone" className="mt-4">
           <div className="rounded-xl border border-border p-5">
-            <p className="mb-4 text-sm font-medium">
-              iPhone
-              <br />
-              <span className="text-muted-foreground">6.5&quot; Display</span>
-            </p>
+            <div className="mb-4 flex items-center gap-1.5">
+              <p className="text-sm font-medium">
+                iPhone
+                <br />
+                <span className="text-muted-foreground">
+                  6.5&quot; Display
+                </span>
+              </p>
+              {count > 0 && (
+                <Tooltip delayDuration={0}>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground/50 hover:text-muted-foreground" />
+                  </TooltipTrigger>
+                  <TooltipContent side="right" className="max-w-xs text-center">
+                    <p>
+                      Drag up to 3 app previews and 10 screenshots here.
+                    </p>
+                    <p className="mt-0.5 text-muted-foreground">
+                      (1242 × 2688px, 2688 × 1242px, 1284 × 2778px or 2778 ×
+                      1284px)
+                    </p>
+                  </TooltipContent>
+                </Tooltip>
+              )}
+            </div>
 
             {count === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-14 text-center text-muted-foreground">
                 <p className="text-sm">
-                  Drag up to 3 app previews and 10 screenshots here for iPhone
-                  6.5&quot; Displays.
+                  Drag up to 3 app previews and 10 screenshots here.
                 </p>
                 <p className="mt-1 text-xs opacity-60">
-                  (1242 × 2688px or 2688 × 1242px)
+                  (1242 × 2688px, 2688 × 1242px, 1284 × 2778px or 2778 ×
+                  1284px)
                 </p>
               </div>
             ) : (
