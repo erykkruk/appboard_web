@@ -68,6 +68,77 @@ export function useVersionScreenshots(appId: string, versionId: string) {
   });
 }
 
+export function useUploadScreenshot(appId: string, versionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      language,
+      displayType,
+      file,
+    }: {
+      language: string;
+      displayType: string;
+      file: File;
+    }) =>
+      api.publishing.uploadScreenshot(
+        appId,
+        versionId,
+        language,
+        displayType,
+        file,
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["publishing", appId, "versions", versionId, "screenshots"],
+      });
+    },
+  });
+}
+
+export function useDeleteScreenshot(appId: string, versionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (screenshotId: string) =>
+      api.publishing.deleteScreenshot(appId, screenshotId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["publishing", appId, "versions", versionId, "screenshots"],
+      });
+    },
+  });
+}
+
+export function useReorderScreenshots(appId: string, versionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      screenshotSetId,
+      screenshotIds,
+    }: {
+      screenshotSetId: string;
+      screenshotIds: string[];
+    }) => api.publishing.reorderScreenshots(appId, screenshotSetId, screenshotIds),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["publishing", appId, "versions", versionId, "screenshots"],
+      });
+    },
+  });
+}
+
+export function useDeleteAllScreenshots(appId: string, versionId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (screenshotSetId: string) =>
+      api.publishing.deleteAllScreenshots(appId, screenshotSetId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({
+        queryKey: ["publishing", appId, "versions", versionId, "screenshots"],
+      });
+    },
+  });
+}
+
 export function useSubmitForReview(appId: string) {
   const queryClient = useQueryClient();
   return useMutation({

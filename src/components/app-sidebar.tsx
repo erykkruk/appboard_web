@@ -443,8 +443,8 @@ export function AppSidebar() {
         </DndContext>
       </div>
 
-      {/* Bottom: Settings */}
-      <div className="mt-2">
+      {/* Bottom: Settings + Version */}
+      <div className="mt-2 flex flex-col items-center gap-2">
         <Tooltip delayDuration={0}>
           <TooltipTrigger asChild>
             <Link
@@ -463,6 +463,7 @@ export function AppSidebar() {
             Settings
           </TooltipContent>
         </Tooltip>
+        <span className="text-[10px] text-muted-foreground/50">v0.5.0</span>
       </div>
 
       {/* Manage stores dialog */}

@@ -242,6 +242,45 @@ export const api = {
           body: JSON.stringify({ versionString }),
         },
       ).then((r) => r.version),
+    uploadScreenshot: (
+      appId: string,
+      versionId: string,
+      language: string,
+      displayType: string,
+      file: File,
+    ) => {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("versionId", versionId);
+      formData.append("language", language);
+      formData.append("displayType", displayType);
+      return fetchApi<{ uploaded: boolean; screenshotId: string }>(
+        `/api/apps/${appId}/publishing/screenshots/upload`,
+        { method: "POST", headers: {}, body: formData },
+      );
+    },
+    deleteScreenshot: (appId: string, screenshotId: string) =>
+      fetchApi<{ deleted: boolean }>(
+        `/api/apps/${appId}/publishing/screenshots/${screenshotId}`,
+        { method: "DELETE" },
+      ),
+    reorderScreenshots: (
+      appId: string,
+      screenshotSetId: string,
+      screenshotIds: string[],
+    ) =>
+      fetchApi<{ reordered: boolean }>(
+        `/api/apps/${appId}/publishing/screenshots/reorder`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({ screenshotSetId, screenshotIds }),
+        },
+      ),
+    deleteAllScreenshots: (appId: string, screenshotSetId: string) =>
+      fetchApi<{ deleted: number }>(
+        `/api/apps/${appId}/publishing/screenshot-sets/${screenshotSetId}`,
+        { method: "DELETE" },
+      ),
     submitReview: (appId: string) =>
       fetchApi<{ submitted: boolean }>(
         `/api/apps/${appId}/publishing/submit-review`,
