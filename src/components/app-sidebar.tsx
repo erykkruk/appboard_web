@@ -291,6 +291,51 @@ function SortableAppIcon({
   );
 }
 
+function useStoreFilter(storeIds: string[]) {
+  const [enabled, setEnabled] = useState<Set<string>>(new Set());
+  const [loaded, setLoaded] = useState(false);
+
+  // Load from localStorage on mount
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("appboard:store-filter");
+      if (stored) {
+        const parsed = JSON.parse(stored) as string[];
+        setEnabled(new Set(parsed));
+      }
+    } catch {
+      // ignore
+    }
+    setLoaded(true);
+  }, []);
+
+  // When stores load for the first time and nothing is saved, enable all
+  useEffect(() => {
+    if (!loaded || storeIds.length === 0) return;
+    setEnabled((prev) => {
+      if (prev.size > 0) return prev;
+      return new Set(storeIds);
+    });
+  }, [loaded, storeIds]);
+
+  const toggle = useCallback((storeId: string) => {
+    setEnabled((prev) => {
+      const next = new Set(prev);
+      if (next.has(storeId)) {
+        // Don't allow deselecting all — keep at least one
+        if (next.size <= 1) return prev;
+        next.delete(storeId);
+      } else {
+        next.add(storeId);
+      }
+      localStorage.setItem("appboard:store-filter", JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
+  return { enabled, toggle };
+}
+
 export function AppSidebar() {
   const currentPath = usePathname();
   const stores = useStores();
@@ -302,7 +347,16 @@ export function AppSidebar() {
 
   const storesList = stores.data ?? [];
   const appsList = apps.data ?? [];
-  const { sortedApps, reorder } = useAppOrder(appsList);
+
+  const storeFilter = useStoreFilter(storesList.map((s) => s.id));
+  const filteredApps = useMemo(
+    () =>
+      storeFilter.enabled.size === 0
+        ? appsList
+        : appsList.filter((a) => storeFilter.enabled.has(a.storeId)),
+    [appsList, storeFilter.enabled],
+  );
+  const { sortedApps, reorder } = useAppOrder(filteredApps);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -345,33 +399,51 @@ export function AppSidebar() {
               <DropdownMenuTrigger asChild>
                 <button
                   type="button"
-                  className="mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[#2a2a2a] text-muted-foreground transition-colors hover:bg-[#3a3a3a] hover:text-foreground"
+                  className="relative mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[#2a2a2a] text-muted-foreground transition-colors hover:bg-[#3a3a3a] hover:text-foreground"
                 >
-                  {(() => {
-                    const Icon = STORE_ICONS[storesList[0].type] ?? Store;
-                    return <Icon className="h-5 w-5" />;
-                  })()}
+                  <Store className="h-5 w-5" />
+                  {storeFilter.enabled.size < storesList.length && (
+                    <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
+                      {storeFilter.enabled.size}
+                    </span>
+                  )}
                 </button>
               </DropdownMenuTrigger>
             </TooltipTrigger>
             <TooltipContent side="right" sideOffset={8}>
-              {storesList[0].name}
+              Stores ({storeFilter.enabled.size}/{storesList.length})
             </TooltipContent>
           </Tooltip>
           <DropdownMenuContent side="right" align="start" className="w-56">
             {storesList.map((store) => {
               const Icon = STORE_ICONS[store.type] ?? Store;
+              const isChecked = storeFilter.enabled.has(store.id);
               return (
-                <DropdownMenuItem key={store.id} asChild>
-                  <Link href="/dashboard" className="gap-3">
-                    <Icon className="h-4 w-4" />
-                    <div>
-                      <p className="font-medium">{store.name}</p>
-                      <p className="text-xs text-muted-foreground">
-                        {store.type === "app_store" ? "App Store" : "Google Play"}
-                      </p>
-                    </div>
-                  </Link>
+                <DropdownMenuItem
+                  key={store.id}
+                  onSelect={(e) => {
+                    e.preventDefault();
+                    storeFilter.toggle(store.id);
+                  }}
+                  className="gap-3"
+                >
+                  <div
+                    className={cn(
+                      "flex h-4 w-4 shrink-0 items-center justify-center rounded border transition-colors",
+                      isChecked
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-muted-foreground/40",
+                    )}
+                  >
+                    {isChecked && <Check className="h-3 w-3" />}
+                  </div>
+                  <Icon className="h-4 w-4 shrink-0" />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate font-medium">{store.name}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {store.type === "app_store" ? "App Store" : "Google Play"}
+                    </p>
+                  </div>
                 </DropdownMenuItem>
               );
             })}
