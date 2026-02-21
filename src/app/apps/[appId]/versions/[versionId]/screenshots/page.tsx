@@ -246,7 +246,8 @@ export default function VersionScreenshotsPage() {
 
   const [selectedLanguage, setSelectedLanguage] = useState<string>("");
   const [localOrder, setLocalOrder] = useState<string[] | null>(null);
-  const [uploadDisplayType, setUploadDisplayType] = useState(IPHONE_65_DISPLAY);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const uploadDisplayTypeRef = useRef(IPHONE_65_DISPLAY);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const sensors = useSensors(
@@ -352,7 +353,8 @@ export default function VersionScreenshotsPage() {
 
   const handleChooseFile = (displayType: string) => {
     if (!activeLang) return;
-    setUploadDisplayType(displayType);
+    setUploadError(null);
+    uploadDisplayTypeRef.current = displayType;
     fileInputRef.current?.click();
   };
 
@@ -360,33 +362,41 @@ export default function VersionScreenshotsPage() {
     const files = e.target.files;
     if (!files?.length || !activeLang) return;
 
+    const displayType = uploadDisplayTypeRef.current;
+
     for (const file of Array.from(files)) {
+      let fileToUpload = file;
+
       try {
         const dims = await getImageDimensions(file);
         const [tw, th] = pickTargetSize(
           dims.width,
           dims.height,
-          uploadDisplayType,
+          displayType,
           currentScreenshots,
         );
 
-        // Skip crop if already exact size
-        const needsCrop = dims.width !== tw || dims.height !== th;
-        const processed = needsCrop ? await cropAndResize(file, tw, th) : file;
-
-        uploadScreenshot.mutate({
-          language: activeLang,
-          displayType: uploadDisplayType,
-          file: processed,
-        });
+        if (dims.width !== tw || dims.height !== th) {
+          fileToUpload = await cropAndResize(file, tw, th);
+        }
       } catch {
-        // Fallback: upload original if crop fails
-        uploadScreenshot.mutate({
-          language: activeLang,
-          displayType: uploadDisplayType,
-          file,
-        });
+        // Use original if crop fails
       }
+
+      uploadScreenshot.mutate(
+        {
+          language: activeLang,
+          displayType,
+          file: fileToUpload,
+        },
+        {
+          onError: (err) => {
+            setUploadError(
+              err instanceof Error ? err.message : "Upload failed",
+            );
+          },
+        },
+      );
     }
 
     e.target.value = "";
@@ -572,7 +582,7 @@ export default function VersionScreenshotsPage() {
                 disabled={isUploading || count >= MAX_SCREENSHOTS || !hasLanguage}
                 className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
               >
-                {isUploading && uploadDisplayType === IPHONE_65_DISPLAY
+                {isUploading && uploadDisplayTypeRef.current === IPHONE_65_DISPLAY
                   ? "Uploading..."
                   : "Choose File"}
               </button>
@@ -590,6 +600,9 @@ export default function VersionScreenshotsPage() {
                 </>
               )}
             </div>
+            {uploadError && (
+              <p className="mt-2 text-xs text-destructive">{uploadError}</p>
+            )}
           </div>
         </TabsContent>
 
@@ -622,7 +635,7 @@ export default function VersionScreenshotsPage() {
                 disabled={isUploading || !hasLanguage}
                 className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
               >
-                {isUploading && uploadDisplayType === IPAD_PRO_129_DISPLAY
+                {isUploading && uploadDisplayTypeRef.current === IPAD_PRO_129_DISPLAY
                   ? "Uploading..."
                   : "Choose File"}
               </button>
