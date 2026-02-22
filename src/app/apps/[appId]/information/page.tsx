@@ -6,7 +6,9 @@ import {
   Apple,
   ChevronDown,
   ChevronRight,
+  Copy,
   Download,
+  Info,
   Loader2,
   Save,
   Store,
@@ -41,10 +43,129 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { CharacterCounter } from "@/components/character-counter";
 import { useApp } from "@/hooks/use-apps";
 import { useAsoProfile, useUpdateAsoProfile } from "@/hooks/use-aso-profile";
 import type { AsoProfileInput } from "@/lib/types";
+
+type FieldHint = { description: string; example: string };
+
+const FIELD_HINTS: Record<string, FieldHint> = {
+  category: {
+    description: "App category as listed in the store.",
+    example: "Productivity",
+  },
+  oneLiner: {
+    description: "One-sentence tagline that captures what your app does.",
+    example: "Track habits and build better routines",
+  },
+  problem: {
+    description: "What user problem does your app solve?",
+    example: "People struggle to build consistent daily habits",
+  },
+  mainBenefit: {
+    description: "The #1 value proposition for your users.",
+    example: "Build lasting habits with smart reminders",
+  },
+  keyFeatures: {
+    description: "3-7 core features that define your app.",
+    example: "Habit tracking, Streak counter, Reminders",
+  },
+  differentiator: {
+    description: "What makes your app unique vs competitors?",
+    example: "AI-powered suggestions based on lifestyle",
+  },
+  tone: {
+    description: "Communication style used in store listings.",
+    example: "Friendly, Motivating",
+  },
+  brandVoiceExample: {
+    description: "A sentence that captures how your brand speaks.",
+    example: "Small steps today, big changes tomorrow.",
+  },
+  wordsToInclude: {
+    description: "Words your brand should always use.",
+    example: "empower, effortless, smart",
+  },
+  wordsToAvoid: {
+    description: "Words your brand should never use.",
+    example: "cheap, basic, simple",
+  },
+  targetAudience: {
+    description: "Ideal user profile — demographics and interests.",
+    example: "Young professionals 25-35 who want to improve daily routines",
+  },
+  painPoints: {
+    description: "User frustrations your app addresses.",
+    example: "Forgetting habits, Losing motivation after a week",
+  },
+  userLanguage: {
+    description: "How users naturally describe the problem your app solves.",
+    example: "I keep forgetting to do my daily exercises",
+  },
+  competitors: {
+    description: "Links to competitor apps in the stores.",
+    example: "https://apps.apple.com/app/id123456",
+  },
+  competitiveAdvantage: {
+    description: "Your key advantage over competitors.",
+    example: "Only app with AI-generated habit suggestions",
+  },
+  positioning: {
+    description: "How your app is positioned in the market.",
+    example: "The smartest habit tracker for busy professionals",
+  },
+  downloadCount: {
+    description: "Total download count for social proof.",
+    example: "1M+",
+  },
+  awards: {
+    description: "Awards or recognitions your app received.",
+    example: "App of the Day, Best New App 2024",
+  },
+  pressQuotes: {
+    description: "Notable press mentions or reviews.",
+    example: '"The best habit app we\'ve tested" — TechCrunch',
+  },
+  testimonials: {
+    description: "User testimonials or reviews.",
+    example: '"Changed my morning routine completely!" — Sarah K.',
+  },
+  pricingModel: {
+    description: "How your app is monetized.",
+    example: "Freemium",
+  },
+  price: {
+    description: "Pricing details for paid tiers.",
+    example: "$4.99/month, $29.99/year",
+  },
+  freeFeatures: {
+    description: "Features available in the free tier.",
+    example: "3 habits, Basic reminders",
+  },
+  premiumFeatures: {
+    description: "Features exclusive to paid users.",
+    example: "Unlimited habits, AI suggestions, Analytics",
+  },
+  mustIncludeKeywords: {
+    description: "Keywords that must appear in your store listing.",
+    example: "habit tracker, daily routine",
+  },
+  longTailKeywords: {
+    description: "Multi-word keyword phrases to target.",
+    example: "best habit tracker app for beginners",
+  },
+  excludeKeywords: {
+    description: "Keywords to avoid in your store listing.",
+    example: "free, cheap, diet",
+  },
+};
 
 const EMPTY_PROFILE: AsoProfileInput = {
   category: null,
@@ -104,16 +225,34 @@ function InfoRow({
 
 // --- Multi-input for string arrays ---
 
+function FieldTooltip({ hint }: { hint: FieldHint }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <Info className="h-3.5 w-3.5 cursor-help text-muted-foreground" />
+      </TooltipTrigger>
+      <TooltipContent side="top" className="max-w-xs">
+        <p>{hint.description}</p>
+        <p className="mt-1 italic text-muted-foreground">
+          e.g. {hint.example}
+        </p>
+      </TooltipContent>
+    </Tooltip>
+  );
+}
+
 function MultiInput({
   label,
   values,
   onChange,
   placeholder,
+  hint,
 }: {
   label: string;
   values: string[];
   onChange: (values: string[]) => void;
   placeholder?: string;
+  hint?: FieldHint;
 }) {
   const [input, setInput] = useState("");
 
@@ -131,7 +270,10 @@ function MultiInput({
 
   return (
     <div className="space-y-2">
-      <Label className="text-sm">{label}</Label>
+      <div className="flex items-center gap-1.5">
+        <Label className="text-sm">{label}</Label>
+        {hint && <FieldTooltip hint={hint} />}
+      </div>
       <div className="flex gap-2">
         <Input
           value={input}
@@ -219,6 +361,7 @@ function TextField({
   maxLength,
   multiline = false,
   placeholder,
+  hint,
 }: {
   label: string;
   value: string;
@@ -226,12 +369,16 @@ function TextField({
   maxLength?: number;
   multiline?: boolean;
   placeholder?: string;
+  hint?: FieldHint;
 }) {
   const Component = multiline ? Textarea : Input;
   return (
     <div className="space-y-1.5">
       <div className="flex items-center justify-between">
-        <Label className="text-sm">{label}</Label>
+        <div className="flex items-center gap-1.5">
+          <Label className="text-sm">{label}</Label>
+          {hint && <FieldTooltip hint={hint} />}
+        </div>
         {maxLength && (
           <CharacterCounter current={value.length} max={maxLength} />
         )}
@@ -372,6 +519,64 @@ export default function AppInformationPage() {
     [],
   );
 
+  const handleCopyAiPrompt = useCallback(() => {
+    const appName = app.data?.name ?? "My App";
+    const platform = app.data?.platform === "ios" ? "iOS (App Store)" : "Android (Google Play)";
+    const bundleId = app.data?.bundleId ?? "";
+
+    const fields = [
+      { key: "category", label: "Category", desc: "App category from the store", type: "string" },
+      { key: "oneLiner", label: "One-liner", desc: "One-sentence tagline", type: "string" },
+      { key: "problem", label: "Problem", desc: "What user problem does the app solve?", type: "string" },
+      { key: "mainBenefit", label: "Main Benefit", desc: "The #1 value proposition", type: "string" },
+      { key: "keyFeatures", label: "Key Features", desc: "3-7 core features", type: "string[]" },
+      { key: "differentiator", label: "Differentiator", desc: "What's unique vs competitors?", type: "string" },
+      { key: "tone", label: "Tone", desc: "Communication style (e.g. Friendly, Professional)", type: "string" },
+      { key: "brandVoiceExample", label: "Brand Voice Example", desc: "A sentence in the brand's voice", type: "string" },
+      { key: "wordsToInclude", label: "Words to Include", desc: "Brand vocabulary to use", type: "string[]" },
+      { key: "wordsToAvoid", label: "Words to Avoid", desc: "Words the brand should never use", type: "string[]" },
+      { key: "targetAudience", label: "Target Audience", desc: "Ideal user profile — demographics, interests", type: "string" },
+      { key: "painPoints", label: "Pain Points", desc: "User frustrations the app addresses", type: "string[]" },
+      { key: "userLanguage", label: "User Language", desc: "How users naturally describe the problem", type: "string" },
+      { key: "competitors", label: "Competitors", desc: "Links to competitor apps", type: "string[]" },
+      { key: "competitiveAdvantage", label: "Competitive Advantage", desc: "Key advantage over competitors", type: "string" },
+      { key: "positioning", label: "Positioning", desc: "Market positioning statement", type: "string" },
+      { key: "downloadCount", label: "Download Count", desc: "Total download count", type: "string" },
+      { key: "awards", label: "Awards", desc: "Awards or recognitions", type: "string[]" },
+      { key: "pressQuotes", label: "Press Quotes", desc: "Notable press mentions", type: "string[]" },
+      { key: "testimonials", label: "Testimonials", desc: "User testimonials", type: "string[]" },
+      { key: "pricingModel", label: "Pricing Model", desc: "How the app is monetized (e.g. Freemium, Subscription)", type: "string" },
+      { key: "price", label: "Price", desc: "Pricing details", type: "string" },
+      { key: "freeFeatures", label: "Free Features", desc: "Features in the free tier", type: "string[]" },
+      { key: "premiumFeatures", label: "Premium Features", desc: "Features exclusive to paid users", type: "string[]" },
+      { key: "mustIncludeKeywords", label: "Must Include Keywords", desc: "Keywords that must appear in store listing", type: "string[]" },
+      { key: "longTailKeywords", label: "Long-tail Keywords", desc: "Multi-word keyword phrases to target", type: "string[]" },
+      { key: "excludeKeywords", label: "Exclude Keywords", desc: "Keywords to avoid in store listing", type: "string[]" },
+    ];
+
+    const questions = fields
+      .map((f, i) => `${i + 1}. "${f.key}" (${f.type}): ${f.desc}`)
+      .join("\n");
+
+    const prompt = `I need help filling out the ASO (App Store Optimization) profile for my app.
+
+App: ${appName}
+Platform: ${platform}
+Bundle ID: ${bundleId}
+
+Please answer each of the following questions and return the result as valid JSON with the exact keys shown below. For string[] fields, return an array of strings. For string fields, return a string or null if unknown.
+
+${questions}
+
+Return ONLY valid JSON (no markdown, no code fences) with these exact keys:
+{
+${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'}`).join(",\n")}
+}`;
+
+    navigator.clipboard.writeText(prompt);
+    toast.success("AI prompt copied to clipboard");
+  }, [app.data]);
+
   if (app.isLoading || profile.isLoading) {
     return (
       <div className="mx-auto max-w-3xl space-y-4 p-6">
@@ -394,6 +599,7 @@ export default function AppInformationPage() {
   const isIos = data.platform === "ios";
 
   return (
+    <TooltipProvider>
     <div className="mx-auto max-w-3xl space-y-6 p-6">
       {/* App header */}
       <div className="flex items-center gap-4">
@@ -459,6 +665,12 @@ export default function AppInformationPage() {
             Import
           </Button>
 
+          {/* Copy AI Prompt */}
+          <Button size="sm" variant="outline" onClick={handleCopyAiPrompt}>
+            <Copy className="mr-1.5 h-4 w-4" />
+            AI Prompt
+          </Button>
+
           <Badge variant="outline" className="gap-1.5">
             {isIos ? (
               <Apple className="h-3.5 w-3.5" />
@@ -482,15 +694,15 @@ export default function AppInformationPage() {
             label="Category"
             value={str("category")}
             onChange={(v) => set("category", v || null)}
-            maxLength={100}
             placeholder="e.g. Productivity, Health & Fitness"
+            hint={FIELD_HINTS.category}
           />
           <TextField
             label="One-liner"
             value={str("oneLiner")}
             onChange={(v) => set("oneLiner", v || null)}
-            maxLength={300}
             placeholder="A short tagline describing your app"
+            hint={FIELD_HINTS.oneLiner}
           />
           <TextField
             label="Problem it solves"
@@ -498,6 +710,7 @@ export default function AppInformationPage() {
             onChange={(v) => set("problem", v || null)}
             multiline
             placeholder="What problem does your app solve for users?"
+            hint={FIELD_HINTS.problem}
           />
           <TextField
             label="Main Benefit"
@@ -505,12 +718,14 @@ export default function AppInformationPage() {
             onChange={(v) => set("mainBenefit", v || null)}
             multiline
             placeholder="The #1 benefit users get from your app"
+            hint={FIELD_HINTS.mainBenefit}
           />
           <MultiInput
             label="Key Features"
             values={arr("keyFeatures")}
             onChange={(v) => set("keyFeatures", v.length ? v : null)}
             placeholder="Add a key feature..."
+            hint={FIELD_HINTS.keyFeatures}
           />
           <TextField
             label="Differentiator"
@@ -518,6 +733,7 @@ export default function AppInformationPage() {
             onChange={(v) => set("differentiator", v || null)}
             multiline
             placeholder="What makes your app unique vs competitors?"
+            hint={FIELD_HINTS.differentiator}
           />
 
           {/* Tone & Branding */}
@@ -530,8 +746,8 @@ export default function AppInformationPage() {
                 label="Tone"
                 value={str("tone")}
                 onChange={(v) => set("tone", v || null)}
-                maxLength={50}
                 placeholder="e.g. Professional, Casual, Playful"
+                hint={FIELD_HINTS.tone}
               />
               <TextField
                 label="Brand Voice Example"
@@ -539,18 +755,21 @@ export default function AppInformationPage() {
                 onChange={(v) => set("brandVoiceExample", v || null)}
                 multiline
                 placeholder="Paste a sentence that captures your brand voice"
+                hint={FIELD_HINTS.brandVoiceExample}
               />
               <MultiInput
                 label="Words to Include"
                 values={arr("wordsToInclude")}
                 onChange={(v) => set("wordsToInclude", v.length ? v : null)}
                 placeholder="Add a word..."
+                hint={FIELD_HINTS.wordsToInclude}
               />
               <MultiInput
                 label="Words to Avoid"
                 values={arr("wordsToAvoid")}
                 onChange={(v) => set("wordsToAvoid", v.length ? v : null)}
                 placeholder="Add a word..."
+                hint={FIELD_HINTS.wordsToAvoid}
               />
             </div>
           </div>
@@ -580,18 +799,21 @@ export default function AppInformationPage() {
           onChange={(v) => set("targetAudience", v || null)}
           multiline
           placeholder="Who is your ideal user? Demographics, interests..."
+          hint={FIELD_HINTS.targetAudience}
         />
         <MultiInput
           label="Pain Points"
           values={arr("painPoints")}
           onChange={(v) => set("painPoints", v.length ? v : null)}
           placeholder="Add a pain point..."
+          hint={FIELD_HINTS.painPoints}
         />
         <TextField
           label="User Language / Tone"
           value={str("userLanguage")}
           onChange={(v) => set("userLanguage", v || null)}
           placeholder="How do your users talk about this problem?"
+          hint={FIELD_HINTS.userLanguage}
         />
       </Section>
 
@@ -601,6 +823,7 @@ export default function AppInformationPage() {
           values={arr("competitors")}
           onChange={(v) => set("competitors", v.length ? v : null)}
           placeholder="App Store or Google Play link..."
+          hint={FIELD_HINTS.competitors}
         />
       </Section>
 
@@ -609,26 +832,29 @@ export default function AppInformationPage() {
           label="Download Count"
           value={str("downloadCount")}
           onChange={(v) => set("downloadCount", v || null)}
-          maxLength={50}
           placeholder="e.g. 1M+, 500K+"
+          hint={FIELD_HINTS.downloadCount}
         />
         <MultiInput
           label="Awards"
           values={arr("awards")}
           onChange={(v) => set("awards", v.length ? v : null)}
           placeholder="Add an award..."
+          hint={FIELD_HINTS.awards}
         />
         <MultiInput
           label="Press Quotes"
           values={arr("pressQuotes")}
           onChange={(v) => set("pressQuotes", v.length ? v : null)}
           placeholder="Add a press quote..."
+          hint={FIELD_HINTS.pressQuotes}
         />
         <MultiInput
           label="Testimonials"
           values={arr("testimonials")}
           onChange={(v) => set("testimonials", v.length ? v : null)}
           placeholder="Add a testimonial..."
+          hint={FIELD_HINTS.testimonials}
         />
       </Section>
 
@@ -637,27 +863,29 @@ export default function AppInformationPage() {
           label="Pricing Model"
           value={str("pricingModel")}
           onChange={(v) => set("pricingModel", v || null)}
-          maxLength={50}
           placeholder="e.g. Freemium, Subscription, One-time"
+          hint={FIELD_HINTS.pricingModel}
         />
         <TextField
           label="Price"
           value={str("price")}
           onChange={(v) => set("price", v || null)}
-          maxLength={100}
           placeholder="e.g. Free, $4.99/month, $29.99/year"
+          hint={FIELD_HINTS.price}
         />
         <MultiInput
           label="Free Features"
           values={arr("freeFeatures")}
           onChange={(v) => set("freeFeatures", v.length ? v : null)}
           placeholder="Add a free feature..."
+          hint={FIELD_HINTS.freeFeatures}
         />
         <MultiInput
           label="Premium Features"
           values={arr("premiumFeatures")}
           onChange={(v) => set("premiumFeatures", v.length ? v : null)}
           placeholder="Add a premium feature..."
+          hint={FIELD_HINTS.premiumFeatures}
         />
       </Section>
 
@@ -667,18 +895,21 @@ export default function AppInformationPage() {
           values={arr("mustIncludeKeywords")}
           onChange={(v) => set("mustIncludeKeywords", v.length ? v : null)}
           placeholder="Add a keyword..."
+          hint={FIELD_HINTS.mustIncludeKeywords}
         />
         <MultiInput
           label="Long-tail Keywords"
           values={arr("longTailKeywords")}
           onChange={(v) => set("longTailKeywords", v.length ? v : null)}
           placeholder="Add a keyword phrase..."
+          hint={FIELD_HINTS.longTailKeywords}
         />
         <MultiInput
           label="Exclude Keywords"
           values={arr("excludeKeywords")}
           onChange={(v) => set("excludeKeywords", v.length ? v : null)}
           placeholder="Add a keyword to exclude..."
+          hint={FIELD_HINTS.excludeKeywords}
         />
       </Section>
 
@@ -740,5 +971,6 @@ export default function AppInformationPage() {
         </div>
       </Section>
     </div>
+    </TooltipProvider>
   );
 }
