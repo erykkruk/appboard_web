@@ -7,10 +7,12 @@ import {
   FileText,
   Globe,
   Image,
+  Info,
   LayoutDashboard,
   Loader2,
   Plus,
   Rocket,
+  ShieldCheck,
   Star,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -31,6 +33,7 @@ import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, suffix: "/dashboard" },
+  { label: "Information", icon: Info, suffix: "/information" },
   { label: "Publish", icon: Rocket, suffix: "/publish" },
   { label: "Reviews", icon: Star, suffix: "/reviews" },
 ] as const;
@@ -39,6 +42,7 @@ const VERSION_NAV_ITEMS = [
   { label: "Languages", icon: Globe, suffix: "/languages" },
   { label: "Listings", icon: FileText, suffix: "" },
   { label: "Previews & Screenshots", icon: Image, suffix: "/screenshots" },
+  { label: "App Review", icon: ShieldCheck, suffix: "/review" },
 ] as const;
 
 const STATE_BAR_COLORS: Record<string, string> = {

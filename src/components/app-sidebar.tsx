@@ -402,9 +402,16 @@ export function AppSidebar() {
                   className="relative mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[#2a2a2a] text-muted-foreground transition-colors hover:bg-[#3a3a3a] hover:text-foreground"
                 >
                   <Store className="h-5 w-5" />
-                  {storeFilter.enabled.size < storesList.length && (
-                    <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-[9px] font-bold text-primary-foreground">
-                      {storeFilter.enabled.size}
+                  {storesList.length > 1 && (
+                    <span
+                      className={cn(
+                        "absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-0.5 text-[9px] font-bold",
+                        storeFilter.enabled.size < storesList.length
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-[#3a3a3a] text-muted-foreground",
+                      )}
+                    >
+                      {storeFilter.enabled.size}/{storesList.length}
                     </span>
                   )}
                 </button>
