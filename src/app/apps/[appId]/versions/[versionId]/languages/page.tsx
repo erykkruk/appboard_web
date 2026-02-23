@@ -28,8 +28,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
 import {
   useAddLocalization,
+  useAddLocalizationWithTranslation,
   useVersionDetail,
 } from "@/hooks/use-publishing";
 import { APP_STORE_LANGUAGES } from "@/lib/types";
@@ -70,8 +73,14 @@ export default function LanguagesPage() {
   const params = useParams<{ appId: string; versionId: string }>();
   const detail = useVersionDetail(params.appId, params.versionId);
   const addLocalization = useAddLocalization(params.appId, params.versionId);
+  const addWithTranslation = useAddLocalizationWithTranslation(
+    params.appId,
+    params.versionId,
+  );
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedLocale, setSelectedLocale] = useState("");
+  const [translateEnabled, setTranslateEnabled] = useState(false);
+  const [sourceLocale, setSourceLocale] = useState("");
 
   const existingLocales = useMemo(
     () => new Set((detail.data?.localizations ?? []).map((l) => l.language)),
@@ -84,12 +93,32 @@ export default function LanguagesPage() {
     [existingLocales],
   );
 
+  const isPending = addLocalization.isPending || addWithTranslation.isPending;
+
   const handleAdd = async () => {
     if (!selectedLocale) return;
     try {
-      await addLocalization.mutateAsync(selectedLocale);
-      toast.success(`Added ${getLanguageLabel(selectedLocale)}`);
+      if (translateEnabled && sourceLocale) {
+        const result = await addWithTranslation.mutateAsync({
+          locale: selectedLocale,
+          sourceLocale,
+        });
+        if (result.translated) {
+          toast.success(
+            `Added ${getLanguageLabel(selectedLocale)} with translations from ${getLanguageLabel(sourceLocale)}`,
+          );
+        } else {
+          toast.success(
+            `Added ${getLanguageLabel(selectedLocale)} (no text to translate)`,
+          );
+        }
+      } else {
+        await addLocalization.mutateAsync(selectedLocale);
+        toast.success(`Added ${getLanguageLabel(selectedLocale)}`);
+      }
       setSelectedLocale("");
+      setTranslateEnabled(false);
+      setSourceLocale("");
       setAddDialogOpen(false);
     } catch {
       toast.error("Failed to add language");
@@ -152,18 +181,67 @@ export default function LanguagesPage() {
                   Select a language to add to this version.
                 </DialogDescription>
               </DialogHeader>
-              <Select value={selectedLocale} onValueChange={setSelectedLocale}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select language..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableLanguages.map((lang) => (
-                    <SelectItem key={lang.locale} value={lang.locale}>
-                      {lang.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="space-y-4">
+                <Select value={selectedLocale} onValueChange={setSelectedLocale}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select language..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableLanguages.map((lang) => (
+                      <SelectItem key={lang.locale} value={lang.locale}>
+                        {lang.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {localizations.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox
+                        id="translate"
+                        checked={translateEnabled}
+                        onCheckedChange={(checked) => {
+                          setTranslateEnabled(checked === true);
+                          if (!checked) setSourceLocale("");
+                        }}
+                      />
+                      <Label
+                        htmlFor="translate"
+                        className="text-sm font-normal cursor-pointer"
+                      >
+                        Generate translations from existing language
+                      </Label>
+                    </div>
+
+                    {translateEnabled && (
+                      <Select
+                        value={sourceLocale}
+                        onValueChange={setSourceLocale}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Source language..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {localizations
+                            .slice()
+                            .sort((a, b) =>
+                              a.language.localeCompare(b.language),
+                            )
+                            .map((loc) => (
+                              <SelectItem
+                                key={loc.language}
+                                value={loc.language}
+                              >
+                                {getLanguageLabel(loc.language)}
+                              </SelectItem>
+                            ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                )}
+              </div>
               <DialogFooter>
                 <Button
                   variant="outline"
@@ -173,12 +251,20 @@ export default function LanguagesPage() {
                 </Button>
                 <Button
                   onClick={handleAdd}
-                  disabled={!selectedLocale || addLocalization.isPending}
+                  disabled={
+                    !selectedLocale ||
+                    isPending ||
+                    (translateEnabled && !sourceLocale)
+                  }
                 >
-                  {addLocalization.isPending ? (
+                  {isPending ? (
                     <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
                   ) : null}
-                  Add
+                  {isPending
+                    ? "Translating..."
+                    : translateEnabled
+                      ? "Add & Translate"
+                      : "Add"}
                 </Button>
               </DialogFooter>
             </DialogContent>

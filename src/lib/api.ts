@@ -10,6 +10,7 @@ import type {
 	AsoProfile,
 	AsoProfileInput,
 	Asset,
+	CategoriesData,
 	ConnectStoreData,
 	DraftReplyRequest,
 	GenerateDescriptionRequest,
@@ -30,9 +31,12 @@ import type {
 	SettingRow,
 	Settings,
 	Store,
+	SuggestCategoryRequest,
+	SuggestCategoryResponse,
 	SuggestKeywordsRequest,
 	SyncVersionsResult,
 	TranslateRequest,
+	UpdateCategoriesInput,
 	UpdateCopyrightResult,
 	UpdateLocalizationResult,
 	VersionDetail,
@@ -104,6 +108,11 @@ export const api = {
 			}),
 		generateReleaseNotes: (data: GenerateReleaseNotesRequest) =>
 			fetchApi<AiResponse>("/api/ai/generate-release-notes", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}),
+		suggestCategory: (data: SuggestCategoryRequest) =>
+			fetchApi<SuggestCategoryResponse>("/api/ai/suggest-category", {
 				body: JSON.stringify(data),
 				method: "POST",
 			}),
@@ -181,6 +190,10 @@ export const api = {
 	},
 
 	listings: {
+		categories: (appId: string) =>
+			fetchApi<CategoriesData>(
+				`/api/apps/${appId}/listings/categories`,
+			),
 		get: (appId: string, language: string) =>
 			fetchApi<{ draft: Listing | null; remote: Listing | null }>(
 				`/api/apps/${appId}/listings/${language}`,
@@ -205,6 +218,14 @@ export const api = {
 					method: "PUT",
 				},
 			).then((r) => r.listing),
+		updateCategories: (appId: string, data: UpdateCategoriesInput) =>
+			fetchApi<{ primaryCategory: string; secondaryCategory: string | null }>(
+				`/api/apps/${appId}/listings/categories`,
+				{
+					body: JSON.stringify(data),
+					method: "PUT",
+				},
+			),
 	},
 
 	publishing: {
@@ -212,6 +233,19 @@ export const api = {
 			fetchApi<{ added: boolean; language: string }>(
 				`/api/apps/${appId}/publishing/versions/${versionId}/localizations`,
 				{ body: JSON.stringify({ locale }), method: "POST" },
+			),
+		addLocalizationWithTranslation: (
+			appId: string,
+			versionId: string,
+			locale: string,
+			sourceLocale: string,
+		) =>
+			fetchApi<{ added: boolean; language: string; translated: boolean }>(
+				`/api/apps/${appId}/publishing/versions/${versionId}/localizations/translate`,
+				{
+					body: JSON.stringify({ locale, sourceLocale }),
+					method: "POST",
+				},
 			),
 		createVersion: (appId: string, versionString: string) =>
 			fetchApi<{ version: { versionString: string; state: string } }>(

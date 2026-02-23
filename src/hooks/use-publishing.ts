@@ -156,6 +156,33 @@ export function useAddLocalization(appId: string, versionId: string) {
 	});
 }
 
+export function useAddLocalizationWithTranslation(
+	appId: string,
+	versionId: string,
+) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({
+			locale,
+			sourceLocale,
+		}: {
+			locale: string;
+			sourceLocale: string;
+		}) =>
+			api.publishing.addLocalizationWithTranslation(
+				appId,
+				versionId,
+				locale,
+				sourceLocale,
+			),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["publishing", appId, "versions", versionId],
+			});
+		},
+	});
+}
+
 export function useUpdateLocalization(appId: string, versionId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({

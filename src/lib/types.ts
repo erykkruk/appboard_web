@@ -423,6 +423,37 @@ export interface AppAiPrompt {
 	updatedAt: string;
 }
 
+// Categories
+export interface AppStoreCategory {
+	id: string;
+	name: string;
+}
+
+export interface CategoriesData {
+	primaryCategory: string | null;
+	secondaryCategory: string | null;
+	availableCategories: AppStoreCategory[];
+}
+
+export interface UpdateCategoriesInput {
+	primaryCategory: string;
+	secondaryCategory?: string;
+}
+
+export interface SuggestCategoryRequest {
+	appId: string;
+	appName: string;
+	platform: string;
+	description?: string;
+}
+
+export interface SuggestCategoryResponse {
+	primary: string;
+	secondary: string | null;
+	reasoning: string;
+	model: string;
+}
+
 export const APP_STORE_LANGUAGES = [
 	{ label: "Arabic", locale: "ar-SA" },
 	{ label: "Catalan", locale: "ca" },

@@ -21,7 +21,6 @@ import { CSS } from "@dnd-kit/utilities";
 import {
   Apple,
   Check,
-  LayoutTemplate,
   Loader2,
   Plus,
   RefreshCw,
@@ -524,33 +523,15 @@ export function AppSidebar() {
         </DndContext>
       </div>
 
-      {/* Bottom: Templates + Settings + Version */}
+      {/* Bottom: Settings + Version */}
       <div className="mt-2 flex flex-col items-center gap-2">
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <Link
-              href="/templates/privacy"
-              className={cn(
-                "flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
-                currentPath.startsWith("/templates")
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
-              )}
-            >
-              <LayoutTemplate className="h-5 w-5" />
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent side="right" sideOffset={8}>
-            Templates
-          </TooltipContent>
-        </Tooltip>
         <Tooltip delayDuration={0}>
           <TooltipTrigger asChild>
             <Link
               href="/settings"
               className={cn(
                 "flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
-                currentPath === "/settings"
+                currentPath.startsWith("/settings")
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
               )}

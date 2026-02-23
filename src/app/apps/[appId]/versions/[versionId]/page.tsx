@@ -10,12 +10,25 @@ import {
 	Loader2,
 	RefreshCw,
 	Save,
+	Sparkles,
 	Upload,
+	X,
 } from "lucide-react";
 import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+	AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -34,6 +47,7 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useApp } from "@/hooks/use-apps";
 import {
 	usePublishLocalizations,
 	useSyncVersions,
@@ -41,6 +55,7 @@ import {
 	useUpdateLocalization,
 	useVersionDetail,
 } from "@/hooks/use-publishing";
+import { api } from "@/lib/api";
 import {
 	downloadFile,
 	exportListingsCsv,
@@ -48,7 +63,11 @@ import {
 	generateTemplate,
 	parseListingsFile,
 } from "@/lib/listings-csv";
-import { APP_STORE_LANGUAGES, type VersionLocalization } from "@/lib/types";
+import {
+	APP_STORE_LANGUAGES,
+	type ListingFieldName,
+	type VersionLocalization,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const STATE_COLORS: Record<string, string> = {
@@ -79,6 +98,15 @@ const EDITABLE_STATES = new Set([
 
 // States where whatsNew can be edited (only after first version is live)
 const WHATS_NEW_EDITABLE_STATES = new Set(["DEVELOPER_REJECTED", "REJECTED"]);
+
+const AI_FIELDS: ListingFieldName[] = [
+	"title",
+	"subtitle",
+	"description",
+	"keywords",
+	"promotionalText",
+	"whatsNew",
+];
 
 interface FieldConfig {
 	key: keyof VersionLocalization;
@@ -222,6 +250,7 @@ function getFieldError(
 export default function VersionDetailPage() {
 	const params = useParams<{ appId: string; versionId: string }>();
 	const detail = useVersionDetail(params.appId, params.versionId);
+	const appData = useApp(params.appId);
 	const updateLoc = useUpdateLocalization(params.appId, params.versionId);
 	const updateCopyright = useUpdateCopyright(params.appId, params.versionId);
 	const syncVersions = useSyncVersions(params.appId);
@@ -233,6 +262,17 @@ export default function VersionDetailPage() {
 	const [copyrightValue, setCopyrightValue] = useState("");
 	const [originalCopyright, setOriginalCopyright] = useState("");
 	const [isImporting, setIsImporting] = useState(false);
+	const [generatingField, setGeneratingField] = useState<string | null>(null);
+	const [isGeneratingAll, setIsGeneratingAll] = useState(false);
+	const [primaryCategory, setPrimaryCategory] = useState<string>("");
+	const [secondaryCategory, setSecondaryCategory] = useState<string>("");
+	const [originalPrimary, setOriginalPrimary] = useState<string>("");
+	const [originalSecondary, setOriginalSecondary] = useState<string>("");
+	const [isSavingCategories, setIsSavingCategories] = useState(false);
+	const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
+	const [categoriesData, setCategoriesData] = useState<{
+		availableCategories: { id: string; name: string }[];
+	} | null>(null);
 	const fileInputRef = useRef<HTMLInputElement>(null);
 
 	const localizations = detail.data?.localizations ?? [];
@@ -271,6 +311,67 @@ export default function VersionDetailPage() {
 		setSelectedLanguage(lang);
 	}, []);
 
+	// Fetch categories
+	useEffect(() => {
+		if (!params.appId) return;
+		api.listings.categories(params.appId).then((data) => {
+			setCategoriesData({
+				availableCategories: data.availableCategories as { id: string; name: string }[],
+			});
+			setPrimaryCategory(data.primaryCategory ?? "");
+			setSecondaryCategory(data.secondaryCategory ?? "");
+			setOriginalPrimary(data.primaryCategory ?? "");
+			setOriginalSecondary(data.secondaryCategory ?? "");
+		}).catch(() => {
+			// Categories not available (e.g. Android)
+		});
+	}, [params.appId]);
+
+	const categoriesChanged =
+		primaryCategory !== originalPrimary ||
+		secondaryCategory !== originalSecondary;
+
+	const handleSaveCategories = async () => {
+		if (!categoriesChanged || !primaryCategory) return;
+		setIsSavingCategories(true);
+		try {
+			const result = await api.listings.updateCategories(params.appId, {
+				primaryCategory,
+				secondaryCategory: secondaryCategory || undefined,
+			});
+			setOriginalPrimary(result.primaryCategory);
+			setOriginalSecondary(result.secondaryCategory ?? "");
+			toast.success("Categories saved");
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : "Failed to save categories";
+			toast.error(message);
+		} finally {
+			setIsSavingCategories(false);
+		}
+	};
+
+	const handleSuggestCategory = async () => {
+		if (!appData.data) return;
+		setIsSuggestingCategory(true);
+		try {
+			const result = await api.ai.suggestCategory({
+				appId: params.appId,
+				appName: appData.data.name,
+				platform: appData.data.platform,
+			});
+			setPrimaryCategory(result.primary);
+			setSecondaryCategory(result.secondary ?? "");
+			toast.success(`AI suggestion: ${result.reasoning}`);
+		} catch (err) {
+			const message =
+				err instanceof Error ? err.message : "AI suggestion failed";
+			toast.error(message);
+		} finally {
+			setIsSuggestingCategory(false);
+		}
+	};
+
 	const handleFieldChange = useCallback((key: string, value: string) => {
 		setFormData((prev) => ({ ...prev, [key]: value }));
 	}, []);
@@ -304,6 +405,94 @@ export default function VersionDetailPage() {
 		() => Object.values(fieldErrors).some((e) => e !== null),
 		[fieldErrors],
 	);
+
+	const handleGenerateField = useCallback(
+		async (field: ListingFieldName, currentValue?: string) => {
+			if (!appData.data) return;
+
+			setGeneratingField(field);
+			try {
+				const result = await api.ai.generateListingField({
+					appId: params.appId,
+					appName: appData.data.name,
+					currentValue: currentValue || undefined,
+					field,
+					language: selectedLanguage,
+					platform: appData.data.platform,
+				});
+				setFormData((prev) => ({ ...prev, [field]: result.result }));
+				toast.success(
+					`${currentValue ? "Rephrased" : "Generated"} ${field}`,
+				);
+			} catch (err) {
+				const message =
+					err instanceof Error ? err.message : "AI generation failed";
+				toast.error(message);
+			} finally {
+				setGeneratingField(null);
+			}
+		},
+		[appData.data, params.appId, selectedLanguage],
+	);
+
+	const handleGenerateAll = useCallback(async () => {
+		if (!appData.data) return;
+
+		setIsGeneratingAll(true);
+
+		const fieldsToGenerate = AI_FIELDS.filter(
+			(field) => !(field === "whatsNew" && !isWhatsNewEditable),
+		);
+
+		const results = await Promise.allSettled(
+			fieldsToGenerate.map(async (field) => {
+				const currentValue = formData[field] || undefined;
+				const result = await api.ai.generateListingField({
+					appId: params.appId,
+					appName: appData.data!.name,
+					currentValue,
+					field,
+					language: selectedLanguage,
+					platform: appData.data!.platform,
+				});
+				return { field, value: result.result };
+			}),
+		);
+
+		let generated = 0;
+		const updates: Record<string, string> = {};
+
+		for (let i = 0; i < results.length; i++) {
+			const result = results[i];
+			if (result.status === "fulfilled") {
+				updates[result.value.field] = result.value.value;
+				generated++;
+			} else {
+				const message =
+					result.reason instanceof Error
+						? result.reason.message
+						: "AI generation failed";
+				toast.error(`${fieldsToGenerate[i]}: ${message}`);
+			}
+		}
+
+		if (Object.keys(updates).length > 0) {
+			setFormData((prev) => ({ ...prev, ...updates }));
+		}
+
+		setGeneratingField(null);
+		setIsGeneratingAll(false);
+
+		if (generated > 0) {
+			toast.success(`Generated ${generated} field(s)`);
+		}
+	}, [
+		appData.data,
+		formData,
+		isWhatsNewEditable,
+		params.appId,
+		selectedLanguage,
+	]);
 
 	const handleSave = async () => {
 		if (!currentLoc || !changedFields) return;
@@ -382,6 +571,9 @@ export default function VersionDetailPage() {
 					"App Store chwilowo niedostępny. Zmiany zapisane lokalnie.",
 				);
 			} else if (result.errors?.length) {
+				for (const err of result.errors) {
+					toast.error(err);
+				}
 				toast.warning(
 					`Published ${result.published}, but ${result.errors.length} error(s)`,
 				);
@@ -519,6 +711,8 @@ export default function VersionDetailPage() {
 	const isFromCache = detail.data.source === "cache";
 	const hasDirtyLocalizations = localizations.some((l) => l.isDirty);
 
+	const hasAnyContent = AI_FIELDS.some((f) => !!formData[f]);
+
 	return (
 		<div className="p-6 space-y-6">
 			{/* Cache banner */}
@@ -565,6 +759,46 @@ export default function VersionDetailPage() {
 				</div>
 
 				<div className="flex items-center gap-3">
+					{/* Generate All button */}
+					{isEditable && currentLoc && (
+						<AlertDialog>
+							<AlertDialogTrigger asChild>
+								<Button
+									disabled={isGeneratingAll || !!generatingField}
+									size="sm"
+									variant="outline"
+								>
+									{isGeneratingAll ? (
+										<Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+									) : (
+										<Sparkles className="mr-1.5 h-4 w-4" />
+									)}
+									{hasAnyContent ? "Regenerate All" : "Generate All"}
+								</Button>
+							</AlertDialogTrigger>
+							<AlertDialogContent>
+								<AlertDialogHeader>
+									<AlertDialogTitle>
+										{hasAnyContent
+											? "Regenerate all fields?"
+											: "Generate all fields?"}
+									</AlertDialogTitle>
+									<AlertDialogDescription>
+										{hasAnyContent
+											? "AI will regenerate all listing fields based on your ASO profile. Existing content will be used as context for rephrasing."
+											: "AI will generate all listing fields from scratch based on your ASO profile. Make sure you have configured it first."}
+									</AlertDialogDescription>
+								</AlertDialogHeader>
+								<AlertDialogFooter>
+									<AlertDialogCancel>Cancel</AlertDialogCancel>
+									<AlertDialogAction onClick={handleGenerateAll}>
+										{hasAnyContent ? "Regenerate" : "Generate"}
+									</AlertDialogAction>
+								</AlertDialogFooter>
+							</AlertDialogContent>
+						</AlertDialog>
+					)}
+
 					{/* Export dropdown */}
 					{localizations.length > 0 && (
 						<DropdownMenu>
@@ -749,6 +983,111 @@ export default function VersionDetailPage() {
 				)}
 			</div>
 
+			{/* Categories (app-level, not language-dependent) */}
+			{categoriesData && categoriesData.availableCategories.length > 0 && (
+				<div className="max-w-2xl space-y-3">
+					<div className="flex items-center justify-between">
+						<Label className="text-sm font-medium">Categories</Label>
+						<div className="flex items-center gap-2">
+							{isEditable && (
+								<>
+									<Button
+										className="h-7 px-2 text-xs gap-1"
+										disabled={isSuggestingCategory}
+										onClick={handleSuggestCategory}
+										size="sm"
+										variant="outline"
+									>
+										{isSuggestingCategory ? (
+											<Loader2 className="h-3 w-3 animate-spin" />
+										) : (
+											<Sparkles className="h-3 w-3" />
+										)}
+										Choose with AI
+									</Button>
+									<Button
+										className="h-7 px-2 text-xs"
+										disabled={
+											!categoriesChanged ||
+											!primaryCategory ||
+											isSavingCategories
+										}
+										onClick={handleSaveCategories}
+										size="sm"
+										variant="outline"
+									>
+										{isSavingCategories ? (
+											<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+										) : (
+											<Save className="mr-1 h-3 w-3" />
+										)}
+										Save
+									</Button>
+								</>
+							)}
+						</div>
+					</div>
+					<div className="grid grid-cols-2 gap-4">
+						<div className="space-y-1.5">
+							<Label className="text-xs text-muted-foreground">
+								Primary Category
+							</Label>
+							<Select
+								disabled={!isEditable}
+								onValueChange={setPrimaryCategory}
+								value={primaryCategory}
+							>
+								<SelectTrigger className="bg-[#1a1a1a] border-border">
+									<SelectValue placeholder="Select category" />
+								</SelectTrigger>
+								<SelectContent>
+									{categoriesData.availableCategories.map((cat) => (
+										<SelectItem key={cat.id} value={cat.id}>
+											{cat.name}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="space-y-1.5">
+							<Label className="text-xs text-muted-foreground">
+								Secondary Category
+							</Label>
+							<div className="flex items-center gap-2">
+								<Select
+									disabled={!isEditable}
+									onValueChange={setSecondaryCategory}
+									value={secondaryCategory}
+								>
+									<SelectTrigger className="bg-[#1a1a1a] border-border">
+										<SelectValue placeholder="None (optional)" />
+									</SelectTrigger>
+									<SelectContent>
+										{categoriesData.availableCategories
+											.filter((cat) => cat.id !== primaryCategory)
+											.map((cat) => (
+												<SelectItem key={cat.id} value={cat.id}>
+													{cat.name}
+												</SelectItem>
+											))}
+									</SelectContent>
+								</Select>
+								{secondaryCategory && isEditable && (
+									<Button
+										className="h-9 w-9 shrink-0"
+										onClick={() => setSecondaryCategory("")}
+										size="icon"
+										variant="ghost"
+									>
+										<X className="h-4 w-4" />
+									</Button>
+								)}
+							</div>
+						</div>
+					</div>
+				</div>
+			)}
+
 			{/* No localizations */}
 			{localizations.length === 0 ? (
 				<p className="text-sm text-muted-foreground">
@@ -768,18 +1107,125 @@ export default function VersionDetailPage() {
 						const isFieldDisabled =
 							!isEditable || (field.key === "whatsNew" && !isWhatsNewEditable);
 						const hasError = !!error;
+						const isAiField = AI_FIELDS.includes(
+							field.key as ListingFieldName,
+						);
+						const isFieldGenerating = generatingField === field.key;
 
 						return (
 							<div className="space-y-1.5" key={field.key}>
 								<div className="flex items-center justify-between">
-									<Label className="text-sm font-medium" htmlFor={field.key}>
-										{field.label}
-										{field.minLength && (
-											<span className="ml-1 text-xs text-muted-foreground font-normal">
-												(min {field.minLength})
-											</span>
+									<div className="flex items-center gap-2">
+										<Label className="text-sm font-medium" htmlFor={field.key}>
+											{field.label}
+											{field.minLength && (
+												<span className="ml-1 text-xs text-muted-foreground font-normal">
+													(min {field.minLength})
+												</span>
+											)}
+										</Label>
+
+										{/* AI buttons */}
+										{isAiField && isEditable && !isFieldDisabled && (
+											<div className="flex items-center gap-1">
+												{/* Generate button */}
+												<AlertDialog>
+													<AlertDialogTrigger asChild>
+														<Button
+															className="h-6 px-1.5 text-xs gap-1"
+															disabled={
+																isFieldGenerating || isGeneratingAll
+															}
+															size="sm"
+															variant="outline"
+														>
+															{isFieldGenerating && !value ? (
+																<Loader2 className="h-3 w-3 animate-spin" />
+															) : (
+																<Sparkles className="h-3 w-3" />
+															)}
+															Generate
+														</Button>
+													</AlertDialogTrigger>
+													<AlertDialogContent>
+														<AlertDialogHeader>
+															<AlertDialogTitle>
+																Generate {field.label}?
+															</AlertDialogTitle>
+															<AlertDialogDescription>
+																AI will generate new content for{" "}
+																{field.label.toLowerCase()} based on your ASO
+																profile.{" "}
+																{value
+																	? "This will replace the current content."
+																	: ""}
+															</AlertDialogDescription>
+														</AlertDialogHeader>
+														<AlertDialogFooter>
+															<AlertDialogCancel>Cancel</AlertDialogCancel>
+															<AlertDialogAction
+																onClick={() =>
+																	handleGenerateField(
+																		field.key as ListingFieldName,
+																	)
+																}
+															>
+																Generate
+															</AlertDialogAction>
+														</AlertDialogFooter>
+													</AlertDialogContent>
+												</AlertDialog>
+
+												{/* Rephrase button (only when field has content) */}
+												{value && (
+													<AlertDialog>
+														<AlertDialogTrigger asChild>
+															<Button
+																className="h-6 px-1.5 text-xs gap-1"
+																disabled={
+																	isFieldGenerating || isGeneratingAll
+																}
+																size="sm"
+																variant="outline"
+															>
+																{isFieldGenerating && value ? (
+																	<Loader2 className="h-3 w-3 animate-spin" />
+																) : (
+																	<RefreshCw className="h-3 w-3" />
+																)}
+																Rephrase
+															</Button>
+														</AlertDialogTrigger>
+														<AlertDialogContent>
+															<AlertDialogHeader>
+																<AlertDialogTitle>
+																	Rephrase {field.label}?
+																</AlertDialogTitle>
+																<AlertDialogDescription>
+																	AI will rephrase the current content to
+																	improve ASO effectiveness while keeping the
+																	same meaning and language.
+																</AlertDialogDescription>
+															</AlertDialogHeader>
+															<AlertDialogFooter>
+																<AlertDialogCancel>Cancel</AlertDialogCancel>
+																<AlertDialogAction
+																	onClick={() =>
+																		handleGenerateField(
+																			field.key as ListingFieldName,
+																			value,
+																		)
+																	}
+																>
+																	Rephrase
+																</AlertDialogAction>
+															</AlertDialogFooter>
+														</AlertDialogContent>
+													</AlertDialog>
+												)}
+											</div>
 										)}
-									</Label>
+									</div>
 									<span
 										className={cn(
 											"text-xs tabular-nums",
@@ -792,36 +1238,46 @@ export default function VersionDetailPage() {
 									</span>
 								</div>
 
-								{field.multiline ? (
-									<Textarea
-										className={cn(
-											"resize-none bg-[#1a1a1a] border-border",
-											hasError && "border-destructive",
-										)}
-										disabled={isFieldDisabled}
-										id={field.key}
-										onChange={(e) =>
-											handleFieldChange(field.key, e.target.value)
-										}
-										placeholder={field.placeholder}
-										rows={field.rows ?? 4}
-										value={value}
-									/>
-								) : (
-									<Input
-										className={cn(
-											"bg-[#1a1a1a] border-border",
-											hasError && "border-destructive",
-										)}
-										disabled={isFieldDisabled}
-										id={field.key}
-										onChange={(e) =>
-											handleFieldChange(field.key, e.target.value)
-										}
-										placeholder={field.placeholder}
-										value={value}
-									/>
-								)}
+								<div className="relative">
+									{isGeneratingAll && isAiField && (
+										<div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/60 backdrop-blur-[1px]">
+											<div className="flex items-center gap-2 text-xs text-muted-foreground">
+												<Loader2 className="h-3.5 w-3.5 animate-spin" />
+												Generating...
+											</div>
+										</div>
+									)}
+									{field.multiline ? (
+										<Textarea
+											className={cn(
+												"resize-none bg-[#1a1a1a] border-border",
+												hasError && "border-destructive",
+											)}
+											disabled={isFieldDisabled}
+											id={field.key}
+											onChange={(e) =>
+												handleFieldChange(field.key, e.target.value)
+											}
+											placeholder={field.placeholder}
+											rows={field.rows ?? 4}
+											value={value}
+										/>
+									) : (
+										<Input
+											className={cn(
+												"bg-[#1a1a1a] border-border",
+												hasError && "border-destructive",
+											)}
+											disabled={isFieldDisabled}
+											id={field.key}
+											onChange={(e) =>
+												handleFieldChange(field.key, e.target.value)
+											}
+											placeholder={field.placeholder}
+											value={value}
+										/>
+									)}
+								</div>
 
 								{/* Validation error */}
 								{hasError && (
