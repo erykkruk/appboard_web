@@ -151,7 +151,9 @@ export type AsoProfileInput = Omit<
 
 export interface Settings {
 	openrouter_api_key?: string;
-	ai_model?: string;
+	ai_model_generate?: string;
+	ai_model_rephrase?: string;
+	ai_model_research?: string;
 	ai_temperature?: string;
 	[key: string]: string | undefined;
 }
@@ -202,6 +204,29 @@ export interface DraftReplyRequest {
 export interface GenerateReleaseNotesRequest {
 	changes: string;
 	appName: string;
+}
+
+export interface GeneratePrivacyRequest {
+	appName: string;
+	description: string;
+}
+
+export type ListingFieldName =
+	| "title"
+	| "subtitle"
+	| "shortDescription"
+	| "description"
+	| "keywords"
+	| "promotionalText"
+	| "whatsNew";
+
+export interface GenerateListingFieldRequest {
+	appId: string;
+	appName: string;
+	currentValue?: string;
+	field: ListingFieldName;
+	language: string;
+	platform: string;
 }
 
 export interface PublishingOverview {
@@ -315,6 +340,87 @@ export interface VersionScreenshot {
 	url: string;
 	width: number | null;
 	height: number | null;
+}
+
+// Privacy Declaration
+export interface DataCollectionItem {
+	category: string;
+	dataType: string;
+	linked: boolean;
+	purposes: string[];
+	tracking: boolean;
+}
+
+export interface PrivacyDeclaration {
+	id: string;
+	appId: string;
+	templateId: string;
+	dataCollections: DataCollectionItem[] | null;
+	privacyPolicyUrl: string | null;
+	trackingEnabled: boolean;
+	trackingDomains: string[] | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface PrivacyDeclarationInput {
+	templateId: string;
+	dataCollections?: DataCollectionItem[];
+	privacyPolicyUrl?: string | null;
+	trackingEnabled?: boolean;
+	trackingDomains?: string[] | null;
+}
+
+export interface PrivacyTemplate {
+	id: string;
+	name: string;
+	description: string;
+	dataCollections: DataCollectionItem[];
+}
+
+// Age Rating
+export interface AgeRating {
+	id: string;
+	appId: string;
+	presetId: string;
+	appleQuestionnaire: Record<string, string> | null;
+	googleQuestionnaire: Record<string, string | boolean> | null;
+	appleRating: string | null;
+	googleRating: string | null;
+	createdAt: string;
+	updatedAt: string;
+}
+
+export interface AgeRatingInput {
+	presetId: string;
+	appleQuestionnaire?: Record<string, string>;
+	googleQuestionnaire?: Record<string, string | boolean>;
+}
+
+export interface AgeRatingPreset {
+	id: string;
+	name: string;
+	description: string;
+	appleRating: string;
+	googleRating: string;
+	appleQuestionnaire: Record<string, string>;
+	googleQuestionnaire: Record<string, string | boolean>;
+}
+
+export interface GlobalPromptEntry {
+	customPrompt: string | null;
+	defaultPrompt: string;
+	isDefault: boolean;
+}
+
+export interface AppAiPrompt {
+	id: string;
+	appId: string;
+	field: string;
+	mode: string;
+	prompt: string;
+	createdAt: string;
+	updatedAt: string;
 }
 
 export const APP_STORE_LANGUAGES = [

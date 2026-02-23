@@ -12,7 +12,9 @@ import {
   Loader2,
   Plus,
   Rocket,
+  Settings,
   ShieldCheck,
+  ShieldAlert,
   Star,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -36,6 +38,7 @@ const NAV_ITEMS = [
   { label: "Information", icon: Info, suffix: "/information" },
   { label: "Publish", icon: Rocket, suffix: "/publish" },
   { label: "Reviews", icon: Star, suffix: "/reviews" },
+  { label: "Settings", icon: Settings, suffix: "/settings" },
 ] as const;
 
 const VERSION_NAV_ITEMS = [
@@ -43,6 +46,7 @@ const VERSION_NAV_ITEMS = [
   { label: "Listings", icon: FileText, suffix: "" },
   { label: "Previews & Screenshots", icon: Image, suffix: "/screenshots" },
   { label: "App Review", icon: ShieldCheck, suffix: "/review" },
+  { label: "Age Rating", icon: ShieldAlert, suffix: "/age-rating" },
 ] as const;
 
 const STATE_BAR_COLORS: Record<string, string> = {

@@ -1,6 +1,10 @@
 import type {
+	AgeRating,
+	AgeRatingInput,
+	AgeRatingPreset,
 	AiResponse,
 	App,
+	AppAiPrompt,
 	AppReviewDetail,
 	AppVersion,
 	AsoProfile,
@@ -9,9 +13,15 @@ import type {
 	ConnectStoreData,
 	DraftReplyRequest,
 	GenerateDescriptionRequest,
+	GenerateListingFieldRequest,
+	GeneratePrivacyRequest,
 	GenerateReleaseNotesRequest,
+	GlobalPromptEntry,
 	HistoryEntry,
 	Listing,
+	PrivacyDeclaration,
+	PrivacyDeclarationInput,
+	PrivacyTemplate,
 	PublishingOverview,
 	PublishLocalizationsResult,
 	PublishResult,
@@ -79,6 +89,16 @@ export const api = {
 			}),
 		generateDescription: (data: GenerateDescriptionRequest) =>
 			fetchApi<AiResponse>("/api/ai/generate-description", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}),
+		generatePrivacy: (data: GeneratePrivacyRequest) =>
+			fetchApi<AiResponse>("/api/ai/generate-privacy", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}),
+		generateListingField: (data: GenerateListingFieldRequest) =>
+			fetchApi<AiResponse>("/api/ai/generate-listing-field", {
 				body: JSON.stringify(data),
 				method: "POST",
 			}),
@@ -431,7 +451,81 @@ export const api = {
 				}
 				return settings;
 			}),
+		getPrompts: () =>
+			fetchApi<{ prompts: Record<string, GlobalPromptEntry> }>(
+				"/api/settings/prompts",
+			).then((r) => r.prompts),
+		getPromptDefaults: () =>
+			fetchApi<{ defaults: Record<string, string> }>(
+				"/api/settings/prompts/defaults",
+			).then((r) => r.defaults),
+		setPrompt: (mode: string, field: string, prompt: string) =>
+			fetchApi<void>(`/api/settings/prompts/${mode}/${field}`, {
+				body: JSON.stringify({ prompt }),
+				method: "PUT",
+			}),
+		deletePrompt: (mode: string, field: string) =>
+			fetchApi<void>(`/api/settings/prompts/${mode}/${field}`, {
+				method: "DELETE",
+			}),
 	},
+
+	appAiPrompts: {
+		list: (appId: string) =>
+			fetchApi<{ prompts: AppAiPrompt[] }>(
+				`/api/apps/${appId}/ai-prompts`,
+			).then((r) => r.prompts),
+		set: (appId: string, mode: string, field: string, prompt: string) =>
+			fetchApi<void>(`/api/apps/${appId}/ai-prompts/${mode}/${field}`, {
+				body: JSON.stringify({ prompt }),
+				method: "PUT",
+			}),
+		delete: (appId: string, mode: string, field: string) =>
+			fetchApi<void>(`/api/apps/${appId}/ai-prompts/${mode}/${field}`, {
+				method: "DELETE",
+			}),
+	},
+
+	privacyDeclaration: {
+		get: (appId: string) =>
+			fetchApi<{ privacyDeclaration: PrivacyDeclaration | null }>(
+				`/api/apps/${appId}/privacy-declaration`,
+			).then((r) => r.privacyDeclaration),
+		update: (appId: string, data: PrivacyDeclarationInput) =>
+			fetchApi<{ privacyDeclaration: PrivacyDeclaration }>(
+				`/api/apps/${appId}/privacy-declaration`,
+				{
+					body: JSON.stringify(data),
+					method: "PUT",
+				},
+			).then((r) => r.privacyDeclaration),
+		templates: () =>
+			fetchApi<{ templates: PrivacyTemplate[] }>(
+				"/api/privacy-templates",
+			).then((r) => r.templates),
+	},
+
+	ageRating: {
+		get: (appId: string) =>
+			fetchApi<{ ageRating: AgeRating | null }>(
+				`/api/apps/${appId}/age-rating`,
+			).then((r) => r.ageRating),
+		update: (appId: string, data: AgeRatingInput) =>
+			fetchApi<{
+				ageRating: AgeRating & {
+					syncedToStore: boolean;
+					syncError: string | null;
+				};
+			}>(`/api/apps/${appId}/age-rating`, {
+				body: JSON.stringify(data),
+				method: "PUT",
+			}).then((r) => r.ageRating),
+		presets: () =>
+			fetchApi<{ presets: AgeRatingPreset[] }>(
+				"/api/age-rating-presets",
+			).then((r) => r.presets),
+	},
+
 	stores: {
 		connect: (data: ConnectStoreData) =>
 			fetchApi<{ store: Store }>("/api/stores/connect", {
