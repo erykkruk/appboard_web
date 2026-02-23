@@ -4,15 +4,29 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  Briefcase,
+  Contact,
+  CreditCard,
+  Eye,
+  FileText,
+  Fingerprint,
+  Heart,
   Info,
   Loader2,
+  MapPin,
+  MessageSquare,
+  Search,
+  Shield,
+  ShoppingCart,
   Sparkles,
+  BarChart3,
+  Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -22,6 +36,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -29,14 +44,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useApps } from "@/hooks/use-apps";
 import { api } from "@/lib/api";
@@ -48,12 +56,25 @@ import type { DataCollectionItem } from "@/lib/types";
 
 const STORAGE_KEY = "appboard:privacy-template";
 
+const CATEGORY_ICONS: Record<string, typeof Contact> = {
+  contact_info: Contact,
+  health_fitness: Heart,
+  financial: CreditCard,
+  location: MapPin,
+  sensitive_info: Shield,
+  contacts: Contact,
+  user_content: MessageSquare,
+  browsing_history: Eye,
+  search_history: Search,
+  identifiers: Fingerprint,
+  purchases: ShoppingCart,
+  usage_data: BarChart3,
+  diagnostics: Wrench,
+};
+
 interface PrivacyTemplateState {
   templateId: string;
   dataCollections: DataCollectionItem[];
-  privacyPolicyUrl: string;
-  trackingEnabled: boolean;
-  trackingDomains: string[];
 }
 
 const TEMPLATE_PRESETS: {
@@ -140,7 +161,7 @@ const TEMPLATE_PRESETS: {
   {
     id: "custom",
     name: "Custom",
-    description: "Empty template — fill in your own data collections",
+    description: "Start from scratch",
     dataCollections: [],
   },
 ];
@@ -148,9 +169,6 @@ const TEMPLATE_PRESETS: {
 const DEFAULT_STATE: PrivacyTemplateState = {
   templateId: "basic_app",
   dataCollections: TEMPLATE_PRESETS[1].dataCollections,
-  privacyPolicyUrl: "",
-  trackingEnabled: false,
-  trackingDomains: [],
 };
 
 function loadState(): PrivacyTemplateState {
@@ -167,12 +185,8 @@ function saveState(state: PrivacyTemplateState) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
 }
 
-function getCategoryLabel(categoryId: string): string {
-  return PRIVACY_CATEGORIES.find((c) => c.category === categoryId)?.label ?? categoryId;
-}
-
-function getPurposeLabel(purposeId: string): string {
-  return PRIVACY_PURPOSES.find((p) => p.id === purposeId)?.label ?? purposeId;
+function makeKey(category: string, dataType: string) {
+  return `${category}:${dataType}`;
 }
 
 export default function PrivacyTemplatePage() {
@@ -180,32 +194,84 @@ export default function PrivacyTemplatePage() {
   const [loaded, setLoaded] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
 
-  // Load from localStorage
   useEffect(() => {
     setState(loadState());
     setLoaded(true);
   }, []);
 
-  // Persist to localStorage on changes
   useEffect(() => {
     if (loaded) saveState(state);
   }, [state, loaded]);
 
-  const updateState = useCallback((updates: Partial<PrivacyTemplateState>) => {
-    setState((prev) => ({ ...prev, ...updates }));
-  }, []);
-
   const handleTemplateChange = useCallback((templateId: string) => {
     const preset = TEMPLATE_PRESETS.find((t) => t.id === templateId);
     if (!preset) return;
-    updateState({
-      templateId,
-      dataCollections: preset.dataCollections,
-      trackingEnabled: preset.dataCollections.some((d) => d.tracking),
+    setState({ templateId, dataCollections: preset.dataCollections });
+  }, []);
+
+  // Lookup map: key -> DataCollectionItem
+  const itemMap = useMemo(() => {
+    const map = new Map<string, DataCollectionItem>();
+    for (const item of state.dataCollections) {
+      map.set(makeKey(item.category, item.dataType), item);
+    }
+    return map;
+  }, [state.dataCollections]);
+
+  const toggleDataType = useCallback((category: string, dataType: string) => {
+    setState((prev) => {
+      const key = makeKey(category, dataType);
+      const exists = prev.dataCollections.some(
+        (d) => makeKey(d.category, d.dataType) === key,
+      );
+      const next = exists
+        ? prev.dataCollections.filter(
+            (d) => makeKey(d.category, d.dataType) !== key,
+          )
+        : [
+            ...prev.dataCollections,
+            { category, dataType, linked: true, purposes: ["app_functionality"], tracking: false },
+          ];
+      return { templateId: "custom", dataCollections: next };
     });
-  }, [updateState]);
+  }, []);
+
+  const togglePurpose = useCallback((category: string, dataType: string, purposeId: string) => {
+    setState((prev) => ({
+      templateId: "custom",
+      dataCollections: prev.dataCollections.map((d) => {
+        if (d.category !== category || d.dataType !== dataType) return d;
+        const has = d.purposes.includes(purposeId);
+        const purposes = has
+          ? d.purposes.filter((p) => p !== purposeId)
+          : [...d.purposes, purposeId];
+        // Keep at least one purpose
+        if (purposes.length === 0) return d;
+        return { ...d, purposes };
+      }),
+    }));
+  }, []);
+
+  const setLinked = useCallback((category: string, dataType: string, linked: boolean) => {
+    setState((prev) => ({
+      templateId: "custom",
+      dataCollections: prev.dataCollections.map((d) =>
+        d.category === category && d.dataType === dataType ? { ...d, linked } : d,
+      ),
+    }));
+  }, []);
+
+  const setTracking = useCallback((category: string, dataType: string, tracking: boolean) => {
+    setState((prev) => ({
+      templateId: "custom",
+      dataCollections: prev.dataCollections.map((d) =>
+        d.category === category && d.dataType === dataType ? { ...d, tracking } : d,
+      ),
+    }));
+  }, []);
 
   const hasTracking = state.dataCollections.some((d) => d.tracking);
+  const selectedCount = state.dataCollections.length;
 
   if (!loaded) return null;
 
@@ -227,7 +293,7 @@ export default function PrivacyTemplatePage() {
       </Alert>
 
       {/* Template selector + AI generate */}
-      <div className="mb-6 flex items-end gap-3">
+      <div className="mb-8 flex items-end gap-3">
         <div className="flex-1">
           <Label className="mb-2 block text-sm font-medium">Template</Label>
           <Select value={state.templateId} onValueChange={handleTemplateChange}>
@@ -250,67 +316,154 @@ export default function PrivacyTemplatePage() {
         </Button>
       </div>
 
-      {/* Data collections */}
-      <div className="mb-6">
-        <h2 className="mb-3 text-lg font-semibold">Data Collections</h2>
+      {/* Full catalog — Apple-style */}
+      <div className="space-y-8">
+        {PRIVACY_CATEGORIES.map((cat) => {
+          const Icon = CATEGORY_ICONS[cat.category] ?? Briefcase;
 
-        {state.dataCollections.length === 0 ? (
-          <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-            No data collections. Your app does not collect any user data.
-          </div>
-        ) : (
-          <div className="rounded-lg border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead className="w-10 text-center">#</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Data Type</TableHead>
-                  <TableHead>Purposes</TableHead>
-                  <TableHead className="w-24 text-center">Linked</TableHead>
-                  <TableHead className="w-24 text-center">Tracking</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {state.dataCollections.map((item, index) => (
-                  <TableRow key={`${item.category}-${item.dataType}`}>
-                    <TableCell className="text-center text-xs text-muted-foreground">
-                      {index + 1}
-                    </TableCell>
-                    <TableCell className="text-sm">
-                      {getCategoryLabel(item.category)}
-                    </TableCell>
-                    <TableCell className="text-sm font-medium">{item.dataType}</TableCell>
-                    <TableCell>
-                      <div className="flex flex-wrap gap-1">
-                        {item.purposes.map((p) => (
-                          <Badge key={p} variant="outline" className="text-[10px]">
-                            {getPurposeLabel(p)}
-                          </Badge>
-                        ))}
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-center text-sm">
-                      {item.linked ? "Yes" : "No"}
-                    </TableCell>
-                    <TableCell className="text-center text-sm">
-                      {item.tracking ? (
-                        <span className="text-orange-400">Yes</span>
-                      ) : (
-                        "No"
+          return (
+            <section key={cat.category}>
+              {/* Category header */}
+              <div className="mb-4 flex items-center gap-2.5">
+                <Icon className="h-5 w-5 text-muted-foreground" />
+                <h2 className="text-base font-bold">{cat.label}</h2>
+              </div>
+
+              {/* Data types */}
+              <div className="space-y-1 pl-1">
+                {cat.types.map((dt) => {
+                  const key = makeKey(cat.category, dt.id);
+                  const isChecked = itemMap.has(key);
+                  const details = itemMap.get(key);
+
+                  return (
+                    <div key={dt.id}>
+                      {/* Checkbox row */}
+                      <label className="flex cursor-pointer items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-muted/30">
+                        <Checkbox
+                          checked={isChecked}
+                          onCheckedChange={() => toggleDataType(cat.category, dt.id)}
+                          className="mt-0.5"
+                        />
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold">{dt.label}</p>
+                          <p className="text-sm text-muted-foreground">{dt.description}</p>
+                        </div>
+                      </label>
+
+                      {/* Expanded details when checked */}
+                      {isChecked && details && (
+                        <div className="mb-4 ml-9 space-y-5 rounded-lg border bg-[#1a1a1a] p-4">
+                          {/* Purposes */}
+                          <div>
+                            <p className="mb-1 text-sm font-semibold">
+                              Indicate how {dt.label.toLowerCase()} collected from this app are
+                              being used by you or your third-party partners (select all that
+                              apply):
+                            </p>
+                            <div className="mt-3 space-y-3">
+                              {PRIVACY_PURPOSES.map((purpose) => (
+                                <label
+                                  key={purpose.id}
+                                  className="flex cursor-pointer items-start gap-3"
+                                >
+                                  <Checkbox
+                                    checked={details.purposes.includes(purpose.id)}
+                                    onCheckedChange={() =>
+                                      togglePurpose(cat.category, dt.id, purpose.id)
+                                    }
+                                    className="mt-0.5"
+                                  />
+                                  <div>
+                                    <p className="text-sm font-medium">{purpose.label}</p>
+                                    <p className="text-xs text-muted-foreground">
+                                      {purpose.description}
+                                    </p>
+                                  </div>
+                                </label>
+                              ))}
+                            </div>
+                          </div>
+
+                          <Separator />
+
+                          {/* Linked to identity */}
+                          <div>
+                            <p className="mb-3 text-sm font-semibold">
+                              Are the {dt.label.toLowerCase()} collected from this app linked to
+                              the user&apos;s identity?
+                            </p>
+                            <RadioGroup
+                              value={details.linked ? "yes" : "no"}
+                              onValueChange={(v) =>
+                                setLinked(cat.category, dt.id, v === "yes")
+                              }
+                              className="space-y-2"
+                            >
+                              <label className="flex cursor-pointer items-center gap-2.5">
+                                <RadioGroupItem value="yes" />
+                                <span className="text-sm">
+                                  <span className="font-medium">Yes</span>, {dt.label.toLowerCase()}{" "}
+                                  collected from this app are linked to the user&apos;s identity
+                                </span>
+                              </label>
+                              <label className="flex cursor-pointer items-center gap-2.5">
+                                <RadioGroupItem value="no" />
+                                <span className="text-sm">
+                                  <span className="font-medium">No</span>, {dt.label.toLowerCase()}{" "}
+                                  collected from this app are not linked to the user&apos;s identity
+                                </span>
+                              </label>
+                            </RadioGroup>
+                          </div>
+
+                          <Separator />
+
+                          {/* Tracking */}
+                          <div>
+                            <p className="mb-3 text-sm font-semibold">
+                              Do you or your third-party partners use{" "}
+                              {dt.label.toLowerCase()} for tracking purposes?
+                            </p>
+                            <RadioGroup
+                              value={details.tracking ? "yes" : "no"}
+                              onValueChange={(v) =>
+                                setTracking(cat.category, dt.id, v === "yes")
+                              }
+                              className="space-y-2"
+                            >
+                              <label className="flex cursor-pointer items-center gap-2.5">
+                                <RadioGroupItem value="yes" />
+                                <span className="text-sm">
+                                  <span className="font-medium">Yes</span>, we use{" "}
+                                  {dt.label.toLowerCase()} for tracking purposes
+                                </span>
+                              </label>
+                              <label className="flex cursor-pointer items-center gap-2.5">
+                                <RadioGroupItem value="no" />
+                                <span className="text-sm">
+                                  <span className="font-medium">No</span>, we do not use{" "}
+                                  {dt.label.toLowerCase()} for tracking purposes
+                                </span>
+                              </label>
+                            </RadioGroup>
+                          </div>
+                        </div>
                       )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </div>
-        )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              <Separator className="mt-6" />
+            </section>
+          );
+        })}
       </div>
 
       {/* Tracking warning */}
       {hasTracking && (
-        <Alert className="mb-6 border-orange-500/30 bg-orange-500/5">
+        <Alert className="mt-8 border-orange-500/30 bg-orange-500/5">
           <AlertTriangle className="h-4 w-4 text-orange-400" />
           <AlertDescription className="text-sm text-orange-300">
             Some data types are marked as used for tracking. Your app will need to show the App
@@ -320,11 +473,11 @@ export default function PrivacyTemplatePage() {
       )}
 
       {/* Summary */}
-      <div className="rounded-lg border bg-[#1a1a1a] p-4">
+      <div className="mt-8 rounded-lg border bg-[#1a1a1a] p-4">
         <h3 className="mb-2 text-sm font-semibold">Summary</h3>
         <div className="grid grid-cols-3 gap-4 text-center">
           <div>
-            <p className="text-2xl font-bold">{state.dataCollections.length}</p>
+            <p className="text-2xl font-bold">{selectedCount}</p>
             <p className="text-xs text-muted-foreground">Data Types</p>
           </div>
           <div>
@@ -347,15 +500,10 @@ export default function PrivacyTemplatePage() {
         open={aiDialogOpen}
         onOpenChange={setAiDialogOpen}
         onGenerated={(items) => {
-          updateState({
-            templateId: "custom",
-            dataCollections: items,
-            trackingEnabled: items.some((d) => d.tracking),
-          });
+          setState({ templateId: "custom", dataCollections: items });
           toast.success(`Generated ${items.length} data collection items`);
         }}
       />
-
     </div>
   );
 }
@@ -468,4 +616,3 @@ function AiGenerateDialog({
     </Dialog>
   );
 }
-
