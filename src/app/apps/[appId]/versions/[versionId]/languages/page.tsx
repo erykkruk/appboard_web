@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { ExternalLink, Globe, Info, Loader2, Plus, Trash2 } from "lucide-react";
+import { Globe, Loader2, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -15,6 +15,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -22,17 +23,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipProvider,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import {
   useAddLocalization,
   useAddLocalizationWithTranslation,
+  useDeleteLocalization,
   useVersionDetail,
 } from "@/hooks/use-publishing";
 import { APP_STORE_LANGUAGES } from "@/lib/types";
@@ -77,10 +73,20 @@ export default function LanguagesPage() {
     params.appId,
     params.versionId,
   );
+  const deleteLocalization = useDeleteLocalization(
+    params.appId,
+    params.versionId,
+  );
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedLocale, setSelectedLocale] = useState("");
   const [translateEnabled, setTranslateEnabled] = useState(false);
   const [sourceLocale, setSourceLocale] = useState("");
+
+  const [deleteTarget, setDeleteTarget] = useState<{
+    localizationId: string;
+    language: string;
+  } | null>(null);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
 
   const existingLocales = useMemo(
     () => new Set((detail.data?.localizations ?? []).map((l) => l.language)),
@@ -122,6 +128,24 @@ export default function LanguagesPage() {
       setAddDialogOpen(false);
     } catch {
       toast.error("Failed to add language");
+    }
+  };
+
+  const deleteLabel = deleteTarget
+    ? getLanguageLabel(deleteTarget.language)
+    : "";
+  const isDeleteConfirmed =
+    deleteConfirmText.trim().toLowerCase() === deleteLabel.toLowerCase();
+
+  const handleDelete = async () => {
+    if (!deleteTarget || !isDeleteConfirmed) return;
+    try {
+      await deleteLocalization.mutateAsync(deleteTarget.localizationId);
+      toast.success(`Removed ${deleteLabel}`);
+      setDeleteTarget(null);
+      setDeleteConfirmText("");
+    } catch {
+      toast.error("Failed to remove language");
     }
   };
 
@@ -299,47 +323,86 @@ export default function LanguagesPage() {
                   </div>
                 </div>
                 {isEditable && (
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          className="text-muted-foreground cursor-not-allowed opacity-50"
-                          disabled
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Removing languages is currently only available via App Store Connect</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-muted-foreground hover:text-destructive"
+                    onClick={() =>
+                      setDeleteTarget({
+                        localizationId: loc.localizationId,
+                        language: loc.language,
+                      })
+                    }
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
                 )}
               </div>
             ))}
         </div>
       )}
 
-      {/* Info banner */}
-      {isEditable && localizations.length > 0 && (
-        <div className="flex items-start gap-3 rounded-lg border border-border bg-[#1a1a1a] px-4 py-3 text-sm text-muted-foreground">
-          <Info className="mt-0.5 h-4 w-4 shrink-0" />
-          <p>
-            Removing languages is currently only available directly in{" "}
-            <a
-              href="https://appstoreconnect.apple.com"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-foreground underline underline-offset-2 hover:text-primary"
+      {/* Delete confirmation dialog */}
+      <Dialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => {
+          if (!open) {
+            setDeleteTarget(null);
+            setDeleteConfirmText("");
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Remove Language</DialogTitle>
+            <DialogDescription>
+              This will permanently remove{" "}
+              <span className="font-semibold text-foreground">
+                {deleteLabel}
+              </span>{" "}
+              and all its localized content from this version in App Store
+              Connect. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="confirm-delete" className="text-sm">
+              Type{" "}
+              <span className="font-semibold text-foreground">
+                {deleteLabel}
+              </span>{" "}
+              to confirm
+            </Label>
+            <Input
+              id="confirm-delete"
+              value={deleteConfirmText}
+              onChange={(e) => setDeleteConfirmText(e.target.value)}
+              placeholder={deleteLabel}
+              autoComplete="off"
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setDeleteTarget(null);
+                setDeleteConfirmText("");
+              }}
             >
-              App Store Connect
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          </p>
-        </div>
-      )}
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDelete}
+              disabled={!isDeleteConfirmed || deleteLocalization.isPending}
+            >
+              {deleteLocalization.isPending ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : null}
+              Remove
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
