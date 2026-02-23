@@ -76,6 +76,8 @@ export default function AppLayout({
   const createVersion = useCreateVersion(appId);
   const [newVersion, setNewVersion] = useState("");
   const [showNewVersion, setShowNewVersion] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const queryClient = useQueryClient();
 
   const basePath = `/apps/${appId}`;
 
@@ -121,6 +123,36 @@ export default function AppLayout({
       toast.error("Failed to create version");
     }
   };
+
+  const handleSyncAll = useCallback(async () => {
+    setIsSyncing(true);
+    try {
+      const results = await Promise.allSettled([
+        api.listings.sync(appId),
+        api.assets.sync(appId),
+        api.reviews.sync(appId),
+        api.publishing.syncVersions(appId),
+      ]);
+
+      const failed = results.filter((r) => r.status === "rejected").length;
+
+      queryClient.invalidateQueries({ queryKey: ["listings", appId] });
+      queryClient.invalidateQueries({ queryKey: ["assets", appId] });
+      queryClient.invalidateQueries({ queryKey: ["reviews", appId] });
+      queryClient.invalidateQueries({ queryKey: ["publishing", appId] });
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
+
+      if (failed > 0) {
+        toast.warning(`Synced with ${failed} error(s)`);
+      } else {
+        toast.success("Everything synced");
+      }
+    } catch {
+      toast.error("Sync failed");
+    } finally {
+      setIsSyncing(false);
+    }
+  }, [appId, queryClient]);
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -300,6 +332,21 @@ export default function AppLayout({
             </>
           )}
         </nav>
+
+        <div className="border-t border-border px-2 py-3">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-center gap-2 text-muted-foreground"
+            onClick={handleSyncAll}
+            disabled={isSyncing}
+          >
+            <RefreshCw
+              className={cn("h-3.5 w-3.5", isSyncing && "animate-spin")}
+            />
+            {isSyncing ? "Syncing..." : "Sync All"}
+          </Button>
+        </div>
       </div>
 
       {/* Main content */}
