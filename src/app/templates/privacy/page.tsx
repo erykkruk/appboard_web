@@ -5,6 +5,8 @@ import { useMutation } from "@tanstack/react-query";
 import {
   AlertTriangle,
   Briefcase,
+  ChevronDown,
+  ChevronRight,
   Contact,
   CreditCard,
   Eye,
@@ -193,6 +195,16 @@ export default function PrivacyTemplatePage() {
   const [state, setState] = useState<PrivacyTemplateState>(DEFAULT_STATE);
   const [loaded, setLoaded] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  const toggleCategoryExpanded = useCallback((category: string) => {
+    setExpandedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(category)) next.delete(category);
+      else next.add(category);
+      return next;
+    });
+  }, []);
 
   useEffect(() => {
     setState(loadState());
@@ -316,43 +328,62 @@ export default function PrivacyTemplatePage() {
         </Button>
       </div>
 
-      {/* Full catalog — Apple-style */}
-      <div className="space-y-8">
+      {/* Full catalog — Apple-style collapsible */}
+      <div className="space-y-2">
         {PRIVACY_CATEGORIES.map((cat) => {
           const Icon = CATEGORY_ICONS[cat.category] ?? Briefcase;
+          const isExpanded = expandedCategories.has(cat.category);
+          const checkedCount = cat.types.filter((dt) =>
+            itemMap.has(makeKey(cat.category, dt.id)),
+          ).length;
 
           return (
-            <section key={cat.category}>
-              {/* Category header */}
-              <div className="mb-4 flex items-center gap-2.5">
-                <Icon className="h-5 w-5 text-muted-foreground" />
-                <h2 className="text-base font-bold">{cat.label}</h2>
-              </div>
+            <section key={cat.category} className="rounded-lg border">
+              {/* Category header — clickable to expand/collapse */}
+              <button
+                type="button"
+                className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30"
+                onClick={() => toggleCategoryExpanded(cat.category)}
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4 shrink-0 text-muted-foreground" />
+                ) : (
+                  <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground" />
+                )}
+                <Icon className="h-5 w-5 shrink-0 text-muted-foreground" />
+                <h2 className="flex-1 text-sm font-bold">{cat.label}</h2>
+                {checkedCount > 0 && (
+                  <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-bold text-primary-foreground">
+                    {checkedCount}
+                  </span>
+                )}
+              </button>
 
-              {/* Data types */}
-              <div className="space-y-1 pl-1">
-                {cat.types.map((dt) => {
-                  const key = makeKey(cat.category, dt.id);
-                  const isChecked = itemMap.has(key);
-                  const details = itemMap.get(key);
+              {/* Data types — collapsible */}
+              {isExpanded && (
+                <div className="space-y-1 border-t px-4 py-3">
+                  {cat.types.map((dt) => {
+                    const key = makeKey(cat.category, dt.id);
+                    const isChecked = itemMap.has(key);
+                    const details = itemMap.get(key);
 
-                  return (
-                    <div key={dt.id}>
-                      {/* Checkbox row */}
-                      <label className="flex cursor-pointer items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-muted/30">
-                        <Checkbox
-                          checked={isChecked}
-                          onCheckedChange={() => toggleDataType(cat.category, dt.id)}
-                          className="mt-0.5"
-                        />
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold">{dt.label}</p>
-                          <p className="text-sm text-muted-foreground">{dt.description}</p>
-                        </div>
-                      </label>
+                    return (
+                      <div key={dt.id}>
+                        {/* Checkbox row */}
+                        <label className="flex cursor-pointer items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-muted/30">
+                          <Checkbox
+                            checked={isChecked}
+                            onCheckedChange={() => toggleDataType(cat.category, dt.id)}
+                            className="mt-0.5"
+                          />
+                          <div className="flex-1">
+                            <p className="text-sm font-semibold">{dt.label}</p>
+                            <p className="text-sm text-muted-foreground">{dt.description}</p>
+                          </div>
+                        </label>
 
-                      {/* Expanded details when checked */}
-                      {isChecked && details && (
+                        {/* Expanded details when checked */}
+                        {isChecked && details && (
                         <div className="mb-4 ml-9 space-y-5 rounded-lg border bg-[#1a1a1a] p-4">
                           {/* Purposes */}
                           <div>
@@ -450,12 +481,11 @@ export default function PrivacyTemplatePage() {
                           </div>
                         </div>
                       )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              <Separator className="mt-6" />
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </section>
           );
         })}
