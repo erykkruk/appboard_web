@@ -8,6 +8,7 @@ import {
 	Globe,
 	Info,
 	Loader2,
+	MoreVertical,
 	RefreshCw,
 	Save,
 	Sparkles,
@@ -96,7 +97,6 @@ const EDITABLE_STATES = new Set([
 	"REJECTED",
 ]);
 
-// States where whatsNew can be edited (only after first version is live)
 const WHATS_NEW_EDITABLE_STATES = new Set(["DEVELOPER_REJECTED", "REJECTED"]);
 
 const AI_FIELDS: ListingFieldName[] = [
@@ -188,10 +188,10 @@ function getLanguageLabel(locale: string): string {
 	return found ? found.label : locale;
 }
 
-type FormData = Record<string, string>;
+type FieldData = Record<string, string>;
 
-function buildFormData(loc: VersionLocalization): FormData {
-	const data: FormData = {};
+function buildFieldData(loc: VersionLocalization): FieldData {
+	const data: FieldData = {};
 	for (const field of FIELDS) {
 		data[field.key] = (loc[field.key] as string) ?? "";
 	}
@@ -199,8 +199,8 @@ function buildFormData(loc: VersionLocalization): FormData {
 }
 
 function getChangedFields(
-	original: FormData,
-	current: FormData,
+	original: FieldData,
+	current: FieldData,
 ): Record<string, string> | null {
 	const changes: Record<string, string> = {};
 	for (const key of Object.keys(current)) {
@@ -225,9 +225,10 @@ function getFieldError(
 	field: FieldConfig,
 	value: string,
 	isWhatsNewEditable: boolean,
+	checkMinLength: boolean,
 ): string | null {
 	if (field.key === "whatsNew" && !isWhatsNewEditable) {
-		return null; // Don't validate disabled field
+		return null;
 	}
 
 	const len = value.length;
@@ -236,7 +237,7 @@ function getFieldError(
 		return `Exceeds maximum of ${field.maxLength} characters`;
 	}
 
-	if (field.minLength && len > 0 && len < field.minLength) {
+	if (checkMinLength && field.minLength && len > 0 && len < field.minLength) {
 		return `Must be at least ${field.minLength} characters`;
 	}
 
@@ -257,8 +258,17 @@ export default function VersionDetailPage() {
 	const publishLocs = usePublishLocalizations(params.appId, params.versionId);
 
 	const [selectedLanguage, setSelectedLanguage] = useState<string>("");
-	const [formData, setFormData] = useState<FormData>({});
-	const [originalData, setOriginalData] = useState<FormData>({});
+	// Multi-language form data keyed by locale
+	const [allFormData, setAllFormData] = useState<Record<string, FieldData>>(
+		{},
+	);
+	const [allOriginalData, setAllOriginalData] = useState<
+		Record<string, FieldData>
+	>({});
+	// Per-field language override (field key → locale)
+	const [fieldLangOverrides, setFieldLangOverrides] = useState<
+		Record<string, string>
+	>({});
 	const [copyrightValue, setCopyrightValue] = useState("");
 	const [originalCopyright, setOriginalCopyright] = useState("");
 	const [isImporting, setIsImporting] = useState(false);
@@ -270,6 +280,13 @@ export default function VersionDetailPage() {
 	const [originalSecondary, setOriginalSecondary] = useState<string>("");
 	const [isSavingCategories, setIsSavingCategories] = useState(false);
 	const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
+	const [saveAttempted, setSaveAttempted] = useState(false);
+	const [aiConfirm, setAiConfirm] = useState<{
+		field: ListingFieldName;
+		label: string;
+		mode: "generate" | "rephrase";
+		language: string;
+	} | null>(null);
 	const [categoriesData, setCategoriesData] = useState<{
 		availableCategories: { id: string; name: string }[];
 	} | null>(null);
@@ -292,39 +309,65 @@ export default function VersionDetailPage() {
 		}
 	}, [localizations, selectedLanguage]);
 
-	// Current localization
+	// Build form data for ALL localizations when data changes
+	useEffect(() => {
+		if (localizations.length === 0) return;
+		const formMap: Record<string, FieldData> = {};
+		const origMap: Record<string, FieldData> = {};
+		for (const loc of localizations) {
+			const data = buildFieldData(loc);
+			formMap[loc.language] = data;
+			origMap[loc.language] = data;
+		}
+		setAllFormData(formMap);
+		setAllOriginalData(origMap);
+	}, [localizations]);
+
 	const currentLoc = useMemo(
 		() => localizations.find((l) => l.language === selectedLanguage),
 		[localizations, selectedLanguage],
 	);
 
-	// Sync form data when localization changes
-	useEffect(() => {
-		if (currentLoc) {
-			const data = buildFormData(currentLoc);
-			setFormData(data);
-			setOriginalData(data);
-		}
-	}, [currentLoc]);
-
 	const handleLanguageChange = useCallback((lang: string) => {
 		setSelectedLanguage(lang);
+		setSaveAttempted(false);
+		setFieldLangOverrides({});
 	}, []);
+
+	const handleFieldLangChange = useCallback(
+		(fieldKey: string, lang: string) => {
+			setFieldLangOverrides((prev) => {
+				if (lang === selectedLanguage) {
+					const next = { ...prev };
+					delete next[fieldKey];
+					return next;
+				}
+				return { ...prev, [fieldKey]: lang };
+			});
+		},
+		[selectedLanguage],
+	);
 
 	// Fetch categories
 	useEffect(() => {
 		if (!params.appId) return;
-		api.listings.categories(params.appId).then((data) => {
-			setCategoriesData({
-				availableCategories: data.availableCategories as { id: string; name: string }[],
+		api.listings
+			.categories(params.appId)
+			.then((data) => {
+				setCategoriesData({
+					availableCategories: data.availableCategories as {
+						id: string;
+						name: string;
+					}[],
+				});
+				setPrimaryCategory(data.primaryCategory ?? "");
+				setSecondaryCategory(data.secondaryCategory ?? "");
+				setOriginalPrimary(data.primaryCategory ?? "");
+				setOriginalSecondary(data.secondaryCategory ?? "");
+			})
+			.catch(() => {
+				// Categories not available (e.g. Android)
 			});
-			setPrimaryCategory(data.primaryCategory ?? "");
-			setSecondaryCategory(data.secondaryCategory ?? "");
-			setOriginalPrimary(data.primaryCategory ?? "");
-			setOriginalSecondary(data.secondaryCategory ?? "");
-		}).catch(() => {
-			// Categories not available (e.g. Android)
-		});
 	}, [params.appId]);
 
 	const categoriesChanged =
@@ -372,34 +415,68 @@ export default function VersionDetailPage() {
 		}
 	};
 
-	const handleFieldChange = useCallback((key: string, value: string) => {
-		setFormData((prev) => ({ ...prev, [key]: value }));
-	}, []);
+	// Update a field value for a specific language
+	const handleFieldChange = useCallback(
+		(lang: string, key: string, value: string) => {
+			setAllFormData((prev) => ({
+				...prev,
+				[lang]: { ...prev[lang], [key]: value },
+			}));
+		},
+		[],
+	);
 
 	const state = detail.data?.state ?? "";
 	const isEditable = EDITABLE_STATES.has(state);
 
-	// whatsNew is only editable after the first version has been released
-	// PREPARE_FOR_SUBMISSION on the very first version means whatsNew is locked
+	// Convenience: get form data for selected language
+	const formData = allFormData[selectedLanguage] ?? {};
+	const originalData = allOriginalData[selectedLanguage] ?? {};
+
 	const isWhatsNewEditable =
 		WHATS_NEW_EDITABLE_STATES.has(state) ||
 		(state === "PREPARE_FOR_SUBMISSION" &&
 			!!(formData.whatsNew || originalData.whatsNew));
 
-	const changedFields = useMemo(
-		() => getChangedFields(originalData, formData),
-		[originalData, formData],
-	);
+	// Compute changes across ALL languages
+	const allChangedByLang = useMemo(() => {
+		const result: Record<string, Record<string, string>> = {};
+		for (const lang of Object.keys(allFormData)) {
+			const changes = getChangedFields(
+				allOriginalData[lang] ?? {},
+				allFormData[lang],
+			);
+			if (changes) {
+				result[lang] = changes;
+			}
+		}
+		return result;
+	}, [allFormData, allOriginalData]);
 
-	// Compute all validation errors
+	const hasAnyChanges = Object.keys(allChangedByLang).length > 0;
+
+	// Validation for all visible fields (selected language + overrides)
 	const fieldErrors = useMemo(() => {
 		const errors: Record<string, string | null> = {};
 		for (const field of FIELDS) {
-			const value = formData[field.key] ?? "";
-			errors[field.key] = getFieldError(field, value, isWhatsNewEditable);
+			const lang =
+				fieldLangOverrides[field.key] || selectedLanguage;
+			const value = allFormData[lang]?.[field.key] ?? "";
+			errors[field.key] = getFieldError(
+				field,
+				value,
+				isWhatsNewEditable,
+				saveAttempted,
+			);
 		}
 		return errors;
-	}, [formData, isWhatsNewEditable]);
+	}, [
+		allFormData,
+		fieldLangOverrides,
+		selectedLanguage,
+		isWhatsNewEditable,
+		saveAttempted,
+	]);
 
 	const hasValidationErrors = useMemo(
 		() => Object.values(fieldErrors).some((e) => e !== null),
@@ -407,7 +484,11 @@ export default function VersionDetailPage() {
 	);
 
 	const handleGenerateField = useCallback(
-		async (field: ListingFieldName, currentValue?: string) => {
+		async (
+			field: ListingFieldName,
+			language: string,
+			currentValue?: string,
+		) => {
 			if (!appData.data) return;
 
 			setGeneratingField(field);
@@ -417,12 +498,18 @@ export default function VersionDetailPage() {
 					appName: appData.data.name,
 					currentValue: currentValue || undefined,
 					field,
-					language: selectedLanguage,
+					language,
 					platform: appData.data.platform,
 				});
-				setFormData((prev) => ({ ...prev, [field]: result.result }));
+				setAllFormData((prev) => ({
+					...prev,
+					[language]: {
+						...prev[language],
+						[field]: result.result,
+					},
+				}));
 				toast.success(
-					`${currentValue ? "Rephrased" : "Generated"} ${field}`,
+					`${currentValue ? "Rephrased" : "Generated"} ${field} (${language})`,
 				);
 			} catch (err) {
 				const message =
@@ -432,7 +519,7 @@ export default function VersionDetailPage() {
 				setGeneratingField(null);
 			}
 		},
-		[appData.data, params.appId, selectedLanguage],
+		[appData.data, params.appId],
 	);
 
 	const handleGenerateAll = useCallback(async () => {
@@ -477,7 +564,13 @@ export default function VersionDetailPage() {
 		}
 
 		if (Object.keys(updates).length > 0) {
-			setFormData((prev) => ({ ...prev, ...updates }));
+			setAllFormData((prev) => ({
+				...prev,
+				[selectedLanguage]: {
+					...prev[selectedLanguage],
+					...updates,
+				},
+			}));
 		}
 
 		setGeneratingField(null);
@@ -494,29 +587,57 @@ export default function VersionDetailPage() {
 		selectedLanguage,
 	]);
 
+	// Save all changed localizations
 	const handleSave = async () => {
-		if (!currentLoc || !changedFields) return;
+		if (!hasAnyChanges) return;
 
-		// Filter out whatsNew if it's not editable
-		const fieldsToSave = { ...changedFields };
-		if (!isWhatsNewEditable) {
-			delete fieldsToSave.whatsNew;
+		setSaveAttempted(true);
+
+		// Validate all languages that have changes
+		for (const lang of Object.keys(allChangedByLang)) {
+			const langData = allFormData[lang] ?? {};
+			const hasErrors = FIELDS.some((f) => {
+				const val = langData[f.key] ?? "";
+				return (
+					getFieldError(f, val, isWhatsNewEditable, true) !== null
+				);
+			});
+			if (hasErrors) {
+				toast.error(`Validation errors in ${lang}`);
+				return;
+			}
 		}
 
-		if (Object.keys(fieldsToSave).length === 0) return;
-
 		try {
-			const result = await updateLoc.mutateAsync({
-				data: fieldsToSave,
-				localizationId: currentLoc.localizationId,
-			});
-			setOriginalData({ ...formData });
-			if (result.savedLocally) {
-				toast.info(
-					"Zmiany zapisane lokalnie. Zostaną zsynchronizowane z App Store później.",
+			let saved = 0;
+			for (const lang of Object.keys(allChangedByLang)) {
+				const loc = localizations.find((l) => l.language === lang);
+				if (!loc) continue;
+
+				const fieldsToSave = { ...allChangedByLang[lang] };
+				if (!isWhatsNewEditable) {
+					delete fieldsToSave.whatsNew;
+				}
+				if (Object.keys(fieldsToSave).length === 0) continue;
+
+				const result = await updateLoc.mutateAsync({
+					data: fieldsToSave,
+					localizationId: loc.localizationId,
+				});
+				saved++;
+				if (result.savedLocally) {
+					toast.info(`${lang}: zapisane lokalnie`);
+				}
+			}
+
+			// Sync original data to current
+			setAllOriginalData({ ...allFormData });
+			setSaveAttempted(false);
+
+			if (saved > 0) {
+				toast.success(
+					`Saved ${saved} localization(s)`,
 				);
-			} else {
-				toast.success("Listing saved");
 			}
 		} catch (err) {
 			const message =
@@ -583,7 +704,8 @@ export default function VersionDetailPage() {
 				);
 			}
 		} catch (err) {
-			const message = err instanceof Error ? err.message : "Failed to publish";
+			const message =
+				err instanceof Error ? err.message : "Failed to publish";
 			toast.error(message);
 		}
 	};
@@ -615,10 +737,7 @@ export default function VersionDetailPage() {
 		async (e: React.ChangeEvent<HTMLInputElement>) => {
 			const file = e.target.files?.[0];
 			if (!file) return;
-
-			// Reset input so same file can be re-imported
 			e.target.value = "";
-
 			setIsImporting(true);
 
 			try {
@@ -640,9 +759,13 @@ export default function VersionDetailPage() {
 				let skipped = 0;
 
 				for (const row of rows) {
-					const loc = localizations.find((l) => l.language === row.language);
+					const loc = localizations.find(
+						(l) => l.language === row.language,
+					);
 					if (!loc) {
-						toast.error(`Language "${row.language}" not found — skipped`);
+						toast.error(
+							`Language "${row.language}" not found — skipped`,
+						);
 						skipped++;
 						continue;
 					}
@@ -658,7 +781,10 @@ export default function VersionDetailPage() {
 						"marketingUrl",
 						"supportUrl",
 					] as const) {
-						if (row[key] !== undefined && row[key] !== String(loc[key] ?? "")) {
+						if (
+							row[key] !== undefined &&
+							row[key] !== String(loc[key] ?? "")
+						) {
 							data[key] = row[key];
 						}
 					}
@@ -682,7 +808,8 @@ export default function VersionDetailPage() {
 					toast.info("No changes detected");
 				}
 			} catch (err) {
-				const message = err instanceof Error ? err.message : "Import failed";
+				const message =
+					err instanceof Error ? err.message : "Import failed";
 				toast.error(message);
 			} finally {
 				setIsImporting(false);
@@ -710,8 +837,11 @@ export default function VersionDetailPage() {
 	const { versionString } = detail.data;
 	const isFromCache = detail.data.source === "cache";
 	const hasDirtyLocalizations = localizations.some((l) => l.isDirty);
-
 	const hasAnyContent = AI_FIELDS.some((f) => !!formData[f]);
+
+	const sortedLocalizations = localizations
+		.slice()
+		.sort((a, b) => a.language.localeCompare(b.language));
 
 	return (
 		<div className="p-6 space-y-6">
@@ -850,7 +980,7 @@ export default function VersionDetailPage() {
 						</>
 					)}
 
-					{/* Language selector */}
+					{/* Language selector (master) */}
 					{localizations.length > 0 && (
 						<Select
 							onValueChange={handleLanguageChange}
@@ -861,14 +991,14 @@ export default function VersionDetailPage() {
 								<SelectValue placeholder="Select language" />
 							</SelectTrigger>
 							<SelectContent>
-								{localizations
-									.slice()
-									.sort((a, b) => a.language.localeCompare(b.language))
-									.map((loc) => (
-										<SelectItem key={loc.language} value={loc.language}>
-											{getLanguageLabel(loc.language)}
-										</SelectItem>
-									))}
+								{sortedLocalizations.map((loc) => (
+									<SelectItem
+										key={loc.language}
+										value={loc.language}
+									>
+										{getLanguageLabel(loc.language)}
+									</SelectItem>
+								))}
 							</SelectContent>
 						</Select>
 					)}
@@ -909,7 +1039,9 @@ export default function VersionDetailPage() {
 					{isEditable && (
 						<Button
 							disabled={
-								!changedFields || hasValidationErrors || updateLoc.isPending
+								!hasAnyChanges ||
+								hasValidationErrors ||
+								updateLoc.isPending
 							}
 							onClick={handleSave}
 							size="sm"
@@ -984,114 +1116,132 @@ export default function VersionDetailPage() {
 			</div>
 
 			{/* Categories (app-level, not language-dependent) */}
-			{categoriesData && categoriesData.availableCategories.length > 0 && (
-				<div className="max-w-2xl space-y-3">
-					<div className="flex items-center justify-between">
-						<Label className="text-sm font-medium">Categories</Label>
-						<div className="flex items-center gap-2">
-							{isEditable && (
-								<>
-									<Button
-										className="h-7 px-2 text-xs gap-1"
-										disabled={isSuggestingCategory}
-										onClick={handleSuggestCategory}
-										size="sm"
-										variant="outline"
-									>
-										{isSuggestingCategory ? (
-											<Loader2 className="h-3 w-3 animate-spin" />
-										) : (
-											<Sparkles className="h-3 w-3" />
-										)}
-										Choose with AI
-									</Button>
-									<Button
-										className="h-7 px-2 text-xs"
-										disabled={
-											!categoriesChanged ||
-											!primaryCategory ||
-											isSavingCategories
-										}
-										onClick={handleSaveCategories}
-										size="sm"
-										variant="outline"
-									>
-										{isSavingCategories ? (
-											<Loader2 className="mr-1 h-3 w-3 animate-spin" />
-										) : (
-											<Save className="mr-1 h-3 w-3" />
-										)}
-										Save
-									</Button>
-								</>
-							)}
-						</div>
-					</div>
-					<div className="grid grid-cols-2 gap-4">
-						<div className="space-y-1.5">
-							<Label className="text-xs text-muted-foreground">
-								Primary Category
-							</Label>
-							<Select
-								disabled={!isEditable}
-								onValueChange={setPrimaryCategory}
-								value={primaryCategory}
-							>
-								<SelectTrigger className="bg-[#1a1a1a] border-border">
-									<SelectValue placeholder="Select category" />
-								</SelectTrigger>
-								<SelectContent>
-									{categoriesData.availableCategories.map((cat) => (
-										<SelectItem key={cat.id} value={cat.id}>
-											{cat.name}
-										</SelectItem>
-									))}
-								</SelectContent>
-							</Select>
-						</div>
-						<div className="space-y-1.5">
-							<Label className="text-xs text-muted-foreground">
-								Secondary Category
+			{categoriesData &&
+				categoriesData.availableCategories.length > 0 && (
+					<div className="max-w-2xl space-y-3">
+						<div className="flex items-center justify-between">
+							<Label className="text-sm font-medium">
+								Categories
 							</Label>
 							<div className="flex items-center gap-2">
-								<Select
-									disabled={!isEditable}
-									onValueChange={setSecondaryCategory}
-									value={secondaryCategory}
-								>
-									<SelectTrigger className="bg-[#1a1a1a] border-border">
-										<SelectValue placeholder="None (optional)" />
-									</SelectTrigger>
-									<SelectContent>
-										{categoriesData.availableCategories
-											.filter((cat) => cat.id !== primaryCategory)
-											.map((cat) => (
-												<SelectItem key={cat.id} value={cat.id}>
-													{cat.name}
-												</SelectItem>
-											))}
-									</SelectContent>
-								</Select>
-								{secondaryCategory && isEditable && (
-									<Button
-										className="h-9 w-9 shrink-0"
-										onClick={() => setSecondaryCategory("")}
-										size="icon"
-										variant="ghost"
-									>
-										<X className="h-4 w-4" />
-									</Button>
+								{isEditable && (
+									<>
+										<Button
+											className="h-7 px-2 text-xs gap-1"
+											disabled={isSuggestingCategory}
+											onClick={handleSuggestCategory}
+											size="sm"
+											variant="outline"
+										>
+											{isSuggestingCategory ? (
+												<Loader2 className="h-3 w-3 animate-spin" />
+											) : (
+												<Sparkles className="h-3 w-3" />
+											)}
+											Choose with AI
+										</Button>
+										<Button
+											className="h-7 px-2 text-xs"
+											disabled={
+												!categoriesChanged ||
+												!primaryCategory ||
+												isSavingCategories
+											}
+											onClick={handleSaveCategories}
+											size="sm"
+											variant="outline"
+										>
+											{isSavingCategories ? (
+												<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+											) : (
+												<Save className="mr-1 h-3 w-3" />
+											)}
+											Save
+										</Button>
+									</>
 								)}
 							</div>
 						</div>
+						<div className="grid grid-cols-2 gap-4">
+							<div className="space-y-1.5">
+								<Label className="text-xs text-muted-foreground">
+									Primary Category
+								</Label>
+								<Select
+									disabled={!isEditable}
+									onValueChange={setPrimaryCategory}
+									value={primaryCategory}
+								>
+									<SelectTrigger className="bg-[#1a1a1a] border-border">
+										<SelectValue placeholder="Select category" />
+									</SelectTrigger>
+									<SelectContent>
+										{categoriesData.availableCategories.map(
+											(cat) => (
+												<SelectItem
+													key={cat.id}
+													value={cat.id}
+												>
+													{cat.name}
+												</SelectItem>
+											),
+										)}
+									</SelectContent>
+								</Select>
+							</div>
+							<div className="space-y-1.5">
+								<Label className="text-xs text-muted-foreground">
+									Secondary Category
+								</Label>
+								<div className="flex items-center gap-2">
+									<Select
+										disabled={!isEditable}
+										onValueChange={setSecondaryCategory}
+										value={secondaryCategory}
+									>
+										<SelectTrigger className="bg-[#1a1a1a] border-border">
+											<SelectValue placeholder="None (optional)" />
+										</SelectTrigger>
+										<SelectContent>
+											{categoriesData.availableCategories
+												.filter(
+													(cat) =>
+														cat.id !==
+														primaryCategory,
+												)
+												.map((cat) => (
+													<SelectItem
+														key={cat.id}
+														value={cat.id}
+													>
+														{cat.name}
+													</SelectItem>
+												))}
+										</SelectContent>
+									</Select>
+									{secondaryCategory && isEditable && (
+										<Button
+											className="h-9 w-9 shrink-0"
+											onClick={() =>
+												setSecondaryCategory("")
+											}
+											size="icon"
+											variant="ghost"
+										>
+											<X className="h-4 w-4" />
+										</Button>
+									)}
+								</div>
+							</div>
+						</div>
 					</div>
-				</div>
-			)}
+				)}
 
 			{/* No localizations */}
 			{localizations.length === 0 ? (
 				<p className="text-sm text-muted-foreground">
-					No localizations found. Add languages in the Languages tab first.
+					No localizations found. Add languages in the Languages tab
+					first.
 				</p>
 			) : !currentLoc ? (
 				<p className="text-sm text-muted-foreground">
@@ -1100,128 +1250,129 @@ export default function VersionDetailPage() {
 			) : (
 				<div className="max-w-2xl space-y-6">
 					{FIELDS.map((field) => {
-						const value = formData[field.key] ?? "";
+						const activeLang =
+							fieldLangOverrides[field.key] ||
+							selectedLanguage;
+						const langData =
+							allFormData[activeLang] ?? {};
+						const value = langData[field.key] ?? "";
 						const charCount = value.length;
-						const isOverLimit = charCount > field.maxLength;
+						const isOverLimit =
+							charCount > field.maxLength;
 						const error = fieldErrors[field.key];
 						const isFieldDisabled =
-							!isEditable || (field.key === "whatsNew" && !isWhatsNewEditable);
+							!isEditable ||
+							(field.key === "whatsNew" &&
+								!isWhatsNewEditable);
 						const hasError = !!error;
 						const isAiField = AI_FIELDS.includes(
 							field.key as ListingFieldName,
 						);
-						const isFieldGenerating = generatingField === field.key;
+						const isFieldGenerating =
+							generatingField === field.key;
 
 						return (
-							<div className="space-y-1.5" key={field.key}>
+							<div
+								className="space-y-1.5"
+								key={field.key}
+							>
 								<div className="flex items-center justify-between">
-									<div className="flex items-center gap-2">
-										<Label className="text-sm font-medium" htmlFor={field.key}>
-											{field.label}
-											{field.minLength && (
-												<span className="ml-1 text-xs text-muted-foreground font-normal">
-													(min {field.minLength})
-												</span>
-											)}
-										</Label>
-
-										{/* AI buttons */}
-										{isAiField && isEditable && !isFieldDisabled && (
-											<div className="flex items-center gap-1">
-												{/* Generate button */}
-												<AlertDialog>
-													<AlertDialogTrigger asChild>
+									<div className="flex items-center gap-1.5">
+										{/* Vertical 3-dot AI menu */}
+										{isAiField &&
+											isEditable &&
+											!isFieldDisabled && (
+												<DropdownMenu>
+													<DropdownMenuTrigger
+														asChild
+													>
 														<Button
-															className="h-6 px-1.5 text-xs gap-1"
+															className="h-6 w-6 p-0"
 															disabled={
-																isFieldGenerating || isGeneratingAll
+																isFieldGenerating ||
+																isGeneratingAll
 															}
 															size="sm"
-															variant="outline"
+															variant="ghost"
 														>
-															{isFieldGenerating && !value ? (
-																<Loader2 className="h-3 w-3 animate-spin" />
+															{isFieldGenerating ? (
+																<Loader2 className="h-3.5 w-3.5 animate-spin" />
 															) : (
-																<Sparkles className="h-3 w-3" />
+																<MoreVertical className="h-3.5 w-3.5" />
 															)}
-															Generate
 														</Button>
-													</AlertDialogTrigger>
-													<AlertDialogContent>
-														<AlertDialogHeader>
-															<AlertDialogTitle>
-																Generate {field.label}?
-															</AlertDialogTitle>
-															<AlertDialogDescription>
-																AI will generate new content for{" "}
-																{field.label.toLowerCase()} based on your ASO
-																profile.{" "}
-																{value
-																	? "This will replace the current content."
-																	: ""}
-															</AlertDialogDescription>
-														</AlertDialogHeader>
-														<AlertDialogFooter>
-															<AlertDialogCancel>Cancel</AlertDialogCancel>
-															<AlertDialogAction
-																onClick={() =>
-																	handleGenerateField(
-																		field.key as ListingFieldName,
+													</DropdownMenuTrigger>
+													<DropdownMenuContent align="start">
+														<DropdownMenuItem
+															onSelect={() =>
+																setAiConfirm(
+																	{
+																		field: field.key as ListingFieldName,
+																		label: field.label,
+																		mode: "generate",
+																		language:
+																			activeLang,
+																	},
+																)
+															}
+														>
+															<Sparkles className="mr-2 h-3.5 w-3.5" />
+															Generate
+														</DropdownMenuItem>
+														{value && (
+															<DropdownMenuItem
+																onSelect={() =>
+																	setAiConfirm(
+																		{
+																			field: field.key as ListingFieldName,
+																			label: field.label,
+																			mode: "rephrase",
+																			language:
+																				activeLang,
+																		},
 																	)
 																}
 															>
-																Generate
-															</AlertDialogAction>
-														</AlertDialogFooter>
-													</AlertDialogContent>
-												</AlertDialog>
-
-												{/* Rephrase button (only when field has content) */}
-												{value && (
-													<AlertDialog>
-														<AlertDialogTrigger asChild>
-															<Button
-																className="h-6 px-1.5 text-xs gap-1"
-																disabled={
-																	isFieldGenerating || isGeneratingAll
-																}
-																size="sm"
-																variant="outline"
-															>
-																{isFieldGenerating && value ? (
-																	<Loader2 className="h-3 w-3 animate-spin" />
-																) : (
-																	<RefreshCw className="h-3 w-3" />
-																)}
+																<RefreshCw className="mr-2 h-3.5 w-3.5" />
 																Rephrase
-															</Button>
-														</AlertDialogTrigger>
-														<AlertDialogContent>
-															<AlertDialogHeader>
-																<AlertDialogTitle>
-																	Rephrase {field.label}?
-																</AlertDialogTitle>
-																<AlertDialogDescription>
-																	AI will rephrase the current content to
-																	improve ASO effectiveness while keeping the
-																	same meaning and language.
-																</AlertDialogDescription>
-															</AlertDialogHeader>
-															<AlertDialogFooter>
-																<AlertDialogCancel>Cancel</AlertDialogCancel>
-																<AlertDialogAction
-																	onClick={() =>
-																		handleGenerateField(
-																			field.key as ListingFieldName,
-																			value,
-																		)
-																	}
-																>
-																	Rephrase
-																</AlertDialogAction>
-															</AlertDialogFooter>
-														</AlertDialogContent>
-													</AlertDialog>
+															</DropdownMenuItem>
+														)}
+													</DropdownMenuContent>
+												</DropdownMenu>
+											)}
+										<Label
+											className="text-sm font-medium"
+											htmlFor={field.key}
+										>
+											{field.label}
+										</Label>
+										{/* Per-field language chips */}
+										{localizations.length > 1 && (
+											<div className="flex gap-1 overflow-x-auto scrollbar-thin">
+												{sortedLocalizations.map(
+													(loc) => (
+														<button
+															className={cn(
+																"shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors",
+																loc.language ===
+																	activeLang
+																	? "bg-primary text-primary-foreground"
+																	: "bg-muted text-muted-foreground hover:bg-muted/80",
+															)}
+															key={
+																loc.language
+															}
+															onClick={() =>
+																handleFieldLangChange(
+																	field.key,
+																	loc.language,
+																)
+															}
+															type="button"
+														>
+															{loc.language}
+														</button>
+													),
 												)}
 											</div>
 										)}
@@ -1234,46 +1385,68 @@ export default function VersionDetailPage() {
 												: "text-muted-foreground",
 										)}
 									>
-										{charCount}/{field.maxLength}
+										{charCount}/
+										{field.maxLength}
 									</span>
 								</div>
 
 								<div className="relative">
-									{isGeneratingAll && isAiField && (
-										<div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/60 backdrop-blur-[1px]">
-											<div className="flex items-center gap-2 text-xs text-muted-foreground">
-												<Loader2 className="h-3.5 w-3.5 animate-spin" />
-												Generating...
+									{isGeneratingAll &&
+										isAiField && (
+											<div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/60 backdrop-blur-[1px]">
+												<div className="flex items-center gap-2 text-xs text-muted-foreground">
+													<Loader2 className="h-3.5 w-3.5 animate-spin" />
+													Generating...
+												</div>
 											</div>
-										</div>
-									)}
+										)}
 									{field.multiline ? (
 										<Textarea
 											className={cn(
 												"resize-none bg-[#1a1a1a] border-border",
-												hasError && "border-destructive",
+												hasError &&
+													"border-destructive",
 											)}
-											disabled={isFieldDisabled}
+											disabled={
+												isFieldDisabled
+											}
 											id={field.key}
 											onChange={(e) =>
-												handleFieldChange(field.key, e.target.value)
+												handleFieldChange(
+													activeLang,
+													field.key,
+													e.target.value,
+												)
 											}
-											placeholder={field.placeholder}
-											rows={field.rows ?? 4}
+											placeholder={
+												field.placeholder
+											}
+											rows={
+												field.rows ?? 4
+											}
 											value={value}
 										/>
 									) : (
 										<Input
 											className={cn(
 												"bg-[#1a1a1a] border-border",
-												hasError && "border-destructive",
+												hasError &&
+													"border-destructive",
 											)}
-											disabled={isFieldDisabled}
+											disabled={
+												isFieldDisabled
+											}
 											id={field.key}
 											onChange={(e) =>
-												handleFieldChange(field.key, e.target.value)
+												handleFieldChange(
+													activeLang,
+													field.key,
+													e.target.value,
+												)
 											}
-											placeholder={field.placeholder}
+											placeholder={
+												field.placeholder
+											}
 											value={value}
 										/>
 									)}
@@ -1298,6 +1471,54 @@ export default function VersionDetailPage() {
 							</div>
 						);
 					})}
+
+					{/* AI confirmation dialog */}
+					<AlertDialog
+						onOpenChange={(open) => {
+							if (!open) setAiConfirm(null);
+						}}
+						open={!!aiConfirm}
+					>
+						<AlertDialogContent>
+							<AlertDialogHeader>
+								<AlertDialogTitle>
+									{aiConfirm?.mode === "rephrase"
+										? `Rephrase ${aiConfirm?.label}?`
+										: `Generate ${aiConfirm?.label}?`}
+								</AlertDialogTitle>
+								<AlertDialogDescription>
+									{aiConfirm?.mode === "rephrase"
+										? `AI will rephrase the current content (${aiConfirm?.language}) to improve ASO effectiveness while keeping the same meaning and language.`
+										: `AI will generate new content for ${aiConfirm?.label.toLowerCase()} (${aiConfirm?.language}) based on your ASO profile.${allFormData[aiConfirm?.language ?? ""]?.[aiConfirm?.field ?? ""] ? " This will replace the current content." : ""}`}
+								</AlertDialogDescription>
+							</AlertDialogHeader>
+							<AlertDialogFooter>
+								<AlertDialogCancel>Cancel</AlertDialogCancel>
+								<AlertDialogAction
+									onClick={() => {
+										if (!aiConfirm) return;
+										const currentVal =
+											allFormData[
+												aiConfirm.language
+											]?.[aiConfirm.field] ||
+											undefined;
+										handleGenerateField(
+											aiConfirm.field,
+											aiConfirm.language,
+											aiConfirm.mode ===
+												"rephrase"
+												? currentVal
+												: undefined,
+										);
+									}}
+								>
+									{aiConfirm?.mode === "rephrase"
+										? "Rephrase"
+										: "Generate"}
+								</AlertDialogAction>
+							</AlertDialogFooter>
+						</AlertDialogContent>
+					</AlertDialog>
 				</div>
 			)}
 		</div>
