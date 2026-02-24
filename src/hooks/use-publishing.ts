@@ -146,8 +146,19 @@ export function useDeleteAllScreenshots(appId: string, versionId: string) {
 export function useAddLocalization(appId: string, versionId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({
-		mutationFn: (locale: string) =>
-			api.publishing.addLocalization(appId, versionId, locale),
+		mutationFn: ({
+			locale,
+			copyScreenshotsFrom,
+		}: {
+			locale: string;
+			copyScreenshotsFrom?: string;
+		}) =>
+			api.publishing.addLocalization(
+				appId,
+				versionId,
+				locale,
+				copyScreenshotsFrom,
+			),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: ["publishing", appId, "versions", versionId],
@@ -165,15 +176,18 @@ export function useAddLocalizationWithTranslation(
 		mutationFn: ({
 			locale,
 			sourceLocale,
+			copyScreenshotsFrom,
 		}: {
 			locale: string;
 			sourceLocale: string;
+			copyScreenshotsFrom?: string;
 		}) =>
 			api.publishing.addLocalizationWithTranslation(
 				appId,
 				versionId,
 				locale,
 				sourceLocale,
+				copyScreenshotsFrom,
 			),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
@@ -310,6 +324,80 @@ export function useUploadReviewAttachment(appId: string, versionId: string) {
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: ["publishing", appId, "versions", versionId, "review-detail"],
+			});
+		},
+	});
+}
+
+export function useSplitPreview(appId: string) {
+	return useMutation({
+		mutationFn: ({
+			displayType,
+			file,
+			parts,
+		}: {
+			displayType: string;
+			file: File;
+			parts: number;
+		}) => api.publishing.splitPreview(appId, displayType, file, parts),
+	});
+}
+
+export function useSplitUploadScreenshots(appId: string, versionId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({
+			language,
+			displayType,
+			file,
+			parts,
+			insertAt,
+		}: {
+			language: string;
+			displayType: string;
+			file: File;
+			parts: number;
+			insertAt?: number;
+		}) =>
+			api.publishing.splitUploadScreenshots(
+				appId,
+				versionId,
+				language,
+				displayType,
+				file,
+				parts,
+				insertAt,
+			),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["publishing", appId, "versions", versionId, "screenshots"],
+			});
+		},
+	});
+}
+
+export function useCopyScreenshots(appId: string, versionId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({
+			sourceLanguage,
+			targetLanguage,
+			displayType,
+		}: {
+			sourceLanguage: string;
+			targetLanguage: string;
+			displayType?: string;
+		}) =>
+			api.publishing.copyScreenshots(
+				appId,
+				versionId,
+				sourceLanguage,
+				targetLanguage,
+				displayType,
+			),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["publishing", appId, "versions", versionId, "screenshots"],
 			});
 		},
 	});

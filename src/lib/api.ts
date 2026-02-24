@@ -30,6 +30,8 @@ import type {
 	ReviewStats,
 	SettingRow,
 	Settings,
+	SplitPreviewResult,
+	SplitUploadResult,
 	Store,
 	SuggestCategoryRequest,
 	SuggestCategoryResponse,
@@ -238,21 +240,37 @@ export const api = {
 	},
 
 	publishing: {
-		addLocalization: (appId: string, versionId: string, locale: string) =>
+		addLocalization: (
+			appId: string,
+			versionId: string,
+			locale: string,
+			copyScreenshotsFrom?: string,
+		) =>
 			fetchApi<{ added: boolean; language: string }>(
 				`/api/apps/${appId}/publishing/versions/${versionId}/localizations`,
-				{ body: JSON.stringify({ locale }), method: "POST" },
+				{
+					body: JSON.stringify({
+						locale,
+						...(copyScreenshotsFrom ? { copyScreenshotsFrom } : {}),
+					}),
+					method: "POST",
+				},
 			),
 		addLocalizationWithTranslation: (
 			appId: string,
 			versionId: string,
 			locale: string,
 			sourceLocale: string,
+			copyScreenshotsFrom?: string,
 		) =>
 			fetchApi<{ added: boolean; language: string; translated: boolean }>(
 				`/api/apps/${appId}/publishing/versions/${versionId}/localizations/translate`,
 				{
-					body: JSON.stringify({ locale, sourceLocale }),
+					body: JSON.stringify({
+						locale,
+						sourceLocale,
+						...(copyScreenshotsFrom ? { copyScreenshotsFrom } : {}),
+					}),
 					method: "POST",
 				},
 			),
@@ -417,6 +435,63 @@ export const api = {
 			}
 			return fetchApi<{ uploaded: boolean; screenshotId: string }>(
 				`/api/apps/${appId}/publishing/screenshots/upload`,
+				{ body: formData, headers: {}, method: "POST" },
+			);
+		},
+		copyScreenshots: (
+			appId: string,
+			versionId: string,
+			sourceLanguage: string,
+			targetLanguage: string,
+			displayType?: string,
+		) =>
+			fetchApi<{ copied: number }>(
+				`/api/apps/${appId}/publishing/screenshots/copy`,
+				{
+					body: JSON.stringify({
+						sourceLanguage,
+						targetLanguage,
+						versionId,
+						...(displayType ? { displayType } : {}),
+					}),
+					method: "POST",
+				},
+			),
+		splitPreview: (
+			appId: string,
+			displayType: string,
+			file: File,
+			parts: number,
+		) => {
+			const formData = new FormData();
+			formData.append("file", file);
+			formData.append("parts", String(parts));
+			formData.append("displayType", displayType);
+			return fetchApi<SplitPreviewResult>(
+				`/api/apps/${appId}/publishing/screenshots/split-preview`,
+				{ body: formData, headers: {}, method: "POST" },
+			);
+		},
+		splitUploadScreenshots: (
+			appId: string,
+			versionId: string,
+			language: string,
+			displayType: string,
+			file: File,
+			parts: number,
+			insertAt?: number,
+		) => {
+			const formData = new FormData();
+			formData.append("file", file);
+			formData.append("versionId", versionId);
+			formData.append("language", language);
+			formData.append("displayType", displayType);
+			formData.append("parts", String(parts));
+			if (insertAt !== undefined) {
+				formData.append("insertAt", String(insertAt));
+			}
+			return fetchApi<SplitUploadResult>(
+				`/api/apps/${appId}/publishing/screenshots/split-upload`,
 				{ body: formData, headers: {}, method: "POST" },
 			);
 		},

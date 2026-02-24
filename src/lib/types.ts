@@ -463,6 +463,23 @@ export interface SuggestCategoryResponse {
 	model: string;
 }
 
+export interface SplitPreviewResult {
+	originalWidth: number;
+	originalHeight: number;
+	parts: number;
+	partWidth: number;
+	partHeight: number;
+	targetWidth: number;
+	targetHeight: number;
+	suggestedParts: number;
+	previewUrl: string;
+}
+
+export interface SplitUploadResult {
+	screenshots: VersionScreenshot[];
+	count: number;
+}
+
 export const APP_STORE_LANGUAGES = [
 	{ label: "Arabic", locale: "ar-SA" },
 	{ label: "Catalan", locale: "ca" },
