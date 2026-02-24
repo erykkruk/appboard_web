@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { Globe, Loader2, Plus, Trash2 } from "lucide-react";
+import { Globe, Images, Loader2, Plus, Trash2 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -16,6 +16,7 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -30,6 +31,7 @@ import {
   useAddLocalizationWithTranslation,
   useDeleteLocalization,
   useVersionDetail,
+  useVersionScreenshots,
 } from "@/hooks/use-publishing";
 import { APP_STORE_LANGUAGES } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -77,10 +79,13 @@ export default function LanguagesPage() {
     params.appId,
     params.versionId,
   );
+  const screenshots = useVersionScreenshots(params.appId, params.versionId);
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [selectedLocale, setSelectedLocale] = useState("");
   const [translateEnabled, setTranslateEnabled] = useState(false);
   const [sourceLocale, setSourceLocale] = useState("");
+  const [copyScreenshotsMode, setCopyScreenshotsMode] = useState<"none" | "copy">("none");
+  const [copyScreenshotsFrom, setCopyScreenshotsFrom] = useState("");
 
   const [deleteTarget, setDeleteTarget] = useState<{
     localizationId: string;
@@ -99,15 +104,28 @@ export default function LanguagesPage() {
     [existingLocales],
   );
 
+  const languagesWithScreenshots = useMemo(() => {
+    const langs = new Set<string>();
+    for (const s of screenshots.data ?? []) {
+      langs.add(s.language);
+    }
+    return Array.from(langs).sort();
+  }, [screenshots.data]);
+
   const isPending = addLocalization.isPending || addWithTranslation.isPending;
 
   const handleAdd = async () => {
     if (!selectedLocale) return;
+    const screenshotSource =
+      copyScreenshotsMode === "copy" && copyScreenshotsFrom
+        ? copyScreenshotsFrom
+        : undefined;
     try {
       if (translateEnabled && sourceLocale) {
         const result = await addWithTranslation.mutateAsync({
           locale: selectedLocale,
           sourceLocale,
+          copyScreenshotsFrom: screenshotSource,
         });
         if (result.translated) {
           toast.success(
@@ -119,12 +137,17 @@ export default function LanguagesPage() {
           );
         }
       } else {
-        await addLocalization.mutateAsync(selectedLocale);
+        await addLocalization.mutateAsync({
+          locale: selectedLocale,
+          copyScreenshotsFrom: screenshotSource,
+        });
         toast.success(`Added ${getLanguageLabel(selectedLocale)}`);
       }
       setSelectedLocale("");
       setTranslateEnabled(false);
       setSourceLocale("");
+      setCopyScreenshotsMode("none");
+      setCopyScreenshotsFrom("");
       setAddDialogOpen(false);
     } catch {
       toast.error("Failed to add language");
@@ -265,6 +288,60 @@ export default function LanguagesPage() {
                     )}
                   </div>
                 )}
+
+                {/* Screenshot copy section */}
+                {languagesWithScreenshots.length > 0 && (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <Images className="h-4 w-4" />
+                      <span>Screenshots</span>
+                    </div>
+                    <RadioGroup
+                      value={copyScreenshotsMode}
+                      onValueChange={(val) => {
+                        setCopyScreenshotsMode(val as "none" | "copy");
+                        if (val === "none") setCopyScreenshotsFrom("");
+                      }}
+                    >
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="none" id="screenshots-none" />
+                        <Label
+                          htmlFor="screenshots-none"
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          Leave empty
+                        </Label>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <RadioGroupItem value="copy" id="screenshots-copy" />
+                        <Label
+                          htmlFor="screenshots-copy"
+                          className="text-sm font-normal cursor-pointer"
+                        >
+                          Copy screenshots from language
+                        </Label>
+                      </div>
+                    </RadioGroup>
+
+                    {copyScreenshotsMode === "copy" && (
+                      <Select
+                        value={copyScreenshotsFrom}
+                        onValueChange={setCopyScreenshotsFrom}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Source language..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {languagesWithScreenshots.map((lang) => (
+                            <SelectItem key={lang} value={lang}>
+                              {getLanguageLabel(lang)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                )}
               </div>
               <DialogFooter>
                 <Button
@@ -278,7 +355,8 @@ export default function LanguagesPage() {
                   disabled={
                     !selectedLocale ||
                     isPending ||
-                    (translateEnabled && !sourceLocale)
+                    (translateEnabled && !sourceLocale) ||
+                    (copyScreenshotsMode === "copy" && !copyScreenshotsFrom)
                   }
                 >
                   {isPending ? (
