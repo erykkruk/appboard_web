@@ -40,6 +40,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
 	Select,
 	SelectContent,
@@ -281,6 +282,9 @@ export default function VersionDetailPage() {
 	const [isSavingCategories, setIsSavingCategories] = useState(false);
 	const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
 	const [saveAttempted, setSaveAttempted] = useState(false);
+	const [generateScope, setGenerateScope] = useState<
+		"current" | "all"
+	>("current");
 	const [aiConfirm, setAiConfirm] = useState<{
 		field: ListingFieldName;
 		label: string;
@@ -531,6 +535,7 @@ export default function VersionDetailPage() {
 			(field) => !(field === "whatsNew" && !isWhatsNewEditable),
 		);
 
+		// Step 1: Generate for current language
 		const results = await Promise.allSettled(
 			fieldsToGenerate.map(async (field) => {
 				const currentValue = formData[field] || undefined;
@@ -573,16 +578,73 @@ export default function VersionDetailPage() {
 			}));
 		}
 
+		if (generated > 0) {
+			toast.success(`Generated ${generated} field(s) for ${selectedLanguage}`);
+		}
+
+		// Step 2: Translate to other languages if scope is "all"
+		if (generateScope === "all" && Object.keys(updates).length > 0) {
+			const otherLanguages = localizations
+				.map((l) => l.language)
+				.filter((lang) => lang !== selectedLanguage);
+
+			if (otherLanguages.length > 0) {
+				toast.info(
+					`Translating to ${otherLanguages.length} other language(s)...`,
+				);
+
+				const translateResults = await Promise.allSettled(
+					otherLanguages.map(async (targetLang) => {
+						const { translations } =
+							await api.ai.translateLocalization({
+								appId: params.appId,
+								appName: appData.data!.name,
+								fields: updates,
+								platform: appData.data!.platform,
+								sourceLanguage: selectedLanguage,
+								targetLanguage: targetLang,
+							});
+						return { language: targetLang, translations };
+					}),
+				);
+
+				let translated = 0;
+				for (const result of translateResults) {
+					if (result.status === "fulfilled") {
+						const { language, translations } = result.value;
+						setAllFormData((prev) => ({
+							...prev,
+							[language]: {
+								...prev[language],
+								...translations,
+							},
+						}));
+						translated++;
+					} else {
+						const message =
+							result.reason instanceof Error
+								? result.reason.message
+								: "Translation failed";
+						toast.error(message);
+					}
+				}
+
+				if (translated > 0) {
+					toast.success(
+						`Translated to ${translated} language(s)`,
+					);
+				}
+			}
+		}
+
 		setGeneratingField(null);
 		setIsGeneratingAll(false);
-
-		if (generated > 0) {
-			toast.success(`Generated ${generated} field(s)`);
-		}
 	}, [
 		appData.data,
 		formData,
+		generateScope,
 		isWhatsNewEditable,
+		localizations,
 		params.appId,
 		selectedLanguage,
 	]);
@@ -891,7 +953,7 @@ export default function VersionDetailPage() {
 				<div className="flex items-center gap-3">
 					{/* Generate All button */}
 					{isEditable && currentLoc && (
-						<AlertDialog>
+						<AlertDialog onOpenChange={() => setGenerateScope("current")}>
 							<AlertDialogTrigger asChild>
 								<Button
 									disabled={isGeneratingAll || !!generatingField}
@@ -919,6 +981,43 @@ export default function VersionDetailPage() {
 											: "AI will generate all listing fields from scratch based on your ASO profile. Make sure you have configured it first."}
 									</AlertDialogDescription>
 								</AlertDialogHeader>
+								{localizations.length > 1 && (
+									<RadioGroup
+										value={generateScope}
+										onValueChange={(v) =>
+											setGenerateScope(
+												v as "current" | "all",
+											)
+										}
+										className="gap-3"
+									>
+										<div className="flex items-center gap-2">
+											<RadioGroupItem
+												value="current"
+												id="scope-current"
+											/>
+											<Label
+												htmlFor="scope-current"
+												className="font-normal cursor-pointer"
+											>
+												Current language only ({selectedLanguage})
+											</Label>
+										</div>
+										<div className="flex items-center gap-2">
+											<RadioGroupItem
+												value="all"
+												id="scope-all"
+											/>
+											<Label
+												htmlFor="scope-all"
+												className="font-normal cursor-pointer"
+											>
+												All languages (generate + translate to{" "}
+												{localizations.length - 1} other)
+											</Label>
+										</div>
+									</RadioGroup>
+								)}
 								<AlertDialogFooter>
 									<AlertDialogCancel>Cancel</AlertDialogCancel>
 									<AlertDialogAction onClick={handleGenerateAll}>

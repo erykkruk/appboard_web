@@ -183,6 +183,15 @@ export interface TranslateRequest {
 	targetLangs: string[];
 }
 
+export interface TranslateLocalizationRequest {
+	appId: string;
+	appName: string;
+	platform: string;
+	fields: Record<string, string>;
+	sourceLanguage: string;
+	targetLanguage: string;
+}
+
 export interface GenerateDescriptionRequest {
 	prompt: string;
 	appName: string;

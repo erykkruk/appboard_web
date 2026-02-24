@@ -131,9 +131,12 @@ function ModelSelector({
   );
 }
 
+const MASKED_VALUE = "********";
+
 export default function SettingsGeneralPage() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
+  const [hasExistingKey, setHasExistingKey] = useState(false);
   const [modelGenerate, setModelGenerate] = useState("");
   const [modelRephrase, setModelRephrase] = useState("");
   const [modelResearch, setModelResearch] = useState("");
@@ -147,8 +150,11 @@ export default function SettingsGeneralPage() {
 
   useEffect(() => {
     if (settings.data) {
-      if (settings.data.openrouter_api_key) {
+      if (settings.data.openrouter_api_key && settings.data.openrouter_api_key !== MASKED_VALUE) {
         setApiKey(settings.data.openrouter_api_key);
+      }
+      if (settings.data.openrouter_api_key === MASKED_VALUE) {
+        setHasExistingKey(true);
       }
       if (settings.data.ai_model_generate) {
         setModelGenerate(settings.data.ai_model_generate);
@@ -166,8 +172,14 @@ export default function SettingsGeneralPage() {
   }, [settings.data]);
 
   const handleSaveApiKey = async () => {
+    if (!apiKey.trim()) {
+      toast.error("Please enter an API key");
+      return;
+    }
     try {
       await updateSettings.mutateAsync({ openrouter_api_key: apiKey });
+      setHasExistingKey(true);
+      setApiKey("");
       toast.success("API key saved");
     } catch {
       toast.error("Failed to save API key");
@@ -345,7 +357,7 @@ export default function SettingsGeneralPage() {
                 <Input
                   id="openrouter-key"
                   type={showApiKey ? "text" : "password"}
-                  placeholder="sk-or-..."
+                  placeholder={hasExistingKey ? "Key saved — enter new key to replace" : "sk-or-..."}
                   value={apiKey}
                   onChange={(e) => setApiKey(e.target.value)}
                 />

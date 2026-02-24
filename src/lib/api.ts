@@ -35,6 +35,7 @@ import type {
 	SuggestCategoryResponse,
 	SuggestKeywordsRequest,
 	SyncVersionsResult,
+	TranslateLocalizationRequest,
 	TranslateRequest,
 	UpdateCategoriesInput,
 	UpdateCopyrightResult,
@@ -123,6 +124,14 @@ export const api = {
 			}),
 		translate: (data: TranslateRequest) =>
 			fetchApi<AiResponse>("/api/ai/translate", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}),
+		translateLocalization: (data: TranslateLocalizationRequest) =>
+			fetchApi<{
+				model: string;
+				translations: Record<string, string>;
+			}>("/api/ai/translate-localization", {
 				body: JSON.stringify(data),
 				method: "POST",
 			}),
