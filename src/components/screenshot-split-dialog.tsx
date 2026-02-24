@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Minus, Plus } from "lucide-react";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Cropper, { type Area } from "react-easy-crop";
 
 import { Button } from "@/components/ui/button";
@@ -66,9 +66,6 @@ export function ScreenshotSplitDialog({
 	const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(
 		null,
 	);
-	const containerRef = useRef<HTMLDivElement>(null);
-	const [containerRect, setContainerRect] = useState({ h: 0, w: 0 });
-
 	const splitPreview = useSplitPreview(appId);
 	const splitUpload = useSplitUploadScreenshots(appId, versionId);
 
@@ -85,28 +82,6 @@ export function ScreenshotSplitDialog({
 			if (imageUrl) URL.revokeObjectURL(imageUrl);
 		};
 	}, [imageUrl]);
-
-	// Measure container for dashed line overlay positioning
-	useEffect(() => {
-		const el = containerRef.current;
-		if (!open || !el) return;
-
-		const measure = () => {
-			const rect = el.getBoundingClientRect();
-			if (rect.width && rect.height) {
-				setContainerRect({ h: rect.height, w: rect.width });
-			}
-		};
-
-		measure();
-		const timer = setTimeout(measure, 300);
-		const ro = new ResizeObserver(() => measure());
-		ro.observe(el);
-		return () => {
-			clearTimeout(timer);
-			ro.disconnect();
-		};
-	}, [open]);
 
 	// Fetch preview when dialog opens (for metadata: suggestedParts, availableSizes)
 	useEffect(() => {
@@ -153,27 +128,31 @@ export function ScreenshotSplitDialog({
 		return (9 * parts) / 19.5;
 	}, [targetSize, parts]);
 
-	// Compute crop area dimensions within the container (for overlay positioning)
-	const cropAreaDims = useMemo(() => {
-		if (!containerRect.w || !containerRect.h || !aspect) return null;
+	// Build background-image CSS for dashed split lines directly on the crop area.
+	// This draws vertical dashed lines at each 1/N boundary inside the crop area.
+	// We use repeating-linear-gradient to simulate a dashed line (4px white, 6px gap).
+	const splitLinesCss = useMemo(() => {
+		if (parts <= 1) return {};
 
-		const containerAspect = containerRect.w / containerRect.h;
-		let cropW: number;
-		let cropH: number;
+		const gradients: string[] = [];
+		const positions: string[] = [];
 
-		if (aspect > containerAspect) {
-			cropW = containerRect.w;
-			cropH = containerRect.w / aspect;
-		} else {
-			cropH = containerRect.h;
-			cropW = containerRect.h * aspect;
+		for (let i = 1; i < parts; i++) {
+			const pct = (i / parts) * 100;
+			// Each "line" is a 2px wide repeating vertical dashed pattern
+			gradients.push(
+				"repeating-linear-gradient(to bottom, rgba(255,255,255,0.8) 0px, rgba(255,255,255,0.8) 8px, transparent 8px, transparent 16px)",
+			);
+			positions.push(`${pct}% 0%`);
 		}
 
-		const left = (containerRect.w - cropW) / 2;
-		const top = (containerRect.h - cropH) / 2;
-
-		return { h: cropH, left, top, w: cropW };
-	}, [containerRect, aspect]);
+		return {
+			backgroundImage: gradients.join(", "),
+			backgroundPosition: positions.join(", "),
+			backgroundRepeat: "no-repeat",
+			backgroundSize: gradients.map(() => "2px 100%").join(", "),
+		} as React.CSSProperties;
+	}, [parts]);
 
 	const handlePartsChange = useCallback(
 		(value: string) => {
@@ -254,10 +233,7 @@ export function ScreenshotSplitDialog({
 				</DialogHeader>
 
 				{/* Crop area with dashed split lines */}
-				<div
-					ref={containerRef}
-					className="relative flex-1 overflow-hidden rounded-lg bg-black"
-				>
+				<div className="relative flex-1 overflow-hidden rounded-lg bg-black">
 					{imageUrl && (
 						<Cropper
 							image={imageUrl}
@@ -274,60 +250,10 @@ export function ScreenshotSplitDialog({
 							style={{
 								cropAreaStyle: {
 									border: "2px solid rgba(255, 255, 255, 0.6)",
+									...splitLinesCss,
 								},
 							}}
 						/>
-					)}
-
-					{/* Overlay layer above react-easy-crop for split lines & numbers */}
-					{cropAreaDims && parts > 1 && (
-						<div
-							className="pointer-events-none absolute inset-0"
-							style={{ zIndex: 20 }}
-						>
-							{/* Dashed lines between parts */}
-							{Array.from({ length: parts - 1 }, (_, i) => {
-								const x =
-									cropAreaDims.left +
-									(cropAreaDims.w * (i + 1)) / parts;
-								return (
-									<div
-										key={`line-${i}`}
-										className="absolute"
-										style={{
-											borderLeft:
-												"2px dashed rgba(255, 255, 255, 0.7)",
-											height: cropAreaDims.h,
-											left: x,
-											top: cropAreaDims.top,
-										}}
-									/>
-								);
-							})}
-
-							{/* Part numbers */}
-							{Array.from({ length: parts }, (_, i) => {
-								const partW = cropAreaDims.w / parts;
-								const centerX =
-									cropAreaDims.left +
-									i * partW +
-									partW / 2;
-								const centerY =
-									cropAreaDims.top + cropAreaDims.h / 2;
-								return (
-									<span
-										key={`num-${i}`}
-										className="absolute flex h-6 w-6 items-center justify-center rounded-full bg-black/40 font-bold text-sm text-white/80 drop-shadow-md"
-										style={{
-											left: centerX - 12,
-											top: centerY - 12,
-										}}
-									>
-										{i + 1}
-									</span>
-								);
-							})}
-						</div>
 					)}
 
 					{!imageUrl && (
