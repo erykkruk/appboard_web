@@ -17,10 +17,11 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Info, Loader2, Smartphone, Tablet, Trash2 } from "lucide-react";
+import { Copy, Info, Loader2, Smartphone, Tablet, Trash2 } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import {
+  useCopyScreenshots,
   useDeleteAllScreenshots,
   useDeleteScreenshot,
   useReorderScreenshots,
@@ -49,6 +50,11 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 
 const STATE_COLORS: Record<string, string> = {
   PREPARE_FOR_SUBMISSION: "bg-yellow-400",
@@ -131,6 +137,7 @@ export default function VersionScreenshotsPage() {
   );
   const deleteAll = useDeleteAllScreenshots(params.appId, params.versionId);
   const uploadScreenshot = useUploadScreenshot(params.appId, params.versionId);
+  const copyScreenshots = useCopyScreenshots(params.appId, params.versionId);
 
   const [selectedLanguage, setSelectedLanguage] = useState<string>("");
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -289,6 +296,24 @@ export default function VersionScreenshotsPage() {
     e.target.value = "";
   };
 
+  // Languages that have screenshots (for "copy from" feature)
+  const languagesWithScreenshots = useMemo(
+    () =>
+      [...screenshotsByLanguage.entries()]
+        .filter(([lang, shots]) => lang !== activeLang && shots.length > 0)
+        .map(([lang]) => lang)
+        .sort(),
+    [screenshotsByLanguage, activeLang],
+  );
+
+  const handleCopyFrom = (sourceLang: string) => {
+    if (!activeLang) return;
+    copyScreenshots.mutate({
+      sourceLanguage: sourceLang,
+      targetLanguage: activeLang,
+    });
+  };
+
   const notLocalizedLanguages = useMemo(
     () =>
       APP_STORE_LANGUAGES.filter(
@@ -428,7 +453,7 @@ export default function VersionScreenshotsPage() {
               )}
             </div>
 
-            {count === 0 && !isUploading ? (
+            {count === 0 && !isUploading && !copyScreenshots.isPending ? (
               <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-14 text-center text-muted-foreground">
                 <p className="text-sm">
                   Drag up to 3 app previews and 10 screenshots here.
@@ -437,6 +462,29 @@ export default function VersionScreenshotsPage() {
                   (1242 × 2688px, 2688 × 1242px, 1284 × 2778px or 2778 ×
                   1284px)
                 </p>
+                {languagesWithScreenshots.length > 0 && hasLanguage && (
+                  <div className="mt-4 flex items-center gap-2">
+                    <Copy className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-xs">Copy from:</span>
+                    <Select onValueChange={handleCopyFrom}>
+                      <SelectTrigger className="h-8 w-[160px] text-xs">
+                        <SelectValue placeholder="Select language" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {languagesWithScreenshots.map((lang) => (
+                          <SelectItem key={lang} value={lang}>
+                            {lang}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                )}
+              </div>
+            ) : copyScreenshots.isPending ? (
+              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-14 text-center text-muted-foreground">
+                <Loader2 className="h-6 w-6 animate-spin text-primary/50" />
+                <p className="mt-2 text-sm">Copying screenshots...</p>
               </div>
             ) : (
               <DndContext
@@ -498,6 +546,79 @@ export default function VersionScreenshotsPage() {
               >
                 Upload Panorama
               </button>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <button type="button" className="ml-0.5 inline-flex items-center text-muted-foreground hover:text-foreground transition-colors">
+                    <Info className="h-3.5 w-3.5" />
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent side="bottom" align="start" className="w-80 p-4">
+                  <p className="mb-3 text-xs font-medium">How panorama splitting works</p>
+                  <svg viewBox="0 0 280 120" className="w-full" aria-label="Panorama split infographic">
+                    {/* Wide panorama source image */}
+                    <rect x="8" y="20" width="130" height="50" rx="3" className="fill-muted stroke-border" strokeWidth="1" />
+                    <text x="73" y="43" textAnchor="middle" className="fill-muted-foreground" fontSize="7" fontFamily="system-ui">Your wide panorama</text>
+                    {/* Vertical dashed split lines */}
+                    <line x1="51" y1="20" x2="51" y2="70" className="stroke-primary" strokeWidth="1" strokeDasharray="3,2" />
+                    <line x1="95" y1="20" x2="95" y2="70" className="stroke-primary" strokeWidth="1" strokeDasharray="3,2" />
+                    {/* Arrow */}
+                    <path d="M73 80 L73 92" className="stroke-muted-foreground" strokeWidth="1" markerEnd="url(#arrowhead)" />
+                    <defs>
+                      <marker id="arrowhead" markerWidth="4" markerHeight="6" refX="2" refY="3" orient="auto">
+                        <polygon points="0 0, 4 3, 0 6" className="fill-muted-foreground" />
+                      </marker>
+                    </defs>
+                    {/* Result screenshots side by side */}
+                    <rect x="148" y="14" width="34" height="54" rx="2" className="fill-primary/15 stroke-primary" strokeWidth="1" />
+                    <rect x="190" y="14" width="34" height="54" rx="2" className="fill-primary/15 stroke-primary" strokeWidth="1" />
+                    <rect x="232" y="14" width="34" height="54" rx="2" className="fill-primary/15 stroke-primary" strokeWidth="1" />
+                    <text x="165" y="45" textAnchor="middle" className="fill-primary" fontSize="8" fontFamily="system-ui">1</text>
+                    <text x="207" y="45" textAnchor="middle" className="fill-primary" fontSize="8" fontFamily="system-ui">2</text>
+                    <text x="249" y="45" textAnchor="middle" className="fill-primary" fontSize="8" fontFamily="system-ui">3</text>
+                    {/* Arrow from source to results */}
+                    <path d="M140 45 L146 45" className="stroke-muted-foreground" strokeWidth="1" markerEnd="url(#arrowhead2)" />
+                    <defs>
+                      <marker id="arrowhead2" markerWidth="6" markerHeight="4" refX="3" refY="2" orient="auto">
+                        <polygon points="0 0, 6 2, 0 4" className="fill-muted-foreground" />
+                      </marker>
+                    </defs>
+                    {/* Label */}
+                    <text x="207" y="82" textAnchor="middle" className="fill-muted-foreground" fontSize="7" fontFamily="system-ui">Resized to device format</text>
+                  </svg>
+                  <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+                    Upload a wide panorama image. The system splits it vertically into 2–10 equal parts and uploads each as a separate screenshot.
+                  </p>
+                </PopoverContent>
+              </Popover>
+              {languagesWithScreenshots.length > 0 && count === 0 && hasLanguage && (
+                <>
+                  <span className="mx-1">|</span>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button
+                        type="button"
+                        disabled={copyScreenshots.isPending}
+                        className="text-primary hover:underline disabled:text-muted-foreground/50"
+                      >
+                        {copyScreenshots.isPending ? "Copying..." : "Copy from Language"}
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent side="top" align="start" className="w-48 p-2">
+                      <p className="mb-2 text-xs font-medium text-muted-foreground">Copy screenshots from:</p>
+                      {languagesWithScreenshots.map((lang) => (
+                        <button
+                          key={lang}
+                          type="button"
+                          onClick={() => handleCopyFrom(lang)}
+                          className="flex w-full items-center rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                        >
+                          {lang}
+                        </button>
+                      ))}
+                    </PopoverContent>
+                  </Popover>
+                </>
+              )}
               {count > 0 && (
                 <>
                   <span className="mx-1">|</span>

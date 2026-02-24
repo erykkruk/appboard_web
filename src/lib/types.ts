@@ -464,6 +464,7 @@ export interface SuggestCategoryResponse {
 }
 
 export interface SplitPreviewResult {
+	availableSizes: { height: number; width: number }[];
 	originalWidth: number;
 	originalHeight: number;
 	parts: number;

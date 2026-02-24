@@ -1,9 +1,9 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Loader2, Minus, Plus } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Cropper, { type Area } from "react-easy-crop";
 
-import { useSplitPreview, useSplitUploadScreenshots } from "@/hooks/use-publishing";
 import { Button } from "@/components/ui/button";
 import {
 	Dialog,
@@ -12,10 +12,29 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { Slider } from "@/components/ui/slider";
+import {
+	useSplitPreview,
+	useSplitUploadScreenshots,
+} from "@/hooks/use-publishing";
 
 const MIN_PARTS = 2;
 const MAX_PARTS = 10;
+const PREFERRED_SIZE = { h: 2778, w: 1284 };
+
+interface CropArea {
+	x: number;
+	y: number;
+	width: number;
+	height: number;
+}
 
 interface ScreenshotSplitDialogProps {
 	open: boolean;
@@ -41,47 +60,177 @@ export function ScreenshotSplitDialog({
 	onSuccess,
 }: ScreenshotSplitDialogProps) {
 	const [parts, setParts] = useState(3);
+	const [crop, setCrop] = useState({ x: 0, y: 0 });
+	const [zoom, setZoom] = useState(1);
+	const [selectedSize, setSelectedSize] = useState("");
+	const [croppedAreaPixels, setCroppedAreaPixels] = useState<CropArea | null>(
+		null,
+	);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const [containerRect, setContainerRect] = useState({ h: 0, w: 0 });
+
 	const splitPreview = useSplitPreview(appId);
 	const splitUpload = useSplitUploadScreenshots(appId, versionId);
 
 	const preview = splitPreview.data;
+	const maxParts = Math.max(MIN_PARTS, MAX_PARTS - existingCount);
 
-	// Fetch preview when dialog opens with a file
+	const imageUrl = useMemo(() => {
+		if (!file) return null;
+		return URL.createObjectURL(file);
+	}, [file]);
+
+	useEffect(() => {
+		return () => {
+			if (imageUrl) URL.revokeObjectURL(imageUrl);
+		};
+	}, [imageUrl]);
+
+	// Measure container for dashed line overlay positioning
+	useEffect(() => {
+		const el = containerRef.current;
+		if (!open || !el) return;
+
+		const measure = () => {
+			const rect = el.getBoundingClientRect();
+			if (rect.width && rect.height) {
+				setContainerRect({ h: rect.height, w: rect.width });
+			}
+		};
+
+		measure();
+		const timer = setTimeout(measure, 300);
+		const ro = new ResizeObserver(() => measure());
+		ro.observe(el);
+		return () => {
+			clearTimeout(timer);
+			ro.disconnect();
+		};
+	}, [open]);
+
+	// Fetch preview when dialog opens (for metadata: suggestedParts, availableSizes)
 	useEffect(() => {
 		if (!open || !file) return;
 		splitPreview.mutate(
 			{ displayType, file, parts },
 			{
 				onSuccess: (data) => {
-					setParts(data.suggestedParts);
+					setParts(
+						Math.min(data.suggestedParts, MAX_PARTS - existingCount),
+					);
+					if (data.availableSizes?.length) {
+						const preferred = data.availableSizes.find(
+							(s) =>
+								s.width === PREFERRED_SIZE.w &&
+								s.height === PREFERRED_SIZE.h,
+						);
+						const s = preferred ?? data.availableSizes[0];
+						setSelectedSize(`${s.width}x${s.height}`);
+					}
 				},
 			},
 		);
-		// Only run on open/file change, not on parts change
+		setZoom(1);
+		setCrop({ x: 0, y: 0 });
+		setSelectedSize("");
+		setCroppedAreaPixels(null);
 		// biome-ignore lint/correctness/useExhaustiveDependencies: initial fetch only
 	}, [open, file]);
 
-	// Re-fetch preview when parts changes (after initial load)
+	// Parse selected target size
+	const targetSize = useMemo(() => {
+		if (!selectedSize) return null;
+		const [w, h] = selectedSize.split("x").map(Number);
+		return { h, w };
+	}, [selectedSize]);
+
+	// Combined aspect ratio for all parts side by side (N portrait frames)
+	const aspect = useMemo(() => {
+		if (targetSize) {
+			return (targetSize.w * parts) / targetSize.h;
+		}
+		// Fallback: assume ~9:19.5 portrait ratio per part
+		return (9 * parts) / 19.5;
+	}, [targetSize, parts]);
+
+	// Compute crop area dimensions within the container (for overlay positioning)
+	const cropAreaDims = useMemo(() => {
+		if (!containerRect.w || !containerRect.h || !aspect) return null;
+
+		const containerAspect = containerRect.w / containerRect.h;
+		let cropW: number;
+		let cropH: number;
+
+		if (aspect > containerAspect) {
+			cropW = containerRect.w;
+			cropH = containerRect.w / aspect;
+		} else {
+			cropH = containerRect.h;
+			cropW = containerRect.h * aspect;
+		}
+
+		const left = (containerRect.w - cropW) / 2;
+		const top = (containerRect.h - cropH) / 2;
+
+		return { h: cropH, left, top, w: cropW };
+	}, [containerRect, aspect]);
+
 	const handlePartsChange = useCallback(
-		(value: number[]) => {
-			const newParts = value[0];
+		(value: string) => {
+			const newParts = Number(value);
 			setParts(newParts);
+			setCrop({ x: 0, y: 0 });
+			setZoom(1);
+			setCroppedAreaPixels(null);
 			if (file) {
-				splitPreview.mutate({ displayType, file, parts: newParts });
+				splitPreview.mutate({
+					displayType,
+					file,
+					parts: newParts,
+					targetHeight: targetSize?.h,
+					targetWidth: targetSize?.w,
+				});
 			}
 		},
-		[file, displayType, splitPreview],
+		[file, displayType, splitPreview, targetSize],
 	);
 
+	const handleSizeChange = useCallback(
+		(value: string) => {
+			setSelectedSize(value);
+			setCrop({ x: 0, y: 0 });
+			setZoom(1);
+			setCroppedAreaPixels(null);
+			if (file) {
+				const [w, h] = value.split("x").map(Number);
+				splitPreview.mutate({
+					displayType,
+					file,
+					parts,
+					targetHeight: h,
+					targetWidth: w,
+				});
+			}
+		},
+		[file, displayType, parts, splitPreview],
+	);
+
+	const onCropComplete = useCallback((_: Area, croppedPixels: Area) => {
+		setCroppedAreaPixels(croppedPixels);
+	}, []);
+
 	const handleUpload = () => {
-		if (!file) return;
+		if (!file || !croppedAreaPixels) return;
 		splitUpload.mutate(
 			{
-				language,
+				crop: croppedAreaPixels,
 				displayType,
 				file,
-				parts,
 				insertAt: existingCount,
+				language,
+				parts,
+				targetHeight: targetSize?.h,
+				targetWidth: targetSize?.w,
 			},
 			{
 				onSuccess: () => {
@@ -97,78 +246,193 @@ export function ScreenshotSplitDialog({
 		onOpenChange(false);
 	};
 
-	// Split line positions as percentages
-	const splitLines = useMemo(() => {
-		const lines: number[] = [];
-		for (let i = 1; i < parts; i++) {
-			lines.push((i / parts) * 100);
-		}
-		return lines;
-	}, [parts]);
-
 	return (
 		<Dialog open={open} onOpenChange={handleClose}>
-			<DialogContent className="max-w-2xl">
+			<DialogContent className="inset-0 flex h-[100dvh] w-[100dvw] max-w-none translate-x-0 translate-y-0 flex-col gap-3 rounded-none border-none p-4 sm:max-w-none">
 				<DialogHeader>
 					<DialogTitle>Split Panorama</DialogTitle>
 				</DialogHeader>
 
-				<div className="space-y-4">
-					{/* Preview area */}
-					<div className="relative overflow-hidden rounded-lg bg-black">
-						{splitPreview.isPending && !preview ? (
-							<div className="flex h-[300px] items-center justify-center">
-								<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-							</div>
-						) : preview ? (
-							<div className="relative">
-								<img
-									src={preview.previewUrl}
-									alt="Panorama preview"
-									className="w-full"
-									draggable={false}
-								/>
-								{/* Split lines overlay */}
-								{splitLines.map((pct) => (
-									<div
-										key={pct}
-										className="absolute top-0 bottom-0 w-px border-l-2 border-dashed border-white/60"
-										style={{ left: `${pct}%` }}
-									/>
-								))}
-							</div>
-						) : splitPreview.isError ? (
-							<div className="flex h-[200px] items-center justify-center text-sm text-destructive">
-								Failed to generate preview
-							</div>
-						) : null}
-					</div>
-
-					{/* Parts slider */}
-					<div className="space-y-2">
-						<div className="flex items-center justify-between text-sm">
-							<span className="text-muted-foreground">
-								Split into parts
-							</span>
-							<span className="font-medium">{parts}</span>
-						</div>
-						<Slider
-							value={[parts]}
-							min={MIN_PARTS}
-							max={MAX_PARTS}
-							step={1}
-							onValueChange={handlePartsChange}
-							disabled={splitPreview.isPending && !preview}
+				{/* Crop area with dashed split lines */}
+				<div
+					ref={containerRef}
+					className="relative flex-1 overflow-hidden rounded-lg bg-black"
+				>
+					{imageUrl && (
+						<Cropper
+							image={imageUrl}
+							crop={crop}
+							zoom={zoom}
+							minZoom={1}
+							maxZoom={5}
+							aspect={aspect}
+							restrictPosition
+							onCropChange={setCrop}
+							onZoomChange={setZoom}
+							onCropComplete={onCropComplete}
+							showGrid={false}
+							style={{
+								cropAreaStyle: {
+									border: "2px solid rgba(255, 255, 255, 0.6)",
+								},
+							}}
 						/>
+					)}
+
+					{/* Overlay layer above react-easy-crop for split lines & numbers */}
+					{cropAreaDims && parts > 1 && (
+						<div
+							className="pointer-events-none absolute inset-0"
+							style={{ zIndex: 20 }}
+						>
+							{/* Dashed lines between parts */}
+							{Array.from({ length: parts - 1 }, (_, i) => {
+								const x =
+									cropAreaDims.left +
+									(cropAreaDims.w * (i + 1)) / parts;
+								return (
+									<div
+										key={`line-${i}`}
+										className="absolute"
+										style={{
+											borderLeft:
+												"2px dashed rgba(255, 255, 255, 0.7)",
+											height: cropAreaDims.h,
+											left: x,
+											top: cropAreaDims.top,
+										}}
+									/>
+								);
+							})}
+
+							{/* Part numbers */}
+							{Array.from({ length: parts }, (_, i) => {
+								const partW = cropAreaDims.w / parts;
+								const centerX =
+									cropAreaDims.left +
+									i * partW +
+									partW / 2;
+								const centerY =
+									cropAreaDims.top + cropAreaDims.h / 2;
+								return (
+									<span
+										key={`num-${i}`}
+										className="absolute flex h-6 w-6 items-center justify-center rounded-full bg-black/40 font-bold text-sm text-white/80 drop-shadow-md"
+										style={{
+											left: centerX - 12,
+											top: centerY - 12,
+										}}
+									>
+										{i + 1}
+									</span>
+								);
+							})}
+						</div>
+					)}
+
+					{!imageUrl && (
+						<div className="flex h-full items-center justify-center">
+							<Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+						</div>
+					)}
+				</div>
+
+				{/* Controls */}
+				<div className="flex flex-col gap-3">
+					{/* Zoom slider */}
+					<div className="flex items-center gap-3">
+						<span className="w-8 shrink-0 text-xs text-muted-foreground">
+							Zoom
+						</span>
+						<Minus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+						<Slider
+							value={[zoom]}
+							min={1}
+							max={5}
+							step={0.01}
+							onValueChange={([v]) => setZoom(v)}
+							className="flex-1"
+						/>
+						<Plus className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+						<span className="w-12 text-right text-xs text-muted-foreground">
+							{zoom.toFixed(1)}x
+						</span>
 					</div>
 
-					{/* Dimensions info */}
-					{preview && (
-						<p className="text-center text-xs text-muted-foreground">
-							Each part: {preview.partWidth} x {preview.partHeight}px
-							{" "}(target: {preview.targetWidth} x {preview.targetHeight}px)
-						</p>
-					)}
+					{/* Parts + resolution */}
+					<div className="flex flex-wrap items-center gap-4">
+						<div className="flex items-center gap-2">
+							<span className="text-sm text-muted-foreground">
+								Split into
+							</span>
+							<Select
+								value={String(parts)}
+								onValueChange={handlePartsChange}
+								disabled={splitPreview.isPending && !preview}
+							>
+								<SelectTrigger className="w-20">
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{Array.from(
+										{ length: maxParts - MIN_PARTS + 1 },
+										(_, i) => {
+											const n = MIN_PARTS + i;
+											return (
+												<SelectItem
+													key={n}
+													value={String(n)}
+												>
+													{n}
+												</SelectItem>
+											);
+										},
+									)}
+								</SelectContent>
+							</Select>
+							<span className="text-sm text-muted-foreground">
+								parts
+							</span>
+						</div>
+
+						{/* Resolution selector */}
+						{preview?.availableSizes &&
+							preview.availableSizes.length > 0 && (
+								<div className="flex items-center gap-2">
+									<span className="text-sm text-muted-foreground">
+										Resolution
+									</span>
+									<Select
+										value={selectedSize}
+										onValueChange={handleSizeChange}
+									>
+										<SelectTrigger className="w-36">
+											<SelectValue placeholder="Auto" />
+										</SelectTrigger>
+										<SelectContent>
+											{preview.availableSizes.map((s) => {
+												const key = `${s.width}x${s.height}`;
+												return (
+													<SelectItem
+														key={key}
+														value={key}
+													>
+														{s.width} x {s.height}
+													</SelectItem>
+												);
+											})}
+										</SelectContent>
+									</Select>
+								</div>
+							)}
+
+						{preview && (
+							<span className="text-xs text-muted-foreground">
+								Each part: {preview.partWidth} x{" "}
+								{preview.partHeight}px
+							</span>
+						)}
+					</div>
 				</div>
 
 				<DialogFooter>
@@ -181,7 +445,12 @@ export function ScreenshotSplitDialog({
 					</Button>
 					<Button
 						onClick={handleUpload}
-						disabled={!preview || splitUpload.isPending || splitPreview.isPending}
+						disabled={
+							!file ||
+							!croppedAreaPixels ||
+							splitUpload.isPending ||
+							splitPreview.isPending
+						}
 					>
 						{splitUpload.isPending ? (
 							<>

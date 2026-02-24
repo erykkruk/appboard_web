@@ -462,11 +462,15 @@ export const api = {
 			displayType: string,
 			file: File,
 			parts: number,
+			targetWidth?: number,
+			targetHeight?: number,
 		) => {
 			const formData = new FormData();
 			formData.append("file", file);
 			formData.append("parts", String(parts));
 			formData.append("displayType", displayType);
+			if (targetWidth) formData.append("targetWidth", String(targetWidth));
+			if (targetHeight) formData.append("targetHeight", String(targetHeight));
 			return fetchApi<SplitPreviewResult>(
 				`/api/apps/${appId}/publishing/screenshots/split-preview`,
 				{ body: formData, headers: {}, method: "POST" },
@@ -480,6 +484,9 @@ export const api = {
 			file: File,
 			parts: number,
 			insertAt?: number,
+			targetWidth?: number,
+			targetHeight?: number,
+			crop?: { x: number; y: number; width: number; height: number },
 		) => {
 			const formData = new FormData();
 			formData.append("file", file);
@@ -487,8 +494,14 @@ export const api = {
 			formData.append("language", language);
 			formData.append("displayType", displayType);
 			formData.append("parts", String(parts));
-			if (insertAt !== undefined) {
-				formData.append("insertAt", String(insertAt));
+			if (insertAt !== undefined) formData.append("insertAt", String(insertAt));
+			if (targetWidth) formData.append("targetWidth", String(targetWidth));
+			if (targetHeight) formData.append("targetHeight", String(targetHeight));
+			if (crop) {
+				formData.append("cropX", String(Math.round(crop.x)));
+				formData.append("cropY", String(Math.round(crop.y)));
+				formData.append("cropWidth", String(Math.round(crop.width)));
+				formData.append("cropHeight", String(Math.round(crop.height)));
 			}
 			return fetchApi<SplitUploadResult>(
 				`/api/apps/${appId}/publishing/screenshots/split-upload`,

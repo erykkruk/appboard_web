@@ -335,11 +335,23 @@ export function useSplitPreview(appId: string) {
 			displayType,
 			file,
 			parts,
+			targetHeight,
+			targetWidth,
 		}: {
 			displayType: string;
 			file: File;
 			parts: number;
-		}) => api.publishing.splitPreview(appId, displayType, file, parts),
+			targetHeight?: number;
+			targetWidth?: number;
+		}) =>
+			api.publishing.splitPreview(
+				appId,
+				displayType,
+				file,
+				parts,
+				targetWidth,
+				targetHeight,
+			),
 	});
 }
 
@@ -352,12 +364,18 @@ export function useSplitUploadScreenshots(appId: string, versionId: string) {
 			file,
 			parts,
 			insertAt,
+			targetHeight,
+			targetWidth,
+			crop,
 		}: {
 			language: string;
 			displayType: string;
 			file: File;
 			parts: number;
 			insertAt?: number;
+			targetHeight?: number;
+			targetWidth?: number;
+			crop?: { x: number; y: number; width: number; height: number };
 		}) =>
 			api.publishing.splitUploadScreenshots(
 				appId,
@@ -367,6 +385,9 @@ export function useSplitUploadScreenshots(appId: string, versionId: string) {
 				file,
 				parts,
 				insertAt,
+				targetWidth,
+				targetHeight,
+				crop,
 			),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
