@@ -32,6 +32,7 @@ import { cn } from "@/lib/utils";
 import { APP_STORE_LANGUAGES, type VersionScreenshot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { ScreenshotCropDialog } from "@/components/screenshot-crop-dialog";
+import { ScreenshotSplitDialog } from "@/components/screenshot-split-dialog";
 import {
   Select,
   SelectContent,
@@ -137,6 +138,9 @@ export default function VersionScreenshotsPage() {
   const [uploadsInProgress, setUploadsInProgress] = useState(0);
   const uploadDisplayTypeRef = useRef(IPHONE_65_DISPLAY);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const panoramaInputRef = useRef<HTMLInputElement>(null);
+  const [panoramaFile, setPanoramaFile] = useState<File | null>(null);
+  const [panoramaDialogOpen, setPanoramaDialogOpen] = useState(false);
 
   // Current file being cropped = first in queue
   const cropFile = fileQueue[0] ?? null;
@@ -270,6 +274,21 @@ export default function VersionScreenshotsPage() {
     advanceQueue();
   };
 
+  const handlePanoramaChoose = (displayType: string) => {
+    if (!activeLang) return;
+    setUploadError(null);
+    uploadDisplayTypeRef.current = displayType;
+    panoramaInputRef.current?.click();
+  };
+
+  const handlePanoramaFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files?.length) return;
+    setPanoramaFile(files[0]);
+    setPanoramaDialogOpen(true);
+    e.target.value = "";
+  };
+
   const notLocalizedLanguages = useMemo(
     () =>
       APP_STORE_LANGUAGES.filter(
@@ -301,7 +320,7 @@ export default function VersionScreenshotsPage() {
 
   return (
     <div className="space-y-5 p-6">
-      {/* Hidden file input */}
+      {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
         type="file"
@@ -309,6 +328,13 @@ export default function VersionScreenshotsPage() {
         multiple
         className="hidden"
         onChange={handleFileChange}
+      />
+      <input
+        ref={panoramaInputRef}
+        type="file"
+        accept="image/png,image/jpeg"
+        className="hidden"
+        onChange={handlePanoramaFileChange}
       />
 
       {/* Header */}
@@ -463,6 +489,15 @@ export default function VersionScreenshotsPage() {
                   ? `Uploading${uploadsInProgress > 1 ? ` (${uploadsInProgress})` : ""}...`
                   : "Choose File"}
               </button>
+              <span className="mx-1">|</span>
+              <button
+                type="button"
+                onClick={() => handlePanoramaChoose(IPHONE_65_DISPLAY)}
+                disabled={isUploading || count >= MAX_SCREENSHOTS || !hasLanguage}
+                className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
+              >
+                Upload Panorama
+              </button>
               {count > 0 && (
                 <>
                   <span className="mx-1">|</span>
@@ -527,6 +562,24 @@ export default function VersionScreenshotsPage() {
         displayType={uploadDisplayTypeRef.current}
         onConfirm={handleCropConfirm}
         onCancel={handleCropCancel}
+      />
+
+      {/* Split panorama dialog */}
+      <ScreenshotSplitDialog
+        open={panoramaDialogOpen}
+        onOpenChange={(open) => {
+          setPanoramaDialogOpen(open);
+          if (!open) setPanoramaFile(null);
+        }}
+        file={panoramaFile}
+        displayType={uploadDisplayTypeRef.current}
+        language={activeLang}
+        versionId={params.versionId}
+        appId={params.appId}
+        existingCount={count}
+        onSuccess={() => {
+          setPanoramaFile(null);
+        }}
       />
     </div>
   );
