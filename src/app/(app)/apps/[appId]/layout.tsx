@@ -117,8 +117,10 @@ export default function AppLayout({
   const handleCreateVersion = async () => {
     if (!newVersion.trim()) return;
     try {
-      await createVersion.mutateAsync(newVersion.trim());
-      toast.success(`Version ${newVersion.trim()} created`);
+      const result = await createVersion.mutateAsync(newVersion.trim());
+      const langCount = result?.copiedLanguages?.length ?? 0;
+      const langMsg = langCount > 0 ? ` with ${langCount} languages` : "";
+      toast.success(`Version ${newVersion.trim()} created${langMsg}`);
       setNewVersion("");
       setShowNewVersion(false);
     } catch {

@@ -286,13 +286,16 @@ export const api = {
 				},
 			),
 		createVersion: (appId: string, versionString: string) =>
-			fetchApi<{ version: { versionString: string; state: string } }>(
-				`/api/apps/${appId}/publishing/create-version`,
-				{
-					body: JSON.stringify({ versionString }),
-					method: "POST",
-				},
-			).then((r) => r.version),
+			fetchApi<{
+				version: {
+					copiedLanguages: string[];
+					state: string;
+					versionString: string;
+				};
+			}>(`/api/apps/${appId}/publishing/create-version`, {
+				body: JSON.stringify({ versionString }),
+				method: "POST",
+			}).then((r) => r.version),
 		deleteAllScreenshots: (appId: string, screenshotSetId: string) =>
 			fetchApi<{ deleted: number }>(
 				`/api/apps/${appId}/publishing/screenshot-sets/${screenshotSetId}`,

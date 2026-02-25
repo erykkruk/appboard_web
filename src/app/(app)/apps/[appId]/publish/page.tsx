@@ -62,8 +62,10 @@ export default function PublishPage() {
     const version = newVersionString.trim() || data?.version?.suggestedVersion || "";
     if (!version) return;
     try {
-      await createVersion.mutateAsync(version);
-      toast.success(`Version ${version} created`);
+      const result = await createVersion.mutateAsync(version);
+      const langCount = result?.copiedLanguages?.length ?? 0;
+      const langMsg = langCount > 0 ? ` with ${langCount} languages` : "";
+      toast.success(`Version ${version} created${langMsg}`);
       setNewVersionString("");
     } catch {
       toast.error("Failed to create new version");
