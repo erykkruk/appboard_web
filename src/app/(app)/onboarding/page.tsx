@@ -183,7 +183,7 @@ function GooglePlayCredentials({
         <Textarea
           id="sa-json"
           placeholder="Paste your Service Account JSON here or upload a .json file..."
-          className="min-h-[200px] font-mono text-xs"
+          className="h-[200px] max-h-[200px] [field-sizing:fixed] overflow-y-auto font-mono text-xs"
           value={serviceAccountJson}
           onChange={(e) => onJsonChange(e.target.value)}
         />
@@ -290,7 +290,7 @@ function AppStoreCredentials({
         <Textarea
           id="private-key"
           placeholder="Paste your .p8 private key content here..."
-          className="min-h-[150px] font-mono text-xs"
+          className="h-[150px] max-h-[150px] [field-sizing:fixed] overflow-y-auto font-mono text-xs"
           value={privateKey}
           onChange={(e) => onPrivateKeyChange(e.target.value)}
         />

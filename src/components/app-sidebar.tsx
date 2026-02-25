@@ -600,7 +600,7 @@ export function AppSidebar() {
             ))}
           </div>
           <Button asChild className="w-full">
-            <Link href="/onboarding">
+            <Link href="/onboarding" onClick={() => setManageOpen(false)}>
               <Plus className="mr-2 h-4 w-4" />
               Add Another Store
             </Link>
