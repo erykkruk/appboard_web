@@ -61,7 +61,9 @@ export default function AppSettingsPage() {
 					<CardHeader>
 						<CardTitle>AI Prompts</CardTitle>
 						<CardDescription>
-							Customize AI prompts for this app. These override global settings.
+							Customize AI prompts for this app. These override global
+							settings. The app&apos;s Information data is automatically
+							included as context.
 						</CardDescription>
 					</CardHeader>
 					<CardContent>

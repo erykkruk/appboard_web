@@ -33,7 +33,9 @@ export default function SettingsPromptsPage() {
         <CardHeader>
           <CardTitle>AI Prompts</CardTitle>
           <CardDescription>
-            Customize the default AI prompts used for generating and rephrasing listing fields.
+            Customize the default AI prompts used for generating and rephrasing
+            listing fields. Each app&apos;s Information data (ASO profile) is
+            automatically included as context.
           </CardDescription>
         </CardHeader>
         <CardContent>

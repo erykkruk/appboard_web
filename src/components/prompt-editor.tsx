@@ -64,18 +64,19 @@ function FieldPromptEditor({
 	isResetting: boolean;
 }) {
 	const [value, setValue] = useState("");
-	const [dirty, setDirty] = useState(false);
+
+	const baseValue = entry?.customPrompt ?? entry?.defaultPrompt ?? "";
 
 	useEffect(() => {
-		setValue(entry?.customPrompt ?? "");
-		setDirty(false);
-	}, [entry]);
+		setValue(baseValue);
+	}, [baseValue]);
+
+	const dirty = value !== baseValue && value.trim() !== "";
 
 	const handleSave = async () => {
 		if (!value.trim()) return;
 		try {
 			await onSave(mode, field, value.trim());
-			setDirty(false);
 			toast.success("Prompt saved");
 		} catch {
 			toast.error("Failed to save prompt");
@@ -85,8 +86,7 @@ function FieldPromptEditor({
 	const handleReset = async () => {
 		try {
 			await onReset(mode, field);
-			setValue("");
-			setDirty(false);
+			setValue(entry?.defaultPrompt ?? "");
 			toast.success("Prompt reset to default");
 		} catch {
 			toast.error("Failed to reset prompt");
@@ -99,9 +99,7 @@ function FieldPromptEditor({
 				value={value}
 				onChange={(e) => {
 					setValue(e.target.value);
-					setDirty(true);
 				}}
-				placeholder={entry?.defaultPrompt ?? "Loading default prompt..."}
 				rows={8}
 				className="font-mono text-xs"
 			/>
@@ -109,7 +107,7 @@ function FieldPromptEditor({
 				<Button
 					size="sm"
 					onClick={handleSave}
-					disabled={isSaving || !dirty || !value.trim()}
+					disabled={isSaving || !dirty}
 				>
 					{isSaving ? (
 						<Loader2 className="mr-1 h-3 w-3 animate-spin" />
@@ -155,7 +153,14 @@ export function PromptEditor({
 	}
 
 	return (
-		<Accordion type="single" collapsible className="w-full">
+		<div className="space-y-4">
+			<p className="text-sm text-muted-foreground">
+				These prompts define the AI&apos;s behavior for each listing field.
+				Data from the app&apos;s Information page (category, features,
+				audience, tone, keywords, etc.) is automatically included in every
+				AI request — no need to repeat it here.
+			</p>
+			<Accordion type="single" collapsible className="w-full">
 			{LISTING_FIELDS.map(({ key, label }) => {
 				const hasCustom = MODES.some((mode) => {
 					const settingKey = getSettingKey(key, mode);
@@ -202,6 +207,7 @@ export function PromptEditor({
 					</AccordionItem>
 				);
 			})}
-		</Accordion>
+			</Accordion>
+		</div>
 	);
 }
