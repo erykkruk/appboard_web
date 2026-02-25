@@ -5,6 +5,7 @@ import {
 	Copy,
 	Download,
 	Ellipsis,
+	Languages,
 	RefreshCw,
 	Sparkles,
 	Upload,
@@ -22,7 +23,7 @@ import {
 export interface ActionsMenuAction {
 	key: string;
 	label: string;
-	icon: "sparkles" | "sync" | "download" | "upload" | "copy";
+	icon: "sparkles" | "sync" | "download" | "upload" | "copy" | "languages";
 	disabled?: boolean;
 	onSelect: () => void;
 	/** Visually separates this item from the previous one */
@@ -39,11 +40,12 @@ interface ActionsMenuProps {
 }
 
 const ICON_MAP = {
+	copy: Copy,
+	download: Download,
+	languages: Languages,
 	sparkles: Sparkles,
 	sync: RefreshCw,
-	download: Download,
 	upload: Upload,
-	copy: Copy,
 } as const;
 
 export function ActionsMenu({ actions, importConfig }: ActionsMenuProps) {

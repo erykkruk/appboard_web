@@ -5,6 +5,7 @@ import {
 	Download,
 	Globe,
 	Info,
+	Languages,
 	Loader2,
 	MoreVertical,
 	RefreshCw,
@@ -281,6 +282,8 @@ export default function VersionDetailPage() {
 	const [generateScope, setGenerateScope] = useState<
 		"current" | "all"
 	>("current");
+	const [isTranslatingAll, setIsTranslatingAll] = useState(false);
+	const [translatingField, setTranslatingField] = useState<string | null>(null);
 	const [aiConfirm, setAiConfirm] = useState<{
 		field: ListingFieldName;
 		label: string;
@@ -640,6 +643,162 @@ export default function VersionDetailPage() {
 		selectedLanguage,
 	]);
 
+	const handleTranslateAllFromLanguage = useCallback(async () => {
+		if (!appData.data) return;
+
+		const sourceData = allFormData[selectedLanguage] ?? {};
+		const fields: Record<string, string> = {};
+		for (const f of AI_FIELDS) {
+			const val = sourceData[f];
+			if (val?.trim()) {
+				fields[f] = val;
+			}
+		}
+
+		if (Object.keys(fields).length === 0) {
+			toast.error("No content to translate in the current language");
+			return;
+		}
+
+		const otherLanguages = localizations
+			.map((l) => l.language)
+			.filter((lang) => lang !== selectedLanguage);
+
+		if (otherLanguages.length === 0) {
+			toast.error("No other languages to translate to");
+			return;
+		}
+
+		setIsTranslatingAll(true);
+		toast.info(
+			`Translating from ${selectedLanguage} to ${otherLanguages.length} language(s)...`,
+		);
+
+		const results = await Promise.allSettled(
+			otherLanguages.map(async (targetLang) => {
+				const { translations } =
+					await api.ai.translateLocalization({
+						appId: params.appId,
+						appName: appData.data!.name,
+						fields,
+						platform: appData.data!.platform,
+						sourceLanguage: selectedLanguage,
+						targetLanguage: targetLang,
+					});
+				return { language: targetLang, translations };
+			}),
+		);
+
+		let translated = 0;
+		for (const result of results) {
+			if (result.status === "fulfilled") {
+				const { language, translations } = result.value;
+				setAllFormData((prev) => ({
+					...prev,
+					[language]: {
+						...prev[language],
+						...translations,
+					},
+				}));
+				translated++;
+			} else {
+				const message =
+					result.reason instanceof Error
+						? result.reason.message
+						: "Translation failed";
+				toast.error(message);
+			}
+		}
+
+		if (translated > 0) {
+			toast.success(
+				`Translated to ${translated} language(s) from ${selectedLanguage}`,
+			);
+		}
+
+		setIsTranslatingAll(false);
+	}, [
+		allFormData,
+		appData.data,
+		localizations,
+		params.appId,
+		selectedLanguage,
+	]);
+
+	const handleTranslateFieldToAll = useCallback(
+		async (field: ListingFieldName, sourceLang: string) => {
+			if (!appData.data) return;
+
+			const sourceData = allFormData[sourceLang] ?? {};
+			const value = sourceData[field];
+			if (!value?.trim()) {
+				toast.error(
+					`No content in "${field}" for ${sourceLang} to translate`,
+				);
+				return;
+			}
+
+			const otherLanguages = localizations
+				.map((l) => l.language)
+				.filter((lang) => lang !== sourceLang);
+
+			if (otherLanguages.length === 0) {
+				toast.error("No other languages to translate to");
+				return;
+			}
+
+			setTranslatingField(field);
+
+			const results = await Promise.allSettled(
+				otherLanguages.map(async (targetLang) => {
+					const { translations } =
+						await api.ai.translateLocalization({
+							appId: params.appId,
+							appName: appData.data!.name,
+							fields: { [field]: value },
+							platform: appData.data!.platform,
+							sourceLanguage: sourceLang,
+							targetLanguage: targetLang,
+						});
+					return {
+						language: targetLang,
+						value: translations[field] ?? "",
+					};
+				}),
+			);
+
+			let translated = 0;
+			for (const result of results) {
+				if (result.status === "fulfilled" && result.value.value) {
+					const { language, value: translatedValue } = result.value;
+					setAllFormData((prev) => ({
+						...prev,
+						[language]: {
+							...prev[language],
+							[field]: translatedValue,
+						},
+					}));
+					translated++;
+				} else if (result.status === "rejected") {
+					const message =
+						result.reason instanceof Error
+							? result.reason.message
+							: "Translation failed";
+					toast.error(message);
+				}
+			}
+
+			if (translated > 0) {
+				toast.success(
+					`Translated ${field} to ${translated} language(s)`,
+				);
+			}
+
+			setTranslatingField(null);
+		},
+		[allFormData, appData.data, localizations, params.appId],
+	);
+
 	// Auto-save all changed localizations
 	const autoSaveListings = useCallback(async () => {
 		if (!hasAnyChanges) return;
@@ -858,8 +1017,19 @@ export default function VersionDetailPage() {
 						key: "generate-all",
 						label: hasAnyContent ? "Regenerate All" : "Generate All",
 						icon: "sparkles" as const,
-						disabled: isGeneratingAll || !!generatingField,
+						disabled: isGeneratingAll || !!generatingField || isTranslatingAll,
 						onSelect: () => setGenerateDialogOpen(true),
+					},
+				]
+			: []),
+		...(isEditable && currentLoc && localizations.length > 1 && hasAnyContent
+			? [
+					{
+						key: "translate-all",
+						label: `Translate All From ${selectedLanguage}`,
+						icon: "languages" as const,
+						disabled: isTranslatingAll || isGeneratingAll || !!generatingField,
+						onSelect: handleTranslateAllFromLanguage,
 					},
 				]
 			: []),
@@ -1252,12 +1422,16 @@ export default function VersionDetailPage() {
 															className="h-6 w-6 p-0"
 															disabled={
 																isFieldGenerating ||
-																isGeneratingAll
+																isGeneratingAll ||
+																isTranslatingAll ||
+																translatingField === field.key
 															}
 															size="sm"
 															variant="ghost"
 														>
-															{isFieldGenerating ? (
+															{isFieldGenerating ||
+															translatingField ===
+																field.key ? (
 																<Loader2 className="h-3.5 w-3.5 animate-spin" />
 															) : (
 																<MoreVertical className="h-3.5 w-3.5" />
@@ -1299,6 +1473,25 @@ export default function VersionDetailPage() {
 																Rephrase
 															</DropdownMenuItem>
 														)}
+														{value &&
+															localizations.length >
+																1 && (
+																<DropdownMenuItem
+																	disabled={
+																		translatingField ===
+																		field.key
+																	}
+																	onSelect={() =>
+																		handleTranslateFieldToAll(
+																			field.key as ListingFieldName,
+																			activeLang,
+																		)
+																	}
+																>
+																	<Languages className="mr-2 h-3.5 w-3.5" />
+																	Translate From {activeLang} to All
+																</DropdownMenuItem>
+															)}
 													</DropdownMenuContent>
 												</DropdownMenu>
 											)}
@@ -1353,12 +1546,14 @@ export default function VersionDetailPage() {
 								</div>
 
 								<div className="relative">
-									{isGeneratingAll &&
+									{(isGeneratingAll || isTranslatingAll || translatingField === field.key) &&
 										isAiField && (
 											<div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/60 backdrop-blur-[1px]">
 												<div className="flex items-center gap-2 text-xs text-muted-foreground">
 													<Loader2 className="h-3.5 w-3.5 animate-spin" />
-													Generating...
+													{isTranslatingAll || translatingField === field.key
+														? "Translating..."
+														: "Generating..."}
 												</div>
 											</div>
 										)}
