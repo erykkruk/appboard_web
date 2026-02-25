@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { AlertCircle, Info, Loader2, Save, Trash2, Upload } from "lucide-react";
+import { AlertCircle, Info, Loader2, Trash2, Upload } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -23,6 +23,7 @@ import {
   useUploadReviewAttachment,
   useVersionDetail,
 } from "@/hooks/use-publishing";
+import { useAutoSave } from "@/hooks/use-auto-save";
 import type { AppReviewDetail } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -126,18 +127,17 @@ export default function ReviewPage() {
     [],
   );
 
-  const handleSave = async () => {
-    if (!changedFields || notesOverLimit) return;
-    try {
-      await updateReview.mutateAsync(changedFields);
-      setOriginalData({ ...formData });
-      toast.success("Review information saved");
-    } catch (err) {
-      const message =
-        err instanceof Error ? err.message : "Failed to save review information";
-      toast.error(message);
-    }
-  };
+  useAutoSave({
+    data: formData,
+    onSave: async (data) => {
+      if (data.notes.length > NOTES_MAX_LENGTH) return;
+      const changes = getChangedFields(originalData, data);
+      if (!changes) return;
+      await updateReview.mutateAsync(changes);
+      setOriginalData({ ...data });
+    },
+    enabled: isEditable,
+  });
 
   const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -194,20 +194,6 @@ export default function ReviewPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">App Review Information</h1>
-        {isEditable && (
-          <Button
-            onClick={handleSave}
-            disabled={!changedFields || notesOverLimit || updateReview.isPending}
-            size="sm"
-          >
-            {updateReview.isPending ? (
-              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-1.5 h-4 w-4" />
-            )}
-            Save
-          </Button>
-        )}
       </div>
 
       <div className="max-w-5xl space-y-8">

@@ -61,6 +61,7 @@ import {
   useStores,
   useSyncStore,
 } from "@/hooks/use-stores";
+import { useSession } from "@/lib/auth-client";
 import type { App } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -344,6 +345,7 @@ export function AppSidebar() {
   const disconnectStore = useDisconnectStore();
   const [manageOpen, setManageOpen] = useState(false);
   const { getColor, setColor } = useAppColors();
+  const { data: session } = useSession();
 
   const storesList = stores.data ?? [];
   const appsList = apps.data ?? [];

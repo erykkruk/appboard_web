@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Lock, MessageSquareText, Settings } from "lucide-react";
+import { Lock, LogOut, MessageSquareText, Settings } from "lucide-react";
 
+import { signOut } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
@@ -53,6 +54,20 @@ export default function SettingsLayout({
             })}
           </div>
         </nav>
+
+        <div className="border-t border-border px-2 py-3">
+          <button
+            type="button"
+            onClick={async () => {
+              await signOut();
+              window.location.href = "/login";
+            }}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-[#2a2a2a] hover:text-destructive"
+          >
+            <LogOut className="h-4 w-4" />
+            Sign Out
+          </button>
+        </div>
       </div>
 
       <div className="flex flex-1 flex-col overflow-hidden">

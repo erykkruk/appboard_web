@@ -252,7 +252,7 @@ export function ScreenshotCropDialog({
 							minZoom={1}
 							maxZoom={5}
 							aspect={aspect}
-							objectFit="auto-cover"
+							objectFit="cover"
 							restrictPosition
 							onCropChange={setCrop}
 							onZoomChange={setZoom}

@@ -2,21 +2,18 @@
 
 import {
 	AlertCircle,
-	ChevronDown,
-	CloudUpload,
 	Download,
 	Globe,
 	Info,
 	Loader2,
 	MoreVertical,
 	RefreshCw,
-	Save,
 	Sparkles,
 	Upload,
 	X,
 } from "lucide-react";
 import { useParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import {
@@ -35,7 +32,6 @@ import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
-	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
@@ -49,9 +45,11 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { ActionsMenu } from "@/components/actions-menu";
+import type { ActionsMenuAction } from "@/components/actions-menu";
 import { useApp } from "@/hooks/use-apps";
+import { useAutoSave } from "@/hooks/use-auto-save";
 import {
-	usePublishLocalizations,
 	useSyncVersions,
 	useUpdateCopyright,
 	useUpdateLocalization,
@@ -256,8 +254,6 @@ export default function VersionDetailPage() {
 	const updateLoc = useUpdateLocalization(params.appId, params.versionId);
 	const updateCopyright = useUpdateCopyright(params.appId, params.versionId);
 	const syncVersions = useSyncVersions(params.appId);
-	const publishLocs = usePublishLocalizations(params.appId, params.versionId);
-
 	const [selectedLanguage, setSelectedLanguage] = useState<string>("");
 	// Multi-language form data keyed by locale
 	const [allFormData, setAllFormData] = useState<Record<string, FieldData>>(
@@ -279,9 +275,9 @@ export default function VersionDetailPage() {
 	const [secondaryCategory, setSecondaryCategory] = useState<string>("");
 	const [originalPrimary, setOriginalPrimary] = useState<string>("");
 	const [originalSecondary, setOriginalSecondary] = useState<string>("");
-	const [isSavingCategories, setIsSavingCategories] = useState(false);
 	const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
 	const [saveAttempted, setSaveAttempted] = useState(false);
+	const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
 	const [generateScope, setGenerateScope] = useState<
 		"current" | "all"
 	>("current");
@@ -294,7 +290,7 @@ export default function VersionDetailPage() {
 	const [categoriesData, setCategoriesData] = useState<{
 		availableCategories: { id: string; name: string }[];
 	} | null>(null);
-	const fileInputRef = useRef<HTMLInputElement>(null);
+
 
 	const localizations = detail.data?.localizations ?? [];
 
@@ -374,30 +370,6 @@ export default function VersionDetailPage() {
 			});
 	}, [params.appId]);
 
-	const categoriesChanged =
-		primaryCategory !== originalPrimary ||
-		secondaryCategory !== originalSecondary;
-
-	const handleSaveCategories = async () => {
-		if (!categoriesChanged || !primaryCategory) return;
-		setIsSavingCategories(true);
-		try {
-			const result = await api.listings.updateCategories(params.appId, {
-				primaryCategory,
-				secondaryCategory: secondaryCategory || undefined,
-			});
-			setOriginalPrimary(result.primaryCategory);
-			setOriginalSecondary(result.secondaryCategory ?? "");
-			toast.success("Categories saved");
-		} catch (err) {
-			const message =
-				err instanceof Error ? err.message : "Failed to save categories";
-			toast.error(message);
-		} finally {
-			setIsSavingCategories(false);
-		}
-	};
-
 	const handleSuggestCategory = async () => {
 		if (!appData.data) return;
 		setIsSuggestingCategory(true);
@@ -432,6 +404,25 @@ export default function VersionDetailPage() {
 
 	const state = detail.data?.state ?? "";
 	const isEditable = EDITABLE_STATES.has(state);
+
+	const categoriesAutoSaveData = useMemo(
+		() => ({ primaryCategory, secondaryCategory }),
+		[primaryCategory, secondaryCategory],
+	);
+
+	useAutoSave({
+		data: categoriesAutoSaveData,
+		onSave: async (data) => {
+			if (!data.primaryCategory) return;
+			const result = await api.listings.updateCategories(params.appId, {
+				primaryCategory: data.primaryCategory,
+				secondaryCategory: data.secondaryCategory || undefined,
+			});
+			setOriginalPrimary(result.primaryCategory);
+			setOriginalSecondary(result.secondaryCategory ?? "");
+		},
+		enabled: isEditable && !!categoriesData,
+	});
 
 	// Convenience: get form data for selected language
 	const formData = allFormData[selectedLanguage] ?? {};
@@ -649,86 +640,68 @@ export default function VersionDetailPage() {
 		selectedLanguage,
 	]);
 
-	// Save all changed localizations
-	const handleSave = async () => {
+	// Auto-save all changed localizations
+	const autoSaveListings = useCallback(async () => {
 		if (!hasAnyChanges) return;
-
-		setSaveAttempted(true);
 
 		// Validate all languages that have changes
 		for (const lang of Object.keys(allChangedByLang)) {
 			const langData = allFormData[lang] ?? {};
 			const hasErrors = FIELDS.some((f) => {
 				const val = langData[f.key] ?? "";
-				return (
-					getFieldError(f, val, isWhatsNewEditable, true) !== null
-				);
+				return getFieldError(f, val, isWhatsNewEditable, true) !== null;
 			});
-			if (hasErrors) {
-				toast.error(`Validation errors in ${lang}`);
-				return;
-			}
+			if (hasErrors) return; // Skip auto-save if validation errors
 		}
 
-		try {
-			let saved = 0;
-			for (const lang of Object.keys(allChangedByLang)) {
-				const loc = localizations.find((l) => l.language === lang);
-				if (!loc) continue;
+		let saved = 0;
+		for (const lang of Object.keys(allChangedByLang)) {
+			const loc = localizations.find((l) => l.language === lang);
+			if (!loc) continue;
 
-				const fieldsToSave = { ...allChangedByLang[lang] };
-				if (!isWhatsNewEditable) {
-					delete fieldsToSave.whatsNew;
-				}
-				if (Object.keys(fieldsToSave).length === 0) continue;
-
-				const result = await updateLoc.mutateAsync({
-					data: fieldsToSave,
-					localizationId: loc.localizationId,
-				});
-				saved++;
-				if (result.savedLocally) {
-					toast.info(`${lang}: zapisane lokalnie`);
-				}
+			const fieldsToSave = { ...allChangedByLang[lang] };
+			if (!isWhatsNewEditable) {
+				delete fieldsToSave.whatsNew;
 			}
+			if (Object.keys(fieldsToSave).length === 0) continue;
 
-			// Sync original data to current
+			await updateLoc.mutateAsync({
+				data: fieldsToSave,
+				localizationId: loc.localizationId,
+			});
+			saved++;
+		}
+
+		if (saved > 0) {
 			setAllOriginalData({ ...allFormData });
 			setSaveAttempted(false);
-
-			if (saved > 0) {
-				toast.success(
-					`Saved ${saved} localization(s)`,
-				);
-			}
-		} catch (err) {
-			const message =
-				err instanceof Error ? err.message : "Failed to save listing";
-			toast.error(message);
 		}
-	};
+	}, [
+		allChangedByLang,
+		allFormData,
+		hasAnyChanges,
+		isWhatsNewEditable,
+		localizations,
+		updateLoc,
+	]);
 
-	const copyrightChanged = copyrightValue !== originalCopyright;
+	useAutoSave({
+		data: allFormData,
+		onSave: () => autoSaveListings(),
+		enabled: isEditable && localizations.length > 0,
+	});
+
 	const copyrightOverLimit = copyrightValue.length > 255;
 
-	const handleSaveCopyright = async () => {
-		if (!copyrightChanged || copyrightOverLimit) return;
-		try {
-			const result = await updateCopyright.mutateAsync(copyrightValue);
-			setOriginalCopyright(copyrightValue);
-			if (result.savedLocally) {
-				toast.info(
-					"Copyright zapisany lokalnie. Zostanie zsynchronizowany z App Store później.",
-				);
-			} else {
-				toast.success("Copyright saved");
-			}
-		} catch (err) {
-			const message =
-				err instanceof Error ? err.message : "Failed to save copyright";
-			toast.error(message);
-		}
-	};
+	useAutoSave({
+		data: copyrightValue,
+		onSave: async (value) => {
+			if (value.length > 255) return;
+			await updateCopyright.mutateAsync(value);
+			setOriginalCopyright(value);
+		},
+		enabled: isEditable,
+	});
 
 	const handleSync = async () => {
 		try {
@@ -742,32 +715,6 @@ export default function VersionDetailPage() {
 			}
 		} catch (err) {
 			const message = err instanceof Error ? err.message : "Failed to sync";
-			toast.error(message);
-		}
-	};
-
-	const handlePublishLocalizations = async () => {
-		try {
-			const result = await publishLocs.mutateAsync();
-			if (result.error === "store_unavailable") {
-				toast.warning(
-					"App Store chwilowo niedostępny. Zmiany zapisane lokalnie.",
-				);
-			} else if (result.errors?.length) {
-				for (const err of result.errors) {
-					toast.error(err);
-				}
-				toast.warning(
-					`Published ${result.published}, but ${result.errors.length} error(s)`,
-				);
-			} else {
-				toast.success(
-					`Published ${result.published} localization(s) to App Store`,
-				);
-			}
-		} catch (err) {
-			const message =
-				err instanceof Error ? err.message : "Failed to publish";
 			toast.error(message);
 		}
 	};
@@ -898,12 +845,68 @@ export default function VersionDetailPage() {
 
 	const { versionString } = detail.data;
 	const isFromCache = detail.data.source === "cache";
-	const hasDirtyLocalizations = localizations.some((l) => l.isDirty);
 	const hasAnyContent = AI_FIELDS.some((f) => !!formData[f]);
 
 	const sortedLocalizations = localizations
 		.slice()
 		.sort((a, b) => a.language.localeCompare(b.language));
+
+	const listingsMenuActions: ActionsMenuAction[] = [
+		...(isEditable && currentLoc
+			? [
+					{
+						key: "generate-all",
+						label: hasAnyContent ? "Regenerate All" : "Generate All",
+						icon: "sparkles" as const,
+						disabled: isGeneratingAll || !!generatingField,
+						onSelect: () => setGenerateDialogOpen(true),
+					},
+				]
+			: []),
+		{
+			key: "sync",
+			label: "Sync",
+			icon: "sync" as const,
+			disabled: syncVersions.isPending,
+			onSelect: handleSync,
+			separatorBefore: !!(isEditable && currentLoc),
+		},
+		...(localizations.length > 0
+			? [
+					{
+						key: "export-csv",
+						label: "Export CSV",
+						icon: "download" as const,
+						onSelect: handleExportCsv,
+						separatorBefore: true,
+					},
+					{
+						key: "export-json",
+						label: "Export JSON",
+						icon: "download" as const,
+						onSelect: handleExportJson,
+					},
+					{
+						key: "download-template",
+						label: "Download Template",
+						icon: "download" as const,
+						onSelect: handleDownloadTemplate,
+					},
+				]
+			: []),
+		...(isEditable
+			? [
+					{
+						key: "import",
+						label: "Import",
+						icon: "upload" as const,
+						disabled: isImporting,
+						onSelect: () => {},
+						separatorBefore: true,
+					},
+				]
+			: []),
+	];
 
 	return (
 		<div className="p-6 space-y-6">
@@ -951,141 +954,13 @@ export default function VersionDetailPage() {
 				</div>
 
 				<div className="flex items-center gap-3">
-					{/* Generate All button */}
-					{isEditable && currentLoc && (
-						<AlertDialog onOpenChange={() => setGenerateScope("current")}>
-							<AlertDialogTrigger asChild>
-								<Button
-									disabled={isGeneratingAll || !!generatingField}
-									size="sm"
-									variant="outline"
-								>
-									{isGeneratingAll ? (
-										<Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-									) : (
-										<Sparkles className="mr-1.5 h-4 w-4" />
-									)}
-									{hasAnyContent ? "Regenerate All" : "Generate All"}
-								</Button>
-							</AlertDialogTrigger>
-							<AlertDialogContent>
-								<AlertDialogHeader>
-									<AlertDialogTitle>
-										{hasAnyContent
-											? "Regenerate all fields?"
-											: "Generate all fields?"}
-									</AlertDialogTitle>
-									<AlertDialogDescription>
-										{hasAnyContent
-											? "AI will regenerate all listing fields based on your ASO profile. Existing content will be used as context for rephrasing."
-											: "AI will generate all listing fields from scratch based on your ASO profile. Make sure you have configured it first."}
-									</AlertDialogDescription>
-								</AlertDialogHeader>
-								{localizations.length > 1 && (
-									<RadioGroup
-										value={generateScope}
-										onValueChange={(v) =>
-											setGenerateScope(
-												v as "current" | "all",
-											)
-										}
-										className="gap-3"
-									>
-										<div className="flex items-center gap-2">
-											<RadioGroupItem
-												value="current"
-												id="scope-current"
-											/>
-											<Label
-												htmlFor="scope-current"
-												className="font-normal cursor-pointer"
-											>
-												Current language only ({selectedLanguage})
-											</Label>
-										</div>
-										<div className="flex items-center gap-2">
-											<RadioGroupItem
-												value="all"
-												id="scope-all"
-											/>
-											<Label
-												htmlFor="scope-all"
-												className="font-normal cursor-pointer"
-											>
-												All languages (generate + translate to{" "}
-												{localizations.length - 1} other)
-											</Label>
-										</div>
-									</RadioGroup>
-								)}
-								<AlertDialogFooter>
-									<AlertDialogCancel>Cancel</AlertDialogCancel>
-									<AlertDialogAction onClick={handleGenerateAll}>
-										{hasAnyContent ? "Regenerate" : "Generate"}
-									</AlertDialogAction>
-								</AlertDialogFooter>
-							</AlertDialogContent>
-						</AlertDialog>
-					)}
-
-					{/* Export dropdown */}
-					{localizations.length > 0 && (
-						<DropdownMenu>
-							<DropdownMenuTrigger asChild>
-								<Button size="sm" variant="outline">
-									<Download className="mr-1.5 h-4 w-4" />
-									Export
-									<ChevronDown className="ml-1 h-3.5 w-3.5 opacity-60" />
-								</Button>
-							</DropdownMenuTrigger>
-							<DropdownMenuContent align="end">
-								<DropdownMenuItem onSelect={handleExportCsv}>
-									Export CSV
-								</DropdownMenuItem>
-								<DropdownMenuItem onSelect={handleExportJson}>
-									Export JSON
-								</DropdownMenuItem>
-								<DropdownMenuSeparator />
-								<DropdownMenuItem onSelect={handleDownloadTemplate}>
-									Download Template
-								</DropdownMenuItem>
-							</DropdownMenuContent>
-						</DropdownMenu>
-					)}
-
-					{/* Import button */}
-					{isEditable && (
-						<>
-							<input
-								accept=".csv,.json"
-								className="hidden"
-								onChange={handleImport}
-								ref={fileInputRef}
-								type="file"
-							/>
-							<Button
-								disabled={isImporting}
-								onClick={() => fileInputRef.current?.click()}
-								size="sm"
-								variant="outline"
-							>
-								{isImporting ? (
-									<Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-								) : (
-									<Upload className="mr-1.5 h-4 w-4" />
-								)}
-								Import
-							</Button>
-						</>
-					)}
-
 					{/* Language selector (master) */}
 					{localizations.length > 0 && (
 						<Select
 							onValueChange={handleLanguageChange}
 							value={selectedLanguage}
 						>
-							<SelectTrigger className="w-[220px]">
+							<SelectTrigger className="w-[180px]">
 								<Globe className="mr-2 h-4 w-4 text-muted-foreground" />
 								<SelectValue placeholder="Select language" />
 							</SelectTrigger>
@@ -1102,59 +977,87 @@ export default function VersionDetailPage() {
 						</Select>
 					)}
 
-					{/* Sync button */}
-					<Button
-						disabled={syncVersions.isPending}
-						onClick={handleSync}
-						size="sm"
-						variant="outline"
-					>
-						{syncVersions.isPending ? (
-							<Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-						) : (
-							<RefreshCw className="mr-1.5 h-4 w-4" />
-						)}
-						Sync
-					</Button>
-
-					{/* Publish drafts button */}
-					{isEditable && hasDirtyLocalizations && (
-						<Button
-							disabled={publishLocs.isPending}
-							onClick={handlePublishLocalizations}
-							size="sm"
-							variant="outline"
-						>
-							{publishLocs.isPending ? (
-								<Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-							) : (
-								<CloudUpload className="mr-1.5 h-4 w-4" />
-							)}
-							Publish to ASC
-						</Button>
-					)}
-
-					{/* Save button */}
-					{isEditable && (
-						<Button
-							disabled={
-								!hasAnyChanges ||
-								hasValidationErrors ||
-								updateLoc.isPending
-							}
-							onClick={handleSave}
-							size="sm"
-						>
-							{updateLoc.isPending ? (
-								<Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-							) : (
-								<Save className="mr-1.5 h-4 w-4" />
-							)}
-							Save
-						</Button>
-					)}
+						{/* Three-dot menu */}
+					<ActionsMenu
+						actions={listingsMenuActions}
+						importConfig={
+							isEditable
+								? { accept: ".csv,.json", onChange: handleImport }
+								: undefined
+						}
+					/>
 				</div>
 			</div>
+
+			{/* Generate All dialog (triggered from menu) */}
+			<AlertDialog
+				open={generateDialogOpen}
+				onOpenChange={(open) => {
+					setGenerateDialogOpen(open);
+					if (!open) setGenerateScope("current");
+				}}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							{hasAnyContent
+								? "Regenerate all fields?"
+								: "Generate all fields?"}
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							{hasAnyContent
+								? "AI will regenerate all listing fields based on your ASO profile. Existing content will be used as context for rephrasing."
+								: "AI will generate all listing fields from scratch based on your ASO profile. Make sure you have configured it first."}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					{localizations.length > 1 && (
+						<RadioGroup
+							value={generateScope}
+							onValueChange={(v) =>
+								setGenerateScope(v as "current" | "all")
+							}
+							className="gap-3"
+						>
+							<div className="flex items-center gap-2">
+								<RadioGroupItem
+									value="current"
+									id="scope-current"
+								/>
+								<Label
+									htmlFor="scope-current"
+									className="font-normal cursor-pointer"
+								>
+									Current language only ({selectedLanguage})
+								</Label>
+							</div>
+							<div className="flex items-center gap-2">
+								<RadioGroupItem
+									value="all"
+									id="scope-all"
+								/>
+								<Label
+									htmlFor="scope-all"
+									className="font-normal cursor-pointer"
+								>
+									All languages (generate + translate to{" "}
+									{localizations.length - 1} other)
+								</Label>
+							</div>
+						</RadioGroup>
+					)}
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={() => {
+								handleGenerateAll();
+								setGenerateDialogOpen(false);
+							}}
+						>
+							{hasAnyContent ? "Regenerate" : "Generate"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
 			{/* Copyright (version-level, not language-dependent) */}
 			<div className="max-w-2xl space-y-1.5">
@@ -1173,26 +1076,6 @@ export default function VersionDetailPage() {
 						>
 							{copyrightValue.length}/255
 						</span>
-						{isEditable && (
-							<Button
-								className="h-7 px-2 text-xs"
-								disabled={
-									!copyrightChanged ||
-									copyrightOverLimit ||
-									updateCopyright.isPending
-								}
-								onClick={handleSaveCopyright}
-								size="sm"
-								variant="outline"
-							>
-								{updateCopyright.isPending ? (
-									<Loader2 className="mr-1 h-3 w-3 animate-spin" />
-								) : (
-									<Save className="mr-1 h-3 w-3" />
-								)}
-								Save
-							</Button>
-						)}
 					</div>
 				</div>
 				<Input
@@ -1224,40 +1107,20 @@ export default function VersionDetailPage() {
 							</Label>
 							<div className="flex items-center gap-2">
 								{isEditable && (
-									<>
-										<Button
-											className="h-7 px-2 text-xs gap-1"
-											disabled={isSuggestingCategory}
-											onClick={handleSuggestCategory}
-											size="sm"
-											variant="outline"
-										>
-											{isSuggestingCategory ? (
-												<Loader2 className="h-3 w-3 animate-spin" />
-											) : (
-												<Sparkles className="h-3 w-3" />
-											)}
-											Choose with AI
-										</Button>
-										<Button
-											className="h-7 px-2 text-xs"
-											disabled={
-												!categoriesChanged ||
-												!primaryCategory ||
-												isSavingCategories
-											}
-											onClick={handleSaveCategories}
-											size="sm"
-											variant="outline"
-										>
-											{isSavingCategories ? (
-												<Loader2 className="mr-1 h-3 w-3 animate-spin" />
-											) : (
-												<Save className="mr-1 h-3 w-3" />
-											)}
-											Save
-										</Button>
-									</>
+									<Button
+										className="h-7 px-2 text-xs gap-1"
+										disabled={isSuggestingCategory}
+										onClick={handleSuggestCategory}
+										size="sm"
+										variant="outline"
+									>
+										{isSuggestingCategory ? (
+											<Loader2 className="h-3 w-3 animate-spin" />
+										) : (
+											<Sparkles className="h-3 w-3" />
+										)}
+										Choose with AI
+									</Button>
 								)}
 							</div>
 						</div>

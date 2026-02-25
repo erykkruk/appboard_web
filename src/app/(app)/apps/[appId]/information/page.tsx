@@ -1,18 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
   Apple,
-  ChevronDown,
   ChevronRight,
-  Copy,
-  Download,
   Info,
   Loader2,
-  Save,
   Store,
-  Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -24,6 +19,8 @@ import {
 } from "@/lib/aso-profile-csv";
 import { downloadFile } from "@/lib/listings-csv";
 
+import { ActionsMenu } from "@/components/actions-menu";
+import type { ActionsMenuAction } from "@/components/actions-menu";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,13 +29,7 @@ import {
   CollapsibleContent,
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -52,6 +43,7 @@ import {
 import { CharacterCounter } from "@/components/character-counter";
 import { useApp } from "@/hooks/use-apps";
 import { useAsoProfile, useUpdateAsoProfile } from "@/hooks/use-aso-profile";
+import { useAutoSave } from "@/hooks/use-auto-save";
 import type { AsoProfileInput } from "@/lib/types";
 
 type FieldHint = { description: string; example: string };
@@ -413,7 +405,6 @@ export default function AppInformationPage() {
   const [form, setForm] = useState<AsoProfileInput>(EMPTY_PROFILE);
   const [initialized, setInitialized] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (profile.data !== undefined && !initialized) {
@@ -443,20 +434,11 @@ export default function AppInformationPage() {
     [form],
   );
 
-  const isDirty = useMemo(() => {
-    if (!initialized) return false;
-    const original = profileToForm(profile.data);
-    return JSON.stringify(form) !== JSON.stringify(original);
-  }, [form, profile.data, initialized]);
-
-  const handleSave = async () => {
-    try {
-      await updateProfile.mutateAsync(form);
-      toast.success("ASO profile saved");
-    } catch {
-      toast.error("Failed to save ASO profile");
-    }
-  };
+  const { saveNow } = useAutoSave({
+    data: form,
+    onSave: (data) => updateProfile.mutateAsync(data),
+    enabled: initialized,
+  });
 
   const handleExportCsv = useCallback(() => {
     const csv = exportProfileCsv(form);
@@ -497,18 +479,20 @@ export default function AppInformationPage() {
           return;
         }
 
-        // Merge imported fields into form
+        // Merge imported fields into current form (use updater to avoid stale closure)
+        let merged: AsoProfileInput;
         setForm((prev) => {
-          const next = { ...prev };
+          merged = { ...prev };
           for (const [key, value] of Object.entries(imported)) {
             if (value !== undefined) {
-              (next as Record<string, unknown>)[key] = value;
+              (merged as Record<string, unknown>)[key] = value;
             }
           }
-          return next;
+          return merged;
         });
+        await saveNow(merged!);
 
-        toast.success("Profile imported — review changes and save");
+        toast.success("Profile imported and saved");
       } catch (err) {
         const message = err instanceof Error ? err.message : "Import failed";
         toast.error(message);
@@ -516,7 +500,7 @@ export default function AppInformationPage() {
         setIsImporting(false);
       }
     },
-    [],
+    [saveNow],
   );
 
   const handleCopyAiPrompt = useCallback(() => {
@@ -598,6 +582,42 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
   const data = app.data;
   const isIos = data.platform === "ios";
 
+  const infoMenuActions: ActionsMenuAction[] = [
+    {
+      key: "ai-prompt",
+      label: "AI Prompt",
+      icon: "copy",
+      onSelect: handleCopyAiPrompt,
+    },
+    {
+      key: "export-csv",
+      label: "Export CSV",
+      icon: "download",
+      onSelect: handleExportCsv,
+      separatorBefore: true,
+    },
+    {
+      key: "export-json",
+      label: "Export JSON",
+      icon: "download",
+      onSelect: handleExportJson,
+    },
+    {
+      key: "download-template",
+      label: "Download Template",
+      icon: "download",
+      onSelect: handleDownloadTemplate,
+    },
+    {
+      key: "import",
+      label: "Import",
+      icon: "upload",
+      disabled: isImporting,
+      onSelect: () => {},
+      separatorBefore: true,
+    },
+  ];
+
   return (
     <TooltipProvider>
     <div className="mx-auto max-w-3xl space-y-6 p-6">
@@ -620,57 +640,6 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
         </div>
 
         <div className="flex items-center gap-2">
-          {/* Export dropdown */}
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline">
-                <Download className="mr-1.5 h-4 w-4" />
-                Export
-                <ChevronDown className="ml-1 h-3.5 w-3.5 opacity-60" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem onSelect={handleExportCsv}>
-                Export CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem onSelect={handleExportJson}>
-                Export JSON
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onSelect={handleDownloadTemplate}>
-                Download Template
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-
-          {/* Import button */}
-          <input
-            accept=".csv,.json"
-            className="hidden"
-            onChange={handleImport}
-            ref={fileInputRef}
-            type="file"
-          />
-          <Button
-            disabled={isImporting}
-            onClick={() => fileInputRef.current?.click()}
-            size="sm"
-            variant="outline"
-          >
-            {isImporting ? (
-              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-            ) : (
-              <Upload className="mr-1.5 h-4 w-4" />
-            )}
-            Import
-          </Button>
-
-          {/* Copy AI Prompt */}
-          <Button size="sm" variant="outline" onClick={handleCopyAiPrompt}>
-            <Copy className="mr-1.5 h-4 w-4" />
-            AI Prompt
-          </Button>
-
           <Badge variant="outline" className="gap-1.5">
             {isIos ? (
               <Apple className="h-3.5 w-3.5" />
@@ -679,6 +648,12 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             )}
             {isIos ? "App Store" : "Google Play"}
           </Badge>
+
+          {/* Three-dot menu */}
+          <ActionsMenu
+            actions={infoMenuActions}
+            importConfig={{ accept: ".csv,.json", onChange: handleImport }}
+          />
         </div>
       </div>
 
@@ -775,21 +750,6 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           </div>
         </CardContent>
       </Card>
-
-      {/* Save button */}
-      <div className="flex justify-end">
-        <Button
-          onClick={handleSave}
-          disabled={!isDirty || updateProfile.isPending}
-        >
-          {updateProfile.isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="mr-2 h-4 w-4" />
-          )}
-          Save
-        </Button>
-      </div>
 
       {/* Optional sections */}
       <Section title="Audience & Target">

@@ -1,9 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { ChevronDown, Loader2, Save } from "lucide-react";
+import { ChevronDown, Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -19,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useAutoSave } from "@/hooks/use-auto-save";
 import {
   usePrivacyDeclaration,
   usePrivacyTemplates,
@@ -206,21 +206,23 @@ export default function PrivacyDeclarationPage() {
     }
   }, [trackingDomainInput, trackingDomains]);
 
-  // ---- Save ----
-  const handleSave = async () => {
-    try {
-      await updateDeclaration.mutateAsync({
-        templateId,
-        dataCollections,
-        privacyPolicyUrl: privacyPolicyUrl || null,
-        trackingEnabled,
-        trackingDomains: trackingDomains.length > 0 ? trackingDomains : null,
-      });
-      toast.success("Privacy declaration saved");
-    } catch {
-      toast.error("Failed to save privacy declaration");
-    }
-  };
+  // ---- Auto-save ----
+  const autoSaveData = useMemo(
+    () => ({
+      templateId,
+      dataCollections,
+      privacyPolicyUrl: privacyPolicyUrl || null,
+      trackingEnabled,
+      trackingDomains: trackingDomains.length > 0 ? trackingDomains : null,
+    }),
+    [templateId, dataCollections, privacyPolicyUrl, trackingEnabled, trackingDomains],
+  );
+
+  useAutoSave({
+    data: autoSaveData,
+    onSave: (data) => updateDeclaration.mutateAsync(data),
+    enabled: initialized,
+  });
 
   // ---- Derived ----
   const collectedCount = dataCollections.length;
@@ -245,18 +247,6 @@ export default function PrivacyDeclarationPage() {
             collected
           </p>
         </div>
-        <Button
-          onClick={handleSave}
-          disabled={updateDeclaration.isPending}
-          size="sm"
-        >
-          {updateDeclaration.isPending ? (
-            <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-          ) : (
-            <Save className="mr-1.5 h-4 w-4" />
-          )}
-          Save
-        </Button>
       </div>
 
       {/* Template selector */}

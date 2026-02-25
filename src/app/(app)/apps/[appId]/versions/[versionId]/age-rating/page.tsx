@@ -1,9 +1,8 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { AlertTriangle, ExternalLink, Loader2, Save } from "lucide-react";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -22,6 +21,7 @@ import {
   useAgeRatingPresets,
   useUpdateAgeRating,
 } from "@/hooks/use-age-rating";
+import { useAutoSave } from "@/hooks/use-auto-save";
 
 const QUESTION_LABELS: Record<string, string> = {
   CARTOON_FANTASY_VIOLENCE: "Cartoon or Fantasy Violence",
@@ -96,30 +96,19 @@ export default function AgeRatingPage() {
       ? rating.data?.googleRating ?? "EVERYONE"
       : selectedPreset?.googleRating ?? "EVERYONE";
 
-  const handleSave = async () => {
-    try {
-      const result = await updateRating.mutateAsync({
-        presetId,
-        appleQuestionnaire: presetId === "custom" ? customApple : undefined,
-      });
+  const autoSaveData = useMemo(
+    () => ({
+      presetId,
+      appleQuestionnaire: presetId === "custom" ? customApple : undefined,
+    }),
+    [presetId, customApple],
+  );
 
-      if (result.syncedToStore) {
-        toast.success("Age rating saved and synced to App Store Connect");
-      } else if (result.syncError === "NO_EDITABLE_VERSION") {
-        toast.warning(
-          "Age rating saved locally, but could not sync to App Store Connect. Create a new app version first.",
-          { duration: 6000 },
-        );
-      } else {
-        toast.warning(
-          "Age rating saved locally, but failed to sync to App Store Connect.",
-          { duration: 5000 },
-        );
-      }
-    } catch {
-      toast.error("Failed to save age rating");
-    }
-  };
+  useAutoSave({
+    data: autoSaveData,
+    onSave: (data) => updateRating.mutateAsync(data),
+    enabled: initialized,
+  });
 
   const handleQuestionChange = (question: string, value: string) => {
     setCustomApple((prev) => ({ ...prev, [question]: value }));
@@ -153,18 +142,6 @@ export default function AgeRatingPage() {
               </a>
             </Button>
           )}
-          <Button
-            onClick={handleSave}
-            disabled={updateRating.isPending}
-            size="sm"
-          >
-            {updateRating.isPending ? (
-              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
-            ) : (
-              <Save className="mr-1.5 h-4 w-4" />
-            )}
-            Save
-          </Button>
         </div>
       </div>
 
@@ -174,10 +151,9 @@ export default function AgeRatingPage() {
           <Alert variant="default" className="border-yellow-500/30 bg-yellow-500/5">
             <AlertTriangle className="h-4 w-4 text-yellow-500" />
             <AlertDescription className="text-sm text-muted-foreground">
-              Age rating changes can only be synced to App Store Connect when you
-              have a version in <strong>Prepare for Submission</strong> state. If
-              your app is already live without a draft version, create a new
-              version first.
+              Age rating changes are saved locally. Use the Publish action to
+              push them to App Store Connect when you have a version in{" "}
+              <strong>Prepare for Submission</strong> state.
               {externalId && (
                 <>
                   {" "}

@@ -73,6 +73,12 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 		...options,
 	});
 	if (!res.ok) {
+		if (res.status === 401 && typeof window !== "undefined") {
+			// Call Better Auth sign-out to clear HttpOnly session cookie
+			await fetch("/api/auth/sign-out", { method: "POST" }).catch(() => {});
+			window.location.href = "/login";
+			throw new ApiError(401, "UNAUTHORIZED");
+		}
 		const error = await res.json().catch(() => ({ code: "UNKNOWN" }));
 		throw new ApiError(res.status, error.code, error.data);
 	}
@@ -229,6 +235,11 @@ export const api = {
 					method: "PUT",
 				},
 			).then((r) => r.listing),
+		publishCategories: (appId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/listings/categories/publish`,
+				{ method: "POST" },
+			),
 		updateCategories: (appId: string, data: UpdateCategoriesInput) =>
 			fetchApi<{ primaryCategory: string; secondaryCategory: string | null }>(
 				`/api/apps/${appId}/listings/categories`,
@@ -630,6 +641,11 @@ export const api = {
 					method: "PUT",
 				},
 			).then((r) => r.privacyDeclaration),
+		publish: (appId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/privacy-declaration/publish`,
+				{ method: "POST" },
+			),
 		templates: () =>
 			fetchApi<{ templates: PrivacyTemplate[] }>(
 				"/api/privacy-templates",
@@ -641,6 +657,11 @@ export const api = {
 			fetchApi<{ ageRating: AgeRating | null }>(
 				`/api/apps/${appId}/age-rating`,
 			).then((r) => r.ageRating),
+		publish: (appId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/age-rating/publish`,
+				{ method: "POST" },
+			),
 		update: (appId: string, data: AgeRatingInput) =>
 			fetchApi<{
 				ageRating: AgeRating & {

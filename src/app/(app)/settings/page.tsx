@@ -9,7 +9,7 @@ import {
   RefreshCw,
   Trash2,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -33,6 +33,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
+import { useAutoSave } from "@/hooks/use-auto-save";
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
 import {
   useDisconnectStore,
@@ -186,19 +187,23 @@ export default function SettingsGeneralPage() {
     }
   };
 
-  const handleSaveModels = async () => {
-    try {
+  const aiSettingsData = useMemo(
+    () => ({ modelGenerate, modelRephrase, modelResearch, temperature }),
+    [modelGenerate, modelRephrase, modelResearch, temperature],
+  );
+
+  useAutoSave({
+    data: aiSettingsData,
+    onSave: async (data) => {
       await updateSettings.mutateAsync({
-        ai_model_generate: modelGenerate || undefined,
-        ai_model_rephrase: modelRephrase || undefined,
-        ai_model_research: modelResearch || undefined,
-        ai_temperature: String(temperature),
+        ai_model_generate: data.modelGenerate || undefined,
+        ai_model_rephrase: data.modelRephrase || undefined,
+        ai_model_research: data.modelResearch || undefined,
+        ai_temperature: String(data.temperature),
       });
-      toast.success("AI settings saved");
-    } catch {
-      toast.error("Failed to save AI settings");
-    }
-  };
+    },
+    enabled: !!settings.data,
+  });
 
   const handleDisconnect = async (storeId: string) => {
     try {
@@ -451,15 +456,6 @@ export default function SettingsGeneralPage() {
             </div>
           </div>
 
-          <Button
-            onClick={handleSaveModels}
-            disabled={updateSettings.isPending}
-          >
-            {updateSettings.isPending ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : null}
-            Save AI Settings
-          </Button>
         </CardContent>
       </Card>
 

@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   ShieldAlert,
   Star,
+  Upload,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -77,6 +78,7 @@ export default function AppLayout({
   const [newVersion, setNewVersion] = useState("");
   const [showNewVersion, setShowNewVersion] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [isPushing, setIsPushing] = useState(false);
   const queryClient = useQueryClient();
 
   const basePath = `/apps/${appId}`;
@@ -153,6 +155,32 @@ export default function AppLayout({
       setIsSyncing(false);
     }
   }, [appId, queryClient]);
+
+  const handlePushToStore = useCallback(async () => {
+    setIsPushing(true);
+    try {
+      const results = await Promise.allSettled([
+        api.listings.publish(appId),
+        api.listings.publishCategories(appId),
+        api.ageRating.publish(appId),
+        api.privacyDeclaration.publish(appId),
+      ]);
+
+      const failed = results.filter((r) => r.status === "rejected").length;
+
+      if (failed > 0) {
+        toast.warning(`Pushed with ${failed} error(s)`);
+      } else {
+        toast.success("Pushed to store");
+      }
+    } catch {
+      toast.error("Push failed");
+    } finally {
+      setIsPushing(false);
+    }
+  }, [appId]);
+
+  const lastSyncedAt = app.data?.lastSyncedAt;
 
   return (
     <div className="flex flex-1 overflow-hidden">
@@ -333,7 +361,21 @@ export default function AppLayout({
           )}
         </nav>
 
-        <div className="border-t border-border px-2 py-3">
+        <div className="border-t border-border px-2 py-3 space-y-2">
+          <Button
+            variant="outline"
+            size="sm"
+            className="w-full justify-center gap-2 text-muted-foreground"
+            onClick={handlePushToStore}
+            disabled={isPushing}
+          >
+            {isPushing ? (
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+            ) : (
+              <Upload className="h-3.5 w-3.5" />
+            )}
+            {isPushing ? "Pushing..." : `Push to ${isIos ? "App Store" : "Google Play"}`}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -346,6 +388,11 @@ export default function AppLayout({
             />
             {isSyncing ? "Syncing..." : "Sync All"}
           </Button>
+          {lastSyncedAt && (
+            <p className="text-center text-[10px] text-muted-foreground">
+              Last synced: {new Date(lastSyncedAt).toLocaleString()}
+            </p>
+          )}
         </div>
       </div>
 
