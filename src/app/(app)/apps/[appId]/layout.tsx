@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   ChevronDown,
   FileText,
   Globe,
   Image,
+  ImagePlus,
   Info,
   LayoutDashboard,
   Loader2,
@@ -49,6 +51,7 @@ const VERSION_NAV_ITEMS = [
   { label: "Languages", icon: Globe, suffix: "/languages" },
   { label: "Listings", icon: FileText, suffix: "" },
   { label: "Previews & Screenshots", icon: Image, suffix: "/screenshots" },
+  { label: "Store Graphics", icon: ImagePlus, suffix: "/graphics" },
   { label: "App Review", icon: ShieldCheck, suffix: "/review", iosOnly: true },
   { label: "Age Rating", icon: ShieldAlert, suffix: "/age-rating", iosOnly: true },
 ] as const;
@@ -86,6 +89,8 @@ export default function AppLayout({
   const versionList = versions.data ?? [];
   const draftVersion = versionList.find((v) => v.isEditable);
   const isIos = app.data?.platform === "ios";
+
+  const isGpDraftApp = !isIos && app.data?.status === "draft";
 
   // Detect version from URL
   const versionMatch = currentPath.match(/\/versions\/([^/]+)/);
@@ -197,8 +202,9 @@ export default function AppLayout({
       toast.error("Push failed");
     } finally {
       setIsPushing(false);
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
     }
-  }, [appId, isIos]);
+  }, [appId, isIos, queryClient]);
 
   const lastSyncedAt = app.data?.lastSyncedAt;
 
@@ -415,12 +421,28 @@ export default function AppLayout({
         </nav>
 
         <div className="border-t border-border px-2 py-3 space-y-2">
+          {isGpDraftApp && (
+            <Link
+              href={`${basePath}/setup`}
+              className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-2 transition-colors hover:bg-amber-500/10"
+            >
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium leading-tight text-amber-500">
+                  Setup required
+                </p>
+                <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                  App not yet published on GP. Click for details.
+                </p>
+              </div>
+            </Link>
+          )}
           <Button
             variant="outline"
             size="sm"
             className="w-full justify-center gap-2 text-muted-foreground"
             onClick={handlePushToStore}
-            disabled={isPushing}
+            disabled={isPushing || isGpDraftApp}
           >
             {isPushing ? (
               <Loader2 className="h-3.5 w-3.5 animate-spin" />

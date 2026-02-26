@@ -17,7 +17,7 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Copy, Info, Loader2, Smartphone, Tablet, Trash2 } from "lucide-react";
+import { Copy, Image as ImageIcon, Info, Loader2, Smartphone, Tablet, Trash2, Upload } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useApp } from "@/hooks/use-apps";
@@ -35,6 +35,7 @@ import { APP_STORE_LANGUAGES, type VersionScreenshot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { ScreenshotCropDialog } from "@/components/screenshot-crop-dialog";
 import { ScreenshotSplitDialog } from "@/components/screenshot-split-dialog";
+import { useAssets, useUploadAsset, useDeleteAsset } from "@/hooks/use-assets";
 import {
   Select,
   SelectContent,
@@ -101,23 +102,23 @@ const ANDROID_DEVICES: DeviceConfig[] = [
   {
     key: "phone",
     label: "Phone",
-    sublabel: "Phone screenshots",
+    sublabel: "1284 \u00d7 2778px",
     icon: Smartphone,
-    sizeHint: "16:9 aspect ratio recommended",
+    sizeHint: "1284 \u00d7 2778px or 2778 \u00d7 1284px (custom size also supported)",
   },
   {
     key: "sevenInch",
     label: '7" Tablet',
-    sublabel: "7-inch tablet screenshots",
+    sublabel: "2048 \u00d7 2732px",
     icon: Tablet,
-    sizeHint: "16:9 aspect ratio recommended",
+    sizeHint: "2048 \u00d7 2732px or 2732 \u00d7 2048px (custom size also supported)",
   },
   {
     key: "tenInch",
     label: '10" Tablet',
-    sublabel: "10-inch tablet screenshots",
+    sublabel: "2048 \u00d7 2732px",
     icon: Tablet,
-    sizeHint: "16:9 aspect ratio recommended",
+    sizeHint: "2048 \u00d7 2732px or 2732 \u00d7 2048px (custom size also supported)",
   },
 ];
 
@@ -194,6 +195,12 @@ export default function VersionScreenshotsPage() {
   const uploadScreenshot = useUploadScreenshot(params.appId, params.versionId);
   const copyScreenshots = useCopyScreenshots(params.appId, params.versionId);
 
+  // Icon assets
+  const iconAssets = useAssets(params.appId, { assetType: "icon" });
+  const uploadIconAsset = useUploadAsset(params.appId);
+  const deleteIconAsset = useDeleteAsset(params.appId);
+  const iconFileInputRef = useRef<HTMLInputElement>(null);
+
   const [selectedLanguage, setSelectedLanguage] = useState<string>("");
   const [activeDeviceKey, setActiveDeviceKey] = useState<string>("");
   const [uploadError, setUploadError] = useState<string | null>(null);
@@ -254,6 +261,29 @@ export default function VersionScreenshotsPage() {
   );
 
   const screenshotSetId = currentScreenshots[0]?.screenshotSetId ?? "";
+
+  const currentIcon = useMemo(
+    () => (iconAssets.data ?? []).find((a) => a.language === activeLang),
+    [iconAssets.data, activeLang],
+  );
+
+  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeLang) return;
+    e.target.value = "";
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("assetType", "icon");
+    formData.append("deviceType", "universal");
+    formData.append("language", activeLang);
+    uploadIconAsset.mutate(formData);
+  };
+
+  const handleIconDelete = () => {
+    if (!currentIcon) return;
+    deleteIconAsset.mutate(currentIcon.id);
+  };
 
   const handleLanguageChange = (lang: string) => {
     setSelectedLanguage(lang);
@@ -435,6 +465,78 @@ export default function VersionScreenshotsPage() {
             Version {versionString}
           </p>
         </div>
+      </div>
+
+      {/* App Icon */}
+      <div className="rounded-xl border border-border p-5">
+        <div className="mb-3 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium">App Icon</p>
+            <p className="text-xs text-muted-foreground">
+              512 &times; 512px PNG or JPEG
+            </p>
+          </div>
+        </div>
+        <input
+          ref={iconFileInputRef}
+          type="file"
+          accept="image/png,image/jpeg"
+          className="hidden"
+          onChange={handleIconUpload}
+        />
+        {currentIcon ? (
+          <div className="flex items-end gap-4">
+            <img
+              src={currentIcon.url}
+              alt="App Icon"
+              className="h-[128px] w-[128px] rounded-2xl border border-border object-cover"
+            />
+            <div className="flex gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => iconFileInputRef.current?.click()}
+                disabled={uploadIconAsset.isPending || !hasLanguage}
+              >
+                {uploadIconAsset.isPending ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Upload className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Replace
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleIconDelete}
+                disabled={deleteIconAsset.isPending}
+                className="text-destructive hover:text-destructive"
+              >
+                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                Delete
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-4">
+            <div className="flex h-[128px] w-[128px] items-center justify-center rounded-2xl border-2 border-dashed border-border text-muted-foreground">
+              <ImageIcon className="h-8 w-8 opacity-30" />
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => iconFileInputRef.current?.click()}
+              disabled={uploadIconAsset.isPending || !hasLanguage}
+            >
+              {uploadIconAsset.isPending ? (
+                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="mr-1.5 h-3.5 w-3.5" />
+              )}
+              Upload Icon
+            </Button>
+          </div>
+        )}
       </div>
 
       {/* Device Tabs */}

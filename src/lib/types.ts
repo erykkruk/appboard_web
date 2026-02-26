@@ -46,6 +46,7 @@ export interface Listing {
 	whatsNew: string;
 	keywords: string;
 	promoText: string;
+	videoUrl: string;
 	source: string;
 	isDirty: boolean;
 	[key: string]: string | boolean;
