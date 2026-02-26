@@ -225,6 +225,7 @@ export interface GenerateReleaseNotesRequest {
 export interface GeneratePrivacyRequest {
 	appName: string;
 	description: string;
+	platform?: "ios" | "android";
 }
 
 export type ListingFieldName =
@@ -364,9 +365,13 @@ export interface VersionScreenshot {
 // Privacy Declaration
 export interface DataCollectionItem {
 	category: string;
+	collected?: boolean;
 	dataType: string;
+	ephemeral?: boolean;
 	linked: boolean;
 	purposes: string[];
+	required?: boolean;
+	shared?: boolean;
 	tracking: boolean;
 }
 
@@ -375,6 +380,8 @@ export interface PrivacyDeclaration {
 	appId: string;
 	templateId: string;
 	dataCollections: DataCollectionItem[] | null;
+	gpDeletionMechanism: boolean;
+	gpEncryptedInTransit: boolean;
 	privacyPolicyUrl: string | null;
 	trackingEnabled: boolean;
 	trackingDomains: string[] | null;
@@ -385,6 +392,8 @@ export interface PrivacyDeclaration {
 export interface PrivacyDeclarationInput {
 	templateId: string;
 	dataCollections?: DataCollectionItem[];
+	gpDeletionMechanism?: boolean;
+	gpEncryptedInTransit?: boolean;
 	privacyPolicyUrl?: string | null;
 	trackingEnabled?: boolean;
 	trackingDomains?: string[] | null;
@@ -394,6 +403,7 @@ export interface PrivacyTemplate {
 	id: string;
 	name: string;
 	description: string;
+	platform: "ios" | "android";
 	dataCollections: DataCollectionItem[];
 }
 

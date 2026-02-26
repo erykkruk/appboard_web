@@ -4,7 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import {
   AlertTriangle,
+  BarChart3,
   Briefcase,
+  Calendar,
   ChevronDown,
   ChevronRight,
   Contact,
@@ -12,16 +14,19 @@ import {
   Eye,
   FileText,
   Fingerprint,
+  Folder,
   Heart,
+  ImageIcon,
   Info,
   Loader2,
   MapPin,
   MessageSquare,
+  Mic,
+  Monitor,
   Search,
   Shield,
   ShoppingCart,
   Sparkles,
-  BarChart3,
   Wrench,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -51,14 +56,25 @@ import { Textarea } from "@/components/ui/textarea";
 import { useApps } from "@/hooks/use-apps";
 import { api } from "@/lib/api";
 import {
+  GP_DATA_SAFETY_CATEGORIES,
+  GP_DATA_PURPOSES,
+} from "@/lib/gp-data-safety-catalog";
+import {
   PRIVACY_CATEGORIES,
   PRIVACY_PURPOSES,
 } from "@/lib/privacy-catalog";
+import type { PrivacyCategory } from "@/lib/privacy-catalog";
 import type { DataCollectionItem } from "@/lib/types";
+
+type Platform = "ios" | "android";
 
 const STORAGE_KEY = "appboard:privacy-template";
 
-const CATEGORY_ICONS: Record<string, typeof Contact> = {
+// ---------------------------------------------------------------------------
+// Category icons
+// ---------------------------------------------------------------------------
+
+const IOS_CATEGORY_ICONS: Record<string, typeof Contact> = {
   contact_info: Contact,
   health_fitness: Heart,
   financial: CreditCard,
@@ -74,17 +90,35 @@ const CATEGORY_ICONS: Record<string, typeof Contact> = {
   diagnostics: Wrench,
 };
 
-interface PrivacyTemplateState {
-  templateId: string;
-  dataCollections: DataCollectionItem[];
-}
+const GP_CATEGORY_ICONS: Record<string, typeof Contact> = {
+  location: MapPin,
+  personal_info: Contact,
+  financial_info: CreditCard,
+  health_fitness: Heart,
+  messages: MessageSquare,
+  photos_videos: ImageIcon,
+  audio: Mic,
+  files_docs: Folder,
+  calendar: Calendar,
+  contacts: Contact,
+  app_activity: Monitor,
+  web_browsing: Eye,
+  app_info_performance: BarChart3,
+  device_ids: Fingerprint,
+};
 
-const TEMPLATE_PRESETS: {
+// ---------------------------------------------------------------------------
+// Template presets
+// ---------------------------------------------------------------------------
+
+interface TemplatePreset {
   id: string;
   name: string;
   description: string;
   dataCollections: DataCollectionItem[];
-}[] = [
+}
+
+const IOS_PRESETS: TemplatePreset[] = [
   {
     id: "minimal",
     name: "Minimal (No Data Collection)",
@@ -168,15 +202,137 @@ const TEMPLATE_PRESETS: {
   },
 ];
 
+function gpItem(
+  category: string,
+  dataType: string,
+  purposes: string[],
+  overrides?: Partial<Pick<DataCollectionItem, "collected" | "shared" | "ephemeral" | "required">>,
+): DataCollectionItem {
+  return {
+    category,
+    collected: true,
+    dataType,
+    ephemeral: false,
+    linked: false,
+    purposes,
+    required: true,
+    shared: false,
+    tracking: false,
+    ...overrides,
+  };
+}
+
+const GP_PRESETS: TemplatePreset[] = [
+  {
+    id: "gp_minimal",
+    name: "Minimal (No Data Collection)",
+    description: "App does not collect or share any user data",
+    dataCollections: [],
+  },
+  {
+    id: "gp_basic_app",
+    name: "Basic App",
+    description: "Login, analytics, and crash reporting",
+    dataCollections: [
+      gpItem("personal_info", "Email address", ["app_functionality"]),
+      gpItem("device_ids", "Device or other IDs", ["analytics", "app_functionality"]),
+      gpItem("app_info_performance", "Crash logs", ["analytics"]),
+      gpItem("app_info_performance", "Diagnostics", ["analytics"]),
+    ],
+  },
+  {
+    id: "gp_social_media",
+    name: "Social Media",
+    description: "Full data collection: contacts, location, media, ads, analytics",
+    dataCollections: [
+      gpItem("personal_info", "Name", ["app_functionality"]),
+      gpItem("personal_info", "Email address", ["app_functionality"]),
+      gpItem("personal_info", "Phone number", ["app_functionality"]),
+      gpItem("contacts", "Contacts", ["app_functionality"]),
+      gpItem("location", "Approximate location", ["app_functionality", "analytics"]),
+      gpItem("location", "Precise location", ["app_functionality", "advertising_marketing"]),
+      gpItem("photos_videos", "Photos", ["app_functionality"]),
+      gpItem("photos_videos", "Videos", ["app_functionality"]),
+      gpItem("app_activity", "App interactions", ["analytics", "personalization"]),
+      gpItem("device_ids", "Device or other IDs", ["advertising_marketing", "analytics"]),
+      gpItem("app_info_performance", "Crash logs", ["analytics"]),
+    ],
+  },
+  {
+    id: "gp_ecommerce",
+    name: "E-commerce",
+    description: "Payments, purchases, address, marketing",
+    dataCollections: [
+      gpItem("personal_info", "Name", ["app_functionality"]),
+      gpItem("personal_info", "Email address", ["app_functionality"]),
+      gpItem("personal_info", "Address", ["app_functionality"]),
+      gpItem("financial_info", "User payment info", ["app_functionality"]),
+      gpItem("financial_info", "Purchase history", ["app_functionality", "advertising_marketing"]),
+      gpItem("device_ids", "Device or other IDs", ["advertising_marketing", "analytics"]),
+      gpItem("app_activity", "App interactions", ["analytics", "personalization"]),
+      gpItem("app_info_performance", "Crash logs", ["analytics"]),
+    ],
+  },
+  {
+    id: "gp_game",
+    name: "Game",
+    description: "Ads, in-app purchases, leaderboards, analytics",
+    dataCollections: [
+      gpItem("personal_info", "Email address", ["app_functionality"]),
+      gpItem("financial_info", "Purchase history", ["app_functionality"]),
+      gpItem("device_ids", "Device or other IDs", ["advertising_marketing", "analytics"]),
+      gpItem("app_activity", "App interactions", ["analytics", "personalization"]),
+      gpItem("app_info_performance", "Crash logs", ["analytics"]),
+      gpItem("app_info_performance", "Diagnostics", ["analytics"]),
+    ],
+  },
+  {
+    id: "gp_health_fitness",
+    name: "Health & Fitness",
+    description: "Health data, location, fitness tracking",
+    dataCollections: [
+      gpItem("personal_info", "Email address", ["app_functionality"]),
+      gpItem("health_fitness", "Health info", ["app_functionality"]),
+      gpItem("health_fitness", "Fitness info", ["app_functionality"]),
+      gpItem("location", "Approximate location", ["app_functionality"]),
+      gpItem("location", "Precise location", ["app_functionality"]),
+      gpItem("device_ids", "Device or other IDs", ["analytics", "app_functionality"]),
+      gpItem("app_activity", "App interactions", ["analytics"]),
+      gpItem("app_info_performance", "Crash logs", ["analytics"]),
+    ],
+  },
+  {
+    id: "gp_custom",
+    name: "Custom",
+    description: "Start from scratch",
+    dataCollections: [],
+  },
+];
+
+// ---------------------------------------------------------------------------
+// State
+// ---------------------------------------------------------------------------
+
+interface PrivacyTemplateState {
+  platform: Platform;
+  templateId: string;
+  dataCollections: DataCollectionItem[];
+}
+
 const DEFAULT_STATE: PrivacyTemplateState = {
+  platform: "ios",
   templateId: "basic_app",
-  dataCollections: TEMPLATE_PRESETS[1].dataCollections,
+  dataCollections: IOS_PRESETS[1].dataCollections,
 };
 
 function loadState(): PrivacyTemplateState {
   try {
     const stored = localStorage.getItem(STORAGE_KEY);
-    if (stored) return JSON.parse(stored);
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (!parsed.platform) parsed.platform = "ios";
+      return parsed;
+    }
   } catch {
     // ignore
   }
@@ -191,11 +347,25 @@ function makeKey(category: string, dataType: string) {
   return `${category}:${dataType}`;
 }
 
+function getCustomTemplateId(platform: Platform) {
+  return platform === "android" ? "gp_custom" : "custom";
+}
+
+// ---------------------------------------------------------------------------
+// Main page
+// ---------------------------------------------------------------------------
+
 export default function PrivacyTemplatePage() {
   const [state, setState] = useState<PrivacyTemplateState>(DEFAULT_STATE);
   const [loaded, setLoaded] = useState(false);
   const [aiDialogOpen, setAiDialogOpen] = useState(false);
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+
+  const isAndroid = state.platform === "android";
+  const categories: PrivacyCategory[] = isAndroid ? GP_DATA_SAFETY_CATEGORIES : PRIVACY_CATEGORIES;
+  const presets = isAndroid ? GP_PRESETS : IOS_PRESETS;
+  const categoryIcons = isAndroid ? GP_CATEGORY_ICONS : IOS_CATEGORY_ICONS;
+  const purposes = isAndroid ? GP_DATA_PURPOSES : PRIVACY_PURPOSES;
 
   const toggleCategoryExpanded = useCallback((category: string) => {
     setExpandedCategories((prev) => {
@@ -215,13 +385,24 @@ export default function PrivacyTemplatePage() {
     if (loaded) saveState(state);
   }, [state, loaded]);
 
-  const handleTemplateChange = useCallback((templateId: string) => {
-    const preset = TEMPLATE_PRESETS.find((t) => t.id === templateId);
-    if (!preset) return;
-    setState({ templateId, dataCollections: preset.dataCollections });
+  const handlePlatformChange = useCallback((platform: Platform) => {
+    const defaultPresets = platform === "android" ? GP_PRESETS : IOS_PRESETS;
+    const defaultPreset = defaultPresets[1]; // basic_app
+    setState({
+      platform,
+      templateId: defaultPreset.id,
+      dataCollections: defaultPreset.dataCollections,
+    });
+    setExpandedCategories(new Set());
   }, []);
 
-  // Lookup map: key -> DataCollectionItem
+  const handleTemplateChange = useCallback((templateId: string) => {
+    const allPresets = [...IOS_PRESETS, ...GP_PRESETS];
+    const preset = allPresets.find((t) => t.id === templateId);
+    if (!preset) return;
+    setState((prev) => ({ ...prev, templateId, dataCollections: preset.dataCollections }));
+  }, []);
+
   const itemMap = useMemo(() => {
     const map = new Map<string, DataCollectionItem>();
     for (const item of state.dataCollections) {
@@ -236,48 +417,65 @@ export default function PrivacyTemplatePage() {
       const exists = prev.dataCollections.some(
         (d) => makeKey(d.category, d.dataType) === key,
       );
-      const next = exists
-        ? prev.dataCollections.filter(
+      const customId = getCustomTemplateId(prev.platform);
+      if (exists) {
+        return {
+          ...prev,
+          templateId: customId,
+          dataCollections: prev.dataCollections.filter(
             (d) => makeKey(d.category, d.dataType) !== key,
-          )
-        : [
-            ...prev.dataCollections,
-            { category, dataType, linked: true, purposes: ["app_functionality"], tracking: false },
-          ];
-      return { templateId: "custom", dataCollections: next };
+          ),
+        };
+      }
+      const newItem: DataCollectionItem = prev.platform === "android"
+        ? {
+            category,
+            collected: true,
+            dataType,
+            ephemeral: false,
+            linked: false,
+            purposes: ["app_functionality"],
+            required: true,
+            shared: false,
+            tracking: false,
+          }
+        : {
+            category,
+            dataType,
+            linked: true,
+            purposes: ["app_functionality"],
+            tracking: false,
+          };
+      return {
+        ...prev,
+        templateId: customId,
+        dataCollections: [...prev.dataCollections, newItem],
+      };
     });
   }, []);
 
   const togglePurpose = useCallback((category: string, dataType: string, purposeId: string) => {
     setState((prev) => ({
-      templateId: "custom",
+      ...prev,
+      templateId: getCustomTemplateId(prev.platform),
       dataCollections: prev.dataCollections.map((d) => {
         if (d.category !== category || d.dataType !== dataType) return d;
         const has = d.purposes.includes(purposeId);
-        const purposes = has
+        const newPurposes = has
           ? d.purposes.filter((p) => p !== purposeId)
           : [...d.purposes, purposeId];
-        // Keep at least one purpose
-        if (purposes.length === 0) return d;
-        return { ...d, purposes };
+        if (newPurposes.length === 0) return d;
+        return { ...d, purposes: newPurposes };
       }),
     }));
   }, []);
 
-  const setLinked = useCallback((category: string, dataType: string, linked: boolean) => {
+  const updateField = useCallback((category: string, dataType: string, field: keyof DataCollectionItem, value: boolean) => {
     setState((prev) => ({
-      templateId: "custom",
+      ...prev,
+      templateId: getCustomTemplateId(prev.platform),
       dataCollections: prev.dataCollections.map((d) =>
-        d.category === category && d.dataType === dataType ? { ...d, linked } : d,
-      ),
-    }));
-  }, []);
-
-  const setTracking = useCallback((category: string, dataType: string, tracking: boolean) => {
-    setState((prev) => ({
-      templateId: "custom",
-      dataCollections: prev.dataCollections.map((d) =>
-        d.category === category && d.dataType === dataType ? { ...d, tracking } : d,
+        d.category === category && d.dataType === dataType ? { ...d, [field]: value } : d,
       ),
     }));
   }, []);
@@ -287,20 +485,43 @@ export default function PrivacyTemplatePage() {
 
   if (!loaded) return null;
 
+  const pageTitle = isAndroid ? "Data Safety" : "Privacy Declaration";
+  const pageSubtitle = isAndroid
+    ? "Build your Google Play data safety declaration."
+    : "Build your App Store privacy declaration template.";
+  const infoText = isAndroid
+    ? "This is a reference tool only — data safety declarations cannot be pushed to Google Play Console via API. Use this to plan your declaration and fill it in manually."
+    : "This is a reference tool only — privacy declarations cannot be pushed to App Store Connect via API. Use this to plan your declaration and fill it in manually.";
+
   return (
     <div className="mx-auto max-w-3xl p-6">
       <div className="mb-6">
-        <h1 className="text-2xl font-bold tracking-tight">Privacy Declaration</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Build your App Store privacy declaration template.
-        </p>
+        <h1 className="text-2xl font-bold tracking-tight">{pageTitle}</h1>
+        <p className="mt-1 text-sm text-muted-foreground">{pageSubtitle}</p>
+      </div>
+
+      {/* Platform toggle */}
+      <div className="mb-6 flex gap-2">
+        <Button
+          variant={state.platform === "ios" ? "default" : "outline"}
+          size="sm"
+          onClick={() => handlePlatformChange("ios")}
+        >
+          Apple App Store
+        </Button>
+        <Button
+          variant={state.platform === "android" ? "default" : "outline"}
+          size="sm"
+          onClick={() => handlePlatformChange("android")}
+        >
+          Google Play
+        </Button>
       </div>
 
       <Alert className="mb-6 border-blue-500/30 bg-blue-500/5">
         <Info className="h-4 w-4 text-blue-400" />
         <AlertDescription className="text-sm text-blue-300">
-          This is a reference tool only — privacy declarations cannot be pushed to App Store
-          Connect via API. Use this to plan your declaration and fill it in manually.
+          {infoText}
         </AlertDescription>
       </Alert>
 
@@ -313,7 +534,7 @@ export default function PrivacyTemplatePage() {
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {TEMPLATE_PRESETS.map((t) => (
+              {presets.map((t) => (
                 <SelectItem key={t.id} value={t.id}>
                   <span className="font-medium">{t.name}</span>
                   <span className="ml-2 text-xs text-muted-foreground">{t.description}</span>
@@ -328,10 +549,10 @@ export default function PrivacyTemplatePage() {
         </Button>
       </div>
 
-      {/* Full catalog — Apple-style collapsible */}
+      {/* Full catalog — collapsible categories */}
       <div className="space-y-2">
-        {PRIVACY_CATEGORIES.map((cat) => {
-          const Icon = CATEGORY_ICONS[cat.category] ?? Briefcase;
+        {categories.map((cat) => {
+          const Icon = categoryIcons[cat.category] ?? Briefcase;
           const isExpanded = expandedCategories.has(cat.category);
           const checkedCount = cat.types.filter((dt) =>
             itemMap.has(makeKey(cat.category, dt.id)),
@@ -339,7 +560,6 @@ export default function PrivacyTemplatePage() {
 
           return (
             <section key={cat.category} className="rounded-lg border">
-              {/* Category header — clickable to expand/collapse */}
               <button
                 type="button"
                 className="flex w-full items-center gap-3 px-4 py-3 text-left transition-colors hover:bg-muted/30"
@@ -359,7 +579,6 @@ export default function PrivacyTemplatePage() {
                 )}
               </button>
 
-              {/* Data types — collapsible */}
               {isExpanded && (
                 <div className="space-y-1 border-t px-4 py-3">
                   {cat.types.map((dt) => {
@@ -369,7 +588,6 @@ export default function PrivacyTemplatePage() {
 
                     return (
                       <div key={dt.id}>
-                        {/* Checkbox row */}
                         <label className="flex cursor-pointer items-start gap-3 rounded-lg px-3 py-3 transition-colors hover:bg-muted/30">
                           <Checkbox
                             checked={isChecked}
@@ -382,105 +600,29 @@ export default function PrivacyTemplatePage() {
                           </div>
                         </label>
 
-                        {/* Expanded details when checked */}
                         {isChecked && details && (
-                        <div className="mb-4 ml-9 space-y-5 rounded-lg border bg-[#1a1a1a] p-4">
-                          {/* Purposes */}
-                          <div>
-                            <p className="mb-1 text-sm font-semibold">
-                              Indicate how {dt.label.toLowerCase()} collected from this app are
-                              being used by you or your third-party partners (select all that
-                              apply):
-                            </p>
-                            <div className="mt-3 space-y-3">
-                              {PRIVACY_PURPOSES.map((purpose) => (
-                                <label
-                                  key={purpose.id}
-                                  className="flex cursor-pointer items-start gap-3"
-                                >
-                                  <Checkbox
-                                    checked={details.purposes.includes(purpose.id)}
-                                    onCheckedChange={() =>
-                                      togglePurpose(cat.category, dt.id, purpose.id)
-                                    }
-                                    className="mt-0.5"
-                                  />
-                                  <div>
-                                    <p className="text-sm font-medium">{purpose.label}</p>
-                                    <p className="text-xs text-muted-foreground">
-                                      {purpose.description}
-                                    </p>
-                                  </div>
-                                </label>
-                              ))}
-                            </div>
+                          <div className="mb-4 ml-9 space-y-5 rounded-lg border bg-[#1a1a1a] p-4">
+                            {isAndroid ? (
+                              <GpItemDetails
+                                dt={dt}
+                                details={details}
+                                category={cat.category}
+                                purposes={purposes}
+                                onTogglePurpose={togglePurpose}
+                                onUpdateField={updateField}
+                              />
+                            ) : (
+                              <IosItemDetails
+                                dt={dt}
+                                details={details}
+                                category={cat.category}
+                                purposes={purposes}
+                                onTogglePurpose={togglePurpose}
+                                onUpdateField={updateField}
+                              />
+                            )}
                           </div>
-
-                          <Separator />
-
-                          {/* Linked to identity */}
-                          <div>
-                            <p className="mb-3 text-sm font-semibold">
-                              Are the {dt.label.toLowerCase()} collected from this app linked to
-                              the user&apos;s identity?
-                            </p>
-                            <RadioGroup
-                              value={details.linked ? "yes" : "no"}
-                              onValueChange={(v) =>
-                                setLinked(cat.category, dt.id, v === "yes")
-                              }
-                              className="space-y-2"
-                            >
-                              <label className="flex cursor-pointer items-center gap-2.5">
-                                <RadioGroupItem value="yes" />
-                                <span className="text-sm">
-                                  <span className="font-medium">Yes</span>, {dt.label.toLowerCase()}{" "}
-                                  collected from this app are linked to the user&apos;s identity
-                                </span>
-                              </label>
-                              <label className="flex cursor-pointer items-center gap-2.5">
-                                <RadioGroupItem value="no" />
-                                <span className="text-sm">
-                                  <span className="font-medium">No</span>, {dt.label.toLowerCase()}{" "}
-                                  collected from this app are not linked to the user&apos;s identity
-                                </span>
-                              </label>
-                            </RadioGroup>
-                          </div>
-
-                          <Separator />
-
-                          {/* Tracking */}
-                          <div>
-                            <p className="mb-3 text-sm font-semibold">
-                              Do you or your third-party partners use{" "}
-                              {dt.label.toLowerCase()} for tracking purposes?
-                            </p>
-                            <RadioGroup
-                              value={details.tracking ? "yes" : "no"}
-                              onValueChange={(v) =>
-                                setTracking(cat.category, dt.id, v === "yes")
-                              }
-                              className="space-y-2"
-                            >
-                              <label className="flex cursor-pointer items-center gap-2.5">
-                                <RadioGroupItem value="yes" />
-                                <span className="text-sm">
-                                  <span className="font-medium">Yes</span>, we use{" "}
-                                  {dt.label.toLowerCase()} for tracking purposes
-                                </span>
-                              </label>
-                              <label className="flex cursor-pointer items-center gap-2.5">
-                                <RadioGroupItem value="no" />
-                                <span className="text-sm">
-                                  <span className="font-medium">No</span>, we do not use{" "}
-                                  {dt.label.toLowerCase()} for tracking purposes
-                                </span>
-                              </label>
-                            </RadioGroup>
-                          </div>
-                        </div>
-                      )}
+                        )}
                       </div>
                     );
                   })}
@@ -491,8 +633,8 @@ export default function PrivacyTemplatePage() {
         })}
       </div>
 
-      {/* Tracking warning */}
-      {hasTracking && (
+      {/* Tracking warning (iOS) */}
+      {!isAndroid && hasTracking && (
         <Alert className="mt-8 border-orange-500/30 bg-orange-500/5">
           <AlertTriangle className="h-4 w-4 text-orange-400" />
           <AlertDescription className="text-sm text-orange-300">
@@ -505,7 +647,7 @@ export default function PrivacyTemplatePage() {
       {/* Summary */}
       <div className="mt-8 rounded-lg border bg-[#1a1a1a] p-4">
         <h3 className="mb-2 text-sm font-semibold">Summary</h3>
-        <div className="grid grid-cols-3 gap-4 text-center">
+        <div className={`grid gap-4 text-center ${isAndroid ? "grid-cols-3" : "grid-cols-3"}`}>
           <div>
             <p className="text-2xl font-bold">{selectedCount}</p>
             <p className="text-xs text-muted-foreground">Data Types</p>
@@ -516,12 +658,21 @@ export default function PrivacyTemplatePage() {
             </p>
             <p className="text-xs text-muted-foreground">Categories</p>
           </div>
-          <div>
-            <p className="text-2xl font-bold">
-              {state.dataCollections.filter((d) => d.tracking).length}
-            </p>
-            <p className="text-xs text-muted-foreground">Tracking</p>
-          </div>
+          {isAndroid ? (
+            <div>
+              <p className="text-2xl font-bold">
+                {state.dataCollections.filter((d) => d.shared).length}
+              </p>
+              <p className="text-xs text-muted-foreground">Shared</p>
+            </div>
+          ) : (
+            <div>
+              <p className="text-2xl font-bold">
+                {state.dataCollections.filter((d) => d.tracking).length}
+              </p>
+              <p className="text-xs text-muted-foreground">Tracking</p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -529,8 +680,13 @@ export default function PrivacyTemplatePage() {
       <AiGenerateDialog
         open={aiDialogOpen}
         onOpenChange={setAiDialogOpen}
+        platform={state.platform}
         onGenerated={(items) => {
-          setState({ templateId: "custom", dataCollections: items });
+          setState((prev) => ({
+            ...prev,
+            templateId: getCustomTemplateId(prev.platform),
+            dataCollections: items,
+          }));
           toast.success(`Generated ${items.length} data collection items`);
         }}
       />
@@ -538,13 +694,221 @@ export default function PrivacyTemplatePage() {
   );
 }
 
+// ---------------------------------------------------------------------------
+// iOS per-item details
+// ---------------------------------------------------------------------------
+
+interface ItemDetailsProps {
+  dt: { id: string; label: string };
+  details: DataCollectionItem;
+  category: string;
+  purposes: { id: string; label: string; description: string }[];
+  onTogglePurpose: (category: string, dataType: string, purposeId: string) => void;
+  onUpdateField: (category: string, dataType: string, field: keyof DataCollectionItem, value: boolean) => void;
+}
+
+function IosItemDetails({ dt, details, category, purposes, onTogglePurpose, onUpdateField }: ItemDetailsProps) {
+  return (
+    <>
+      <div>
+        <p className="mb-1 text-sm font-semibold">
+          Indicate how {dt.label.toLowerCase()} collected from this app are
+          being used by you or your third-party partners (select all that apply):
+        </p>
+        <div className="mt-3 space-y-3">
+          {purposes.map((purpose) => (
+            <label key={purpose.id} className="flex cursor-pointer items-start gap-3">
+              <Checkbox
+                checked={details.purposes.includes(purpose.id)}
+                onCheckedChange={() => onTogglePurpose(category, dt.id, purpose.id)}
+                className="mt-0.5"
+              />
+              <div>
+                <p className="text-sm font-medium">{purpose.label}</p>
+                <p className="text-xs text-muted-foreground">{purpose.description}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      <Separator />
+
+      <div>
+        <p className="mb-3 text-sm font-semibold">
+          Are the {dt.label.toLowerCase()} collected from this app linked to the user&apos;s identity?
+        </p>
+        <RadioGroup
+          value={details.linked ? "yes" : "no"}
+          onValueChange={(v) => onUpdateField(category, dt.id, "linked", v === "yes")}
+          className="space-y-2"
+        >
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <RadioGroupItem value="yes" />
+            <span className="text-sm">
+              <span className="font-medium">Yes</span>, {dt.label.toLowerCase()} collected from this app are linked to the user&apos;s identity
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <RadioGroupItem value="no" />
+            <span className="text-sm">
+              <span className="font-medium">No</span>, {dt.label.toLowerCase()} collected from this app are not linked to the user&apos;s identity
+            </span>
+          </label>
+        </RadioGroup>
+      </div>
+
+      <Separator />
+
+      <div>
+        <p className="mb-3 text-sm font-semibold">
+          Do you or your third-party partners use {dt.label.toLowerCase()} for tracking purposes?
+        </p>
+        <RadioGroup
+          value={details.tracking ? "yes" : "no"}
+          onValueChange={(v) => onUpdateField(category, dt.id, "tracking", v === "yes")}
+          className="space-y-2"
+        >
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <RadioGroupItem value="yes" />
+            <span className="text-sm">
+              <span className="font-medium">Yes</span>, we use {dt.label.toLowerCase()} for tracking purposes
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <RadioGroupItem value="no" />
+            <span className="text-sm">
+              <span className="font-medium">No</span>, we do not use {dt.label.toLowerCase()} for tracking purposes
+            </span>
+          </label>
+        </RadioGroup>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Google Play per-item details
+// ---------------------------------------------------------------------------
+
+function GpItemDetails({ dt, details, category, purposes, onTogglePurpose, onUpdateField }: ItemDetailsProps) {
+  return (
+    <>
+      {/* Collected / Shared */}
+      <div>
+        <p className="mb-3 text-sm font-semibold">Data usage</p>
+        <div className="flex gap-6">
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <Checkbox
+              checked={details.collected ?? true}
+              onCheckedChange={(v) => onUpdateField(category, dt.id, "collected", !!v)}
+            />
+            <span className="text-sm font-medium">Collected</span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <Checkbox
+              checked={details.shared ?? false}
+              onCheckedChange={(v) => onUpdateField(category, dt.id, "shared", !!v)}
+            />
+            <span className="text-sm font-medium">Shared</span>
+          </label>
+        </div>
+      </div>
+
+      <Separator />
+
+      {/* Ephemeral */}
+      <div>
+        <p className="mb-3 text-sm font-semibold">
+          Is {dt.label.toLowerCase()} processed ephemerally?
+        </p>
+        <RadioGroup
+          value={details.ephemeral ? "yes" : "no"}
+          onValueChange={(v) => onUpdateField(category, dt.id, "ephemeral", v === "yes")}
+          className="space-y-2"
+        >
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <RadioGroupItem value="yes" />
+            <span className="text-sm">
+              <span className="font-medium">Yes</span>, data is processed ephemerally
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <RadioGroupItem value="no" />
+            <span className="text-sm">
+              <span className="font-medium">No</span>, data is retained
+            </span>
+          </label>
+        </RadioGroup>
+      </div>
+
+      <Separator />
+
+      {/* Required / Optional */}
+      <div>
+        <p className="mb-3 text-sm font-semibold">
+          Is {dt.label.toLowerCase()} required or optional?
+        </p>
+        <RadioGroup
+          value={details.required !== false ? "required" : "optional"}
+          onValueChange={(v) => onUpdateField(category, dt.id, "required", v === "required")}
+          className="space-y-2"
+        >
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <RadioGroupItem value="required" />
+            <span className="text-sm">
+              <span className="font-medium">Required</span> — users cannot use the app without providing this data
+            </span>
+          </label>
+          <label className="flex cursor-pointer items-center gap-2.5">
+            <RadioGroupItem value="optional" />
+            <span className="text-sm">
+              <span className="font-medium">Optional</span> — users can choose whether to provide this data
+            </span>
+          </label>
+        </RadioGroup>
+      </div>
+
+      <Separator />
+
+      {/* Purposes */}
+      <div>
+        <p className="mb-1 text-sm font-semibold">
+          Why is {dt.label.toLowerCase()} collected or shared? (select all that apply)
+        </p>
+        <div className="mt-3 space-y-3">
+          {purposes.map((purpose) => (
+            <label key={purpose.id} className="flex cursor-pointer items-start gap-3">
+              <Checkbox
+                checked={details.purposes.includes(purpose.id)}
+                onCheckedChange={() => onTogglePurpose(category, dt.id, purpose.id)}
+                className="mt-0.5"
+              />
+              <div>
+                <p className="text-sm font-medium">{purpose.label}</p>
+                <p className="text-xs text-muted-foreground">{purpose.description}</p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AI Generate Dialog
+// ---------------------------------------------------------------------------
+
 function AiGenerateDialog({
   open,
   onOpenChange,
+  platform,
   onGenerated,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  platform: Platform;
   onGenerated: (items: DataCollectionItem[]) => void;
 }) {
   const apps = useApps();
@@ -557,7 +921,7 @@ function AiGenerateDialog({
   );
 
   const generateMutation = useMutation({
-    mutationFn: (data: { appName: string; description: string }) =>
+    mutationFn: (data: { appName: string; description: string; platform?: "ios" | "android" }) =>
       api.ai.generatePrivacy(data),
     onSuccess: (data) => {
       try {
@@ -577,18 +941,22 @@ function AiGenerateDialog({
 
   const handleGenerate = () => {
     const appName = selectedApp?.name ?? "My App";
-    generateMutation.mutate({ appName, description });
+    generateMutation.mutate({ appName, description, platform });
   };
+
+  const dialogTitle = platform === "android"
+    ? "Generate Data Safety with AI"
+    : "Generate Privacy Declaration with AI";
+  const dialogDescription = platform === "android"
+    ? "Select an app and describe what data it collects. AI will generate the data safety declaration structure."
+    : "Select an app and describe what data it collects. AI will generate the privacy declaration structure.";
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
-          <DialogTitle>Generate Privacy Declaration with AI</DialogTitle>
-          <DialogDescription>
-            Select an app and describe what data it collects. AI will generate the privacy
-            declaration structure.
-          </DialogDescription>
+          <DialogTitle>{dialogTitle}</DialogTitle>
+          <DialogDescription>{dialogDescription}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-4">
@@ -615,7 +983,11 @@ function AiGenerateDialog({
             <Textarea
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              placeholder="e.g., The app requires email login, tracks analytics with Firebase, uses AdMob for ads, and stores user preferences. It also collects crash reports via Crashlytics."
+              placeholder={
+                platform === "android"
+                  ? "e.g., The app requires email login, uses Firebase Analytics, shows AdMob ads, collects crash reports, and stores user preferences locally."
+                  : "e.g., The app requires email login, tracks analytics with Firebase, uses AdMob for ads, and stores user preferences. It also collects crash reports via Crashlytics."
+              }
               rows={5}
             />
           </div>

@@ -18,6 +18,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { useApp } from "@/hooks/use-apps";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import {
   usePrivacyDeclaration,
@@ -25,9 +26,14 @@ import {
   useUpdatePrivacyDeclaration,
 } from "@/hooks/use-privacy-declaration";
 import {
+  GP_DATA_SAFETY_CATEGORIES,
+  GP_DATA_PURPOSES,
+} from "@/lib/gp-data-safety-catalog";
+import {
   PRIVACY_CATEGORIES,
   PRIVACY_PURPOSES,
 } from "@/lib/privacy-catalog";
+import type { PrivacyCategory } from "@/lib/privacy-catalog";
 import type { DataCollectionItem } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -58,15 +64,21 @@ function categoryHasCheckedItems(
 
 export default function PrivacyDeclarationPage() {
   const params = useParams<{ appId: string; versionId: string }>();
+  const app = useApp(params.appId);
+  const platform = app.data?.platform as "ios" | "android" | undefined;
+  const isAndroid = platform === "android";
+
   const declaration = usePrivacyDeclaration(params.appId);
-  const templates = usePrivacyTemplates();
+  const templates = usePrivacyTemplates(platform);
   const updateDeclaration = useUpdatePrivacyDeclaration(params.appId);
 
-  const [templateId, setTemplateId] = useState("minimal");
+  const [templateId, setTemplateId] = useState("");
   const [privacyPolicyUrl, setPrivacyPolicyUrl] = useState("");
   const [trackingEnabled, setTrackingEnabled] = useState(false);
   const [trackingDomainInput, setTrackingDomainInput] = useState("");
   const [trackingDomains, setTrackingDomains] = useState<string[]>([]);
+  const [gpEncryptedInTransit, setGpEncryptedInTransit] = useState(false);
+  const [gpDeletionMechanism, setGpDeletionMechanism] = useState(false);
   const [dataCollections, setDataCollections] = useState<DataCollectionItem[]>(
     [],
   );
@@ -75,27 +87,36 @@ export default function PrivacyDeclarationPage() {
     new Set(),
   );
 
+  const categories: PrivacyCategory[] = isAndroid
+    ? GP_DATA_SAFETY_CATEGORIES
+    : PRIVACY_CATEGORIES;
+
+  const defaultTemplateId = isAndroid ? "gp_minimal" : "minimal";
+
   // ---- Initialize from backend ----
   useEffect(() => {
-    if (declaration.data !== undefined && !initialized) {
+    if (declaration.data !== undefined && !initialized && platform) {
       if (declaration.data) {
         setTemplateId(declaration.data.templateId);
         setPrivacyPolicyUrl(declaration.data.privacyPolicyUrl ?? "");
         setTrackingEnabled(declaration.data.trackingEnabled);
         setTrackingDomains(declaration.data.trackingDomains ?? []);
+        setGpEncryptedInTransit(declaration.data.gpEncryptedInTransit);
+        setGpDeletionMechanism(declaration.data.gpDeletionMechanism);
         const items = declaration.data.dataCollections ?? [];
         setDataCollections(items);
 
-        // Auto-expand categories that have checked items
         const cats = new Set<string>();
         for (const item of items) {
           cats.add(item.category);
         }
         setExpandedCategories(cats);
+      } else {
+        setTemplateId(defaultTemplateId);
       }
       setInitialized(true);
     }
-  }, [declaration.data, initialized]);
+  }, [declaration.data, initialized, platform, defaultTemplateId]);
 
   // ---- Template switching ----
   const selectedTemplate = useMemo(
@@ -130,19 +151,29 @@ export default function PrivacyDeclarationPage() {
             (i) => !(i.category === category && i.dataType === dataType),
           );
         }
-        return [
-          ...prev,
-          {
-            category,
-            dataType,
-            linked: false,
-            purposes: ["app_functionality"],
-            tracking: false,
-          },
-        ];
+        const newItem: DataCollectionItem = isAndroid
+          ? {
+              category,
+              collected: true,
+              dataType,
+              ephemeral: false,
+              linked: false,
+              purposes: ["app_functionality"],
+              required: true,
+              shared: false,
+              tracking: false,
+            }
+          : {
+              category,
+              dataType,
+              linked: false,
+              purposes: ["app_functionality"],
+              tracking: false,
+            };
+        return [...prev, newItem];
       });
     },
-    [],
+    [isAndroid],
   );
 
   // ---- Purpose toggle ----
@@ -165,12 +196,12 @@ export default function PrivacyDeclarationPage() {
     [],
   );
 
-  // ---- Linked / Tracking update ----
+  // ---- Field update (linked, tracking, collected, shared, ephemeral, required) ----
   const updateItemField = useCallback(
     (
       category: string,
       dataType: string,
-      field: "linked" | "tracking",
+      field: keyof DataCollectionItem,
       value: boolean,
     ) => {
       setDataCollections((prev) =>
@@ -211,11 +242,13 @@ export default function PrivacyDeclarationPage() {
     () => ({
       templateId,
       dataCollections,
+      gpDeletionMechanism,
+      gpEncryptedInTransit,
       privacyPolicyUrl: privacyPolicyUrl || null,
       trackingEnabled,
       trackingDomains: trackingDomains.length > 0 ? trackingDomains : null,
     }),
-    [templateId, dataCollections, privacyPolicyUrl, trackingEnabled, trackingDomains],
+    [templateId, dataCollections, gpDeletionMechanism, gpEncryptedInTransit, privacyPolicyUrl, trackingEnabled, trackingDomains],
   );
 
   useAutoSave({
@@ -228,7 +261,7 @@ export default function PrivacyDeclarationPage() {
   const collectedCount = dataCollections.length;
 
   // ---- Loading ----
-  if (declaration.isLoading || templates.isLoading) {
+  if (declaration.isLoading || templates.isLoading || app.isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -236,12 +269,14 @@ export default function PrivacyDeclarationPage() {
     );
   }
 
+  const pageTitle = isAndroid ? "Data Safety" : "Privacy Declaration";
+
   return (
     <div className="p-6 space-y-6 max-w-4xl">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-bold">Privacy Declaration</h1>
+          <h1 className="text-xl font-bold">{pageTitle}</h1>
           <p className="text-sm text-muted-foreground mt-0.5">
             {collectedCount} data type{collectedCount !== 1 ? "s" : ""}{" "}
             collected
@@ -282,65 +317,27 @@ export default function PrivacyDeclarationPage() {
         />
       </div>
 
-      {/* App Tracking Transparency */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <Switch
-            id="trackingEnabled"
-            checked={trackingEnabled}
-            onCheckedChange={setTrackingEnabled}
-          />
-          <Label htmlFor="trackingEnabled" className="text-sm font-semibold">
-            App Tracking Transparency (ATT) required
-          </Label>
-        </div>
-
-        {trackingEnabled && (
-          <div className="space-y-2 pl-12">
-            <Label className="text-sm">Tracking Domains</Label>
-            <div className="flex gap-2">
-              <Input
-                value={trackingDomainInput}
-                onChange={(e) => setTrackingDomainInput(e.target.value)}
-                placeholder="analytics.example.com"
-                className="max-w-sm bg-[#1a1a1a] border-border"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") {
-                    e.preventDefault();
-                    addTrackingDomain();
-                  }
-                }}
-              />
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={addTrackingDomain}
-                disabled={!trackingDomainInput.trim()}
-              >
-                Add
-              </Button>
-            </div>
-            {trackingDomains.length > 0 && (
-              <div className="flex flex-wrap gap-1.5">
-                {trackingDomains.map((domain, i) => (
-                  <Badge
-                    key={domain}
-                    variant="secondary"
-                    className="cursor-pointer gap-1"
-                    onClick={() =>
-                      setTrackingDomains(
-                        trackingDomains.filter((_, idx) => idx !== i),
-                      )
-                    }
-                  >
-                    {domain} <span>×</span>
-                  </Badge>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
+      {/* Platform-specific overview section */}
+      {isAndroid ? (
+        <AndroidOverviewSection
+          gpEncryptedInTransit={gpEncryptedInTransit}
+          gpDeletionMechanism={gpDeletionMechanism}
+          onEncryptedChange={setGpEncryptedInTransit}
+          onDeletionChange={setGpDeletionMechanism}
+        />
+      ) : (
+        <IosTrackingSection
+          trackingEnabled={trackingEnabled}
+          trackingDomainInput={trackingDomainInput}
+          trackingDomains={trackingDomains}
+          onTrackingEnabledChange={setTrackingEnabled}
+          onTrackingDomainInputChange={setTrackingDomainInput}
+          onAddDomain={addTrackingDomain}
+          onRemoveDomain={(i) =>
+            setTrackingDomains(trackingDomains.filter((_, idx) => idx !== i))
+          }
+        />
+      )}
 
       {/* Separator */}
       <div className="h-px bg-border" />
@@ -350,7 +347,7 @@ export default function PrivacyDeclarationPage() {
         <h2 className="text-sm font-semibold mb-3">Data Types</h2>
 
         <div className="rounded-lg border border-border overflow-hidden">
-          {PRIVACY_CATEGORIES.map((cat) => {
+          {categories.map((cat) => {
             const isExpanded = expandedCategories.has(cat.category);
             const hasChecked = categoryHasCheckedItems(
               dataCollections,
@@ -407,6 +404,7 @@ export default function PrivacyDeclarationPage() {
                           label={dt.label}
                           description={dt.description}
                           isChecked={isChecked}
+                          isAndroid={isAndroid}
                           item={item}
                           onToggle={toggleDataType}
                           onTogglePurpose={togglePurpose}
@@ -426,6 +424,130 @@ export default function PrivacyDeclarationPage() {
 }
 
 // ---------------------------------------------------------------------------
+// iOS Tracking Section
+// ---------------------------------------------------------------------------
+
+interface IosTrackingSectionProps {
+  trackingEnabled: boolean;
+  trackingDomainInput: string;
+  trackingDomains: string[];
+  onTrackingEnabledChange: (v: boolean) => void;
+  onTrackingDomainInputChange: (v: string) => void;
+  onAddDomain: () => void;
+  onRemoveDomain: (i: number) => void;
+}
+
+function IosTrackingSection({
+  trackingEnabled,
+  trackingDomainInput,
+  trackingDomains,
+  onTrackingEnabledChange,
+  onTrackingDomainInputChange,
+  onAddDomain,
+  onRemoveDomain,
+}: IosTrackingSectionProps) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <Switch
+          id="trackingEnabled"
+          checked={trackingEnabled}
+          onCheckedChange={onTrackingEnabledChange}
+        />
+        <Label htmlFor="trackingEnabled" className="text-sm font-semibold">
+          App Tracking Transparency (ATT) required
+        </Label>
+      </div>
+
+      {trackingEnabled && (
+        <div className="space-y-2 pl-12">
+          <Label className="text-sm">Tracking Domains</Label>
+          <div className="flex gap-2">
+            <Input
+              value={trackingDomainInput}
+              onChange={(e) => onTrackingDomainInputChange(e.target.value)}
+              placeholder="analytics.example.com"
+              className="max-w-sm bg-[#1a1a1a] border-border"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  onAddDomain();
+                }
+              }}
+            />
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={onAddDomain}
+              disabled={!trackingDomainInput.trim()}
+            >
+              Add
+            </Button>
+          </div>
+          {trackingDomains.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {trackingDomains.map((domain, i) => (
+                <Badge
+                  key={domain}
+                  variant="secondary"
+                  className="cursor-pointer gap-1"
+                  onClick={() => onRemoveDomain(i)}
+                >
+                  {domain} <span>×</span>
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Android Overview Section
+// ---------------------------------------------------------------------------
+
+interface AndroidOverviewSectionProps {
+  gpEncryptedInTransit: boolean;
+  gpDeletionMechanism: boolean;
+  onEncryptedChange: (v: boolean) => void;
+  onDeletionChange: (v: boolean) => void;
+}
+
+function AndroidOverviewSection({
+  gpEncryptedInTransit,
+  gpDeletionMechanism,
+  onEncryptedChange,
+  onDeletionChange,
+}: AndroidOverviewSectionProps) {
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
+        <Switch
+          id="gpEncryptedInTransit"
+          checked={gpEncryptedInTransit}
+          onCheckedChange={onEncryptedChange}
+        />
+        <Label htmlFor="gpEncryptedInTransit" className="text-sm font-semibold">
+          Data is encrypted in transit
+        </Label>
+      </div>
+      <div className="flex items-center gap-3">
+        <Switch
+          id="gpDeletionMechanism"
+          checked={gpDeletionMechanism}
+          onCheckedChange={onDeletionChange}
+        />
+        <Label htmlFor="gpDeletionMechanism" className="text-sm font-semibold">
+          Users can request data deletion
+        </Label>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // DataTypeRow — individual data type with expandable config
 // ---------------------------------------------------------------------------
 
@@ -435,6 +557,7 @@ interface DataTypeRowProps {
   label: string;
   description: string;
   isChecked: boolean;
+  isAndroid: boolean;
   item: DataCollectionItem | undefined;
   onToggle: (category: string, dataType: string) => void;
   onTogglePurpose: (
@@ -445,7 +568,7 @@ interface DataTypeRowProps {
   onUpdateField: (
     category: string,
     dataType: string,
-    field: "linked" | "tracking",
+    field: keyof DataCollectionItem,
     value: boolean,
   ) => void;
 }
@@ -456,11 +579,14 @@ function DataTypeRow({
   label,
   description,
   isChecked,
+  isAndroid,
   item,
   onToggle,
   onTogglePurpose,
   onUpdateField,
 }: DataTypeRowProps) {
+  const purposes = isAndroid ? GP_DATA_PURPOSES : PRIVACY_PURPOSES;
+
   return (
     <div
       className={cn(
@@ -486,82 +612,256 @@ function DataTypeRow({
       {/* Expanded config when checked */}
       {isChecked && item && (
         <div className="px-3 pb-3 pl-9 space-y-4">
-          {/* Purposes */}
-          <div className="space-y-2">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Purposes (select all that apply)
-            </span>
-            <div className="space-y-1.5">
-              {PRIVACY_PURPOSES.map((p) => (
-                <label
-                  key={p.id}
-                  className="flex items-start gap-2.5 cursor-pointer select-none"
-                >
-                  <Checkbox
-                    checked={item.purposes.includes(p.id)}
-                    onCheckedChange={() =>
-                      onTogglePurpose(category, dataType, p.id)
-                    }
-                    className="mt-0.5"
-                  />
-                  <div className="min-w-0">
-                    <span className="text-sm">{p.label}</span>
-                    <p className="text-xs text-muted-foreground">
-                      {p.description}
-                    </p>
-                  </div>
-                </label>
-              ))}
-            </div>
-          </div>
-
-          {/* Linked to identity */}
-          <div className="space-y-2">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Linked to user's identity?
-            </span>
-            <RadioGroup
-              value={item.linked ? "yes" : "no"}
-              onValueChange={(v) =>
-                onUpdateField(category, dataType, "linked", v === "yes")
-              }
-              className="flex gap-4"
-            >
-              <label className="flex items-center gap-2 cursor-pointer">
-                <RadioGroupItem value="yes" />
-                <span className="text-sm">Yes</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <RadioGroupItem value="no" />
-                <span className="text-sm">No</span>
-              </label>
-            </RadioGroup>
-          </div>
-
-          {/* Used for tracking */}
-          <div className="space-y-2">
-            <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-              Used for tracking?
-            </span>
-            <RadioGroup
-              value={item.tracking ? "yes" : "no"}
-              onValueChange={(v) =>
-                onUpdateField(category, dataType, "tracking", v === "yes")
-              }
-              className="flex gap-4"
-            >
-              <label className="flex items-center gap-2 cursor-pointer">
-                <RadioGroupItem value="yes" />
-                <span className="text-sm">Yes</span>
-              </label>
-              <label className="flex items-center gap-2 cursor-pointer">
-                <RadioGroupItem value="no" />
-                <span className="text-sm">No</span>
-              </label>
-            </RadioGroup>
-          </div>
+          {isAndroid ? (
+            <AndroidItemConfig
+              category={category}
+              dataType={dataType}
+              item={item}
+              purposes={purposes}
+              onTogglePurpose={onTogglePurpose}
+              onUpdateField={onUpdateField}
+            />
+          ) : (
+            <IosItemConfig
+              category={category}
+              dataType={dataType}
+              item={item}
+              purposes={purposes}
+              onTogglePurpose={onTogglePurpose}
+              onUpdateField={onUpdateField}
+            />
+          )}
         </div>
       )}
     </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// iOS per-item config
+// ---------------------------------------------------------------------------
+
+interface ItemConfigProps {
+  category: string;
+  dataType: string;
+  item: DataCollectionItem;
+  purposes: { id: string; label: string; description: string }[];
+  onTogglePurpose: (
+    category: string,
+    dataType: string,
+    purposeId: string,
+  ) => void;
+  onUpdateField: (
+    category: string,
+    dataType: string,
+    field: keyof DataCollectionItem,
+    value: boolean,
+  ) => void;
+}
+
+function IosItemConfig({
+  category,
+  dataType,
+  item,
+  purposes,
+  onTogglePurpose,
+  onUpdateField,
+}: ItemConfigProps) {
+  return (
+    <>
+      {/* Purposes */}
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Purposes (select all that apply)
+        </span>
+        <div className="space-y-1.5">
+          {purposes.map((p) => (
+            <label
+              key={p.id}
+              className="flex items-start gap-2.5 cursor-pointer select-none"
+            >
+              <Checkbox
+                checked={item.purposes.includes(p.id)}
+                onCheckedChange={() =>
+                  onTogglePurpose(category, dataType, p.id)
+                }
+                className="mt-0.5"
+              />
+              <div className="min-w-0">
+                <span className="text-sm">{p.label}</span>
+                <p className="text-xs text-muted-foreground">
+                  {p.description}
+                </p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+
+      {/* Linked to identity */}
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Linked to user's identity?
+        </span>
+        <RadioGroup
+          value={item.linked ? "yes" : "no"}
+          onValueChange={(v) =>
+            onUpdateField(category, dataType, "linked", v === "yes")
+          }
+          className="flex gap-4"
+        >
+          <label className="flex items-center gap-2 cursor-pointer">
+            <RadioGroupItem value="yes" />
+            <span className="text-sm">Yes</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <RadioGroupItem value="no" />
+            <span className="text-sm">No</span>
+          </label>
+        </RadioGroup>
+      </div>
+
+      {/* Used for tracking */}
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Used for tracking?
+        </span>
+        <RadioGroup
+          value={item.tracking ? "yes" : "no"}
+          onValueChange={(v) =>
+            onUpdateField(category, dataType, "tracking", v === "yes")
+          }
+          className="flex gap-4"
+        >
+          <label className="flex items-center gap-2 cursor-pointer">
+            <RadioGroupItem value="yes" />
+            <span className="text-sm">Yes</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <RadioGroupItem value="no" />
+            <span className="text-sm">No</span>
+          </label>
+        </RadioGroup>
+      </div>
+    </>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Android per-item config
+// ---------------------------------------------------------------------------
+
+function AndroidItemConfig({
+  category,
+  dataType,
+  item,
+  purposes,
+  onTogglePurpose,
+  onUpdateField,
+}: ItemConfigProps) {
+  return (
+    <>
+      {/* Collected / Shared checkboxes */}
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Data usage
+        </span>
+        <div className="flex gap-6">
+          <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <Checkbox
+              checked={item.collected ?? true}
+              onCheckedChange={(v) =>
+                onUpdateField(category, dataType, "collected", !!v)
+              }
+            />
+            <span className="text-sm">Collected</span>
+          </label>
+          <label className="flex items-center gap-2.5 cursor-pointer select-none">
+            <Checkbox
+              checked={item.shared ?? false}
+              onCheckedChange={(v) =>
+                onUpdateField(category, dataType, "shared", !!v)
+              }
+            />
+            <span className="text-sm">Shared</span>
+          </label>
+        </div>
+      </div>
+
+      {/* Ephemeral */}
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Is this data processed ephemerally?
+        </span>
+        <RadioGroup
+          value={item.ephemeral ? "yes" : "no"}
+          onValueChange={(v) =>
+            onUpdateField(category, dataType, "ephemeral", v === "yes")
+          }
+          className="flex gap-4"
+        >
+          <label className="flex items-center gap-2 cursor-pointer">
+            <RadioGroupItem value="yes" />
+            <span className="text-sm">Yes</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <RadioGroupItem value="no" />
+            <span className="text-sm">No</span>
+          </label>
+        </RadioGroup>
+      </div>
+
+      {/* Required / Optional */}
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Is this data required or optional?
+        </span>
+        <RadioGroup
+          value={item.required !== false ? "required" : "optional"}
+          onValueChange={(v) =>
+            onUpdateField(category, dataType, "required", v === "required")
+          }
+          className="flex gap-4"
+        >
+          <label className="flex items-center gap-2 cursor-pointer">
+            <RadioGroupItem value="required" />
+            <span className="text-sm">Required</span>
+          </label>
+          <label className="flex items-center gap-2 cursor-pointer">
+            <RadioGroupItem value="optional" />
+            <span className="text-sm">Optional</span>
+          </label>
+        </RadioGroup>
+      </div>
+
+      {/* Purposes */}
+      <div className="space-y-2">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Purposes (select all that apply)
+        </span>
+        <div className="space-y-1.5">
+          {purposes.map((p) => (
+            <label
+              key={p.id}
+              className="flex items-start gap-2.5 cursor-pointer select-none"
+            >
+              <Checkbox
+                checked={item.purposes.includes(p.id)}
+                onCheckedChange={() =>
+                  onTogglePurpose(category, dataType, p.id)
+                }
+                className="mt-0.5"
+              />
+              <div className="min-w-0">
+                <span className="text-sm">{p.label}</span>
+                <p className="text-xs text-muted-foreground">
+                  {p.description}
+                </p>
+              </div>
+            </label>
+          ))}
+        </div>
+      </div>
+    </>
   );
 }

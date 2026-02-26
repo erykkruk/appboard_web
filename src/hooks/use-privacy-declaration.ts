@@ -5,10 +5,10 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { api } from "@/lib/api";
 import type { PrivacyDeclarationInput } from "@/lib/types";
 
-export function usePrivacyTemplates() {
+export function usePrivacyTemplates(platform?: "ios" | "android") {
   return useQuery({
-    queryKey: ["privacy-templates"],
-    queryFn: () => api.privacyDeclaration.templates(),
+    queryKey: ["privacy-templates", platform],
+    queryFn: () => api.privacyDeclaration.templates(platform),
   });
 }
 

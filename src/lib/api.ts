@@ -672,9 +672,9 @@ export const api = {
 				`/api/apps/${appId}/privacy-declaration/publish`,
 				{ method: "POST" },
 			),
-		templates: () =>
+		templates: (platform?: "ios" | "android") =>
 			fetchApi<{ templates: PrivacyTemplate[] }>(
-				"/api/privacy-templates",
+				`/api/privacy-templates${platform ? `?platform=${platform}` : ""}`,
 			).then((r) => r.templates),
 	},
 

@@ -205,6 +205,8 @@ function SortableAppIcon({
     transition,
   };
 
+  const PlatformIcon = app.platform === "ios" ? Apple : Store;
+
   const iconContent = app.iconUrl ? (
     <img
       src={app.iconUrl}
@@ -247,6 +249,9 @@ function SortableAppIcon({
                   >
                     {iconContent}
                   </Link>
+                  <div className="pointer-events-none absolute -bottom-1.5 -right-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-[#111111]">
+                    <PlatformIcon className="h-3.5 w-3.5 text-muted-foreground" />
+                  </div>
                 </div>
               </PopoverTrigger>
               <PopoverContent
