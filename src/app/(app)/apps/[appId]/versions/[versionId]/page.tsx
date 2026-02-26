@@ -50,6 +50,7 @@ import { ActionsMenu } from "@/components/actions-menu";
 import type { ActionsMenuAction } from "@/components/actions-menu";
 import { useApp } from "@/hooks/use-apps";
 import { useAutoSave } from "@/hooks/use-auto-save";
+import { useCapabilities } from "@/hooks/use-capabilities";
 import {
 	useSyncVersions,
 	useUpdateCopyright,
@@ -92,6 +93,7 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 const EDITABLE_STATES = new Set([
+	"ACTIVE",
 	"PREPARE_FOR_SUBMISSION",
 	"DEVELOPER_REJECTED",
 	"REJECTED",
@@ -102,7 +104,9 @@ const WHATS_NEW_EDITABLE_STATES = new Set(["DEVELOPER_REJECTED", "REJECTED"]);
 const AI_FIELDS: ListingFieldName[] = [
 	"title",
 	"subtitle",
+	"shortDescription",
 	"description",
+	"fullDescription",
 	"keywords",
 	"promotionalText",
 	"whatsNew",
@@ -135,8 +139,23 @@ const FIELDS: FieldConfig[] = [
 		placeholder: "A brief summary",
 	},
 	{
+		key: "shortDescription",
+		label: "Short Description",
+		maxLength: 80,
+		placeholder: "A brief summary of your app",
+	},
+	{
 		key: "description",
 		label: "Description",
+		maxLength: 4000,
+		minLength: 10,
+		multiline: true,
+		placeholder: "A detailed description of your app",
+		rows: 8,
+	},
+	{
+		key: "fullDescription",
+		label: "Full Description",
 		maxLength: 4000,
 		minLength: 10,
 		multiline: true,
@@ -252,6 +271,7 @@ export default function VersionDetailPage() {
 	const params = useParams<{ appId: string; versionId: string }>();
 	const detail = useVersionDetail(params.appId, params.versionId);
 	const appData = useApp(params.appId);
+	const capabilities = useCapabilities(params.appId);
 	const updateLoc = useUpdateLocalization(params.appId, params.versionId);
 	const updateCopyright = useUpdateCopyright(params.appId, params.versionId);
 	const syncVersions = useSyncVersions(params.appId);
@@ -296,6 +316,24 @@ export default function VersionDetailPage() {
 
 
 	const localizations = detail.data?.localizations ?? [];
+
+	// Filter fields based on platform capabilities
+	const capData = capabilities.data;
+	const isFieldEnabled = useCallback(
+		(fieldKey: string) =>
+			!capData || capData.listings.fields.includes(fieldKey),
+		[capData],
+	);
+
+	const visibleFields = useMemo(
+		() => FIELDS.filter((f) => isFieldEnabled(f.key)),
+		[isFieldEnabled],
+	);
+
+	const visibleAiFields = useMemo(
+		() => AI_FIELDS.filter((f) => isFieldEnabled(f)),
+		[isFieldEnabled],
+	);
 
 	// Sync copyright from server data
 	useEffect(() => {
@@ -456,7 +494,7 @@ export default function VersionDetailPage() {
 	// Validation for all visible fields (selected language + overrides)
 	const fieldErrors = useMemo(() => {
 		const errors: Record<string, string | null> = {};
-		for (const field of FIELDS) {
+		for (const field of visibleFields) {
 			const lang =
 				fieldLangOverrides[field.key] || selectedLanguage;
 			const value = allFormData[lang]?.[field.key] ?? "";
@@ -474,6 +512,7 @@ export default function VersionDetailPage() {
 		selectedLanguage,
 		isWhatsNewEditable,
 		saveAttempted,
+		visibleFields,
 	]);
 
 	const hasValidationErrors = useMemo(
@@ -525,7 +564,7 @@ export default function VersionDetailPage() {
 
 		setIsGeneratingAll(true);
 
-		const fieldsToGenerate = AI_FIELDS.filter(
+		const fieldsToGenerate = visibleAiFields.filter(
 			(field) => !(field === "whatsNew" && !isWhatsNewEditable),
 		);
 
@@ -641,6 +680,7 @@ export default function VersionDetailPage() {
 		localizations,
 		params.appId,
 		selectedLanguage,
+		visibleAiFields,
 	]);
 
 	const handleTranslateAllFromLanguage = useCallback(async () => {
@@ -648,7 +688,7 @@ export default function VersionDetailPage() {
 
 		const sourceData = allFormData[selectedLanguage] ?? {};
 		const fields: Record<string, string> = {};
-		for (const f of AI_FIELDS) {
+		for (const f of visibleAiFields) {
 			const val = sourceData[f];
 			if (val?.trim()) {
 				fields[f] = val;
@@ -723,6 +763,7 @@ export default function VersionDetailPage() {
 		localizations,
 		params.appId,
 		selectedLanguage,
+		visibleAiFields,
 	]);
 
 	const handleTranslateFieldToAll = useCallback(
@@ -806,7 +847,7 @@ export default function VersionDetailPage() {
 		// Validate all languages that have changes
 		for (const lang of Object.keys(allChangedByLang)) {
 			const langData = allFormData[lang] ?? {};
-			const hasErrors = FIELDS.some((f) => {
+			const hasErrors = visibleFields.some((f) => {
 				const val = langData[f.key] ?? "";
 				return getFieldError(f, val, isWhatsNewEditable, true) !== null;
 			});
@@ -842,6 +883,7 @@ export default function VersionDetailPage() {
 		isWhatsNewEditable,
 		localizations,
 		updateLoc,
+		visibleFields,
 	]);
 
 	useAutoSave({
@@ -1004,7 +1046,7 @@ export default function VersionDetailPage() {
 
 	const { versionString } = detail.data;
 	const isFromCache = detail.data.source === "cache";
-	const hasAnyContent = AI_FIELDS.some((f) => !!formData[f]);
+	const hasAnyContent = visibleAiFields.some((f) => !!formData[f]);
 
 	const sortedLocalizations = localizations
 		.slice()
@@ -1229,8 +1271,8 @@ export default function VersionDetailPage() {
 				</AlertDialogContent>
 			</AlertDialog>
 
-			{/* Copyright (version-level, not language-dependent) */}
-			<div className="max-w-2xl space-y-1.5">
+			{/* Copyright (version-level, not language-dependent, iOS only) */}
+			{(!capData || capData.publishing.hasVersions) && <div className="max-w-2xl space-y-1.5">
 				<div className="flex items-center justify-between">
 					<Label className="text-sm font-medium" htmlFor="copyright">
 						Copyright
@@ -1265,10 +1307,11 @@ export default function VersionDetailPage() {
 						Exceeds maximum of 255 characters
 					</p>
 				)}
-			</div>
+			</div>}
 
-			{/* Categories (app-level, not language-dependent) */}
-			{categoriesData &&
+			{/* Categories (app-level, not language-dependent, iOS only) */}
+			{(!capData || capData.categories.supported) &&
+				categoriesData &&
 				categoriesData.availableCategories.length > 0 && (
 					<div className="max-w-2xl space-y-3">
 						<div className="flex items-center justify-between">
@@ -1381,7 +1424,7 @@ export default function VersionDetailPage() {
 				</p>
 			) : (
 				<div className="max-w-2xl space-y-6">
-					{FIELDS.map((field) => {
+					{visibleFields.map((field) => {
 						const activeLang =
 							fieldLangOverrides[field.key] ||
 							selectedLanguage;
@@ -1397,7 +1440,7 @@ export default function VersionDetailPage() {
 							(field.key === "whatsNew" &&
 								!isWhatsNewEditable);
 						const hasError = !!error;
-						const isAiField = AI_FIELDS.includes(
+						const isAiField = visibleAiFields.includes(
 							field.key as ListingFieldName,
 						);
 						const isFieldGenerating =

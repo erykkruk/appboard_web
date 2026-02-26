@@ -12,6 +12,7 @@ import type {
 	Asset,
 	CategoriesData,
 	ConnectStoreData,
+	ConnectStoreResponse,
 	DraftReplyRequest,
 	GenerateDescriptionRequest,
 	GenerateListingFieldRequest,
@@ -20,6 +21,7 @@ import type {
 	GlobalPromptEntry,
 	HistoryEntry,
 	Listing,
+	PlatformCapabilities,
 	PrivacyDeclaration,
 	PrivacyDeclarationInput,
 	PrivacyTemplate,
@@ -146,6 +148,10 @@ export const api = {
 	},
 
 	apps: {
+		capabilities: (appId: string) =>
+			fetchApi<{ capabilities: PlatformCapabilities }>(
+				`/api/apps/${appId}/capabilities`,
+			).then((r) => r.capabilities),
 		get: (appId: string) =>
 			fetchApi<{ app: App }>(`/api/apps/${appId}`).then((r) => r.app),
 		list: (params?: { platform?: string; storeId?: string }) =>
@@ -396,6 +402,8 @@ export const api = {
 				promotionalText: string;
 				marketingUrl: string;
 				supportUrl: string;
+				shortDescription: string;
+				fullDescription: string;
 			}>,
 		) =>
 			fetchApi<UpdateLocalizationResult>(
@@ -522,6 +530,21 @@ export const api = {
 				{ body: formData, headers: {}, method: "POST" },
 			);
 		},
+		publishSettings: (appId: string) =>
+			fetchApi<{ publishMode: string; publishScheduledAt: string | null }>(
+				`/api/apps/${appId}/publishing/settings`,
+			),
+		updatePublishSettings: (
+			appId: string,
+			data: { publishMode: string; publishScheduledAt?: string },
+		) =>
+			fetchApi<{ publishMode: string; publishScheduledAt: string | null }>(
+				`/api/apps/${appId}/publishing/settings`,
+				{
+					body: JSON.stringify(data),
+					method: "PUT",
+				},
+			),
 		version: (appId: string) =>
 			fetchApi<{ version: VersionInfo | null }>(
 				`/api/apps/${appId}/publishing/version`,
@@ -683,10 +706,10 @@ export const api = {
 
 	stores: {
 		connect: (data: ConnectStoreData) =>
-			fetchApi<{ store: Store }>("/api/stores/connect", {
+			fetchApi<ConnectStoreResponse>("/api/stores/connect", {
 				body: JSON.stringify(data),
 				method: "POST",
-			}).then((r) => r.store),
+			}),
 		disconnect: (id: string) =>
 			fetchApi<void>(`/api/stores/${id}`, { method: "DELETE" }),
 		list: () =>

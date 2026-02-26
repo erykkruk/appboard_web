@@ -49,8 +49,8 @@ const VERSION_NAV_ITEMS = [
   { label: "Languages", icon: Globe, suffix: "/languages" },
   { label: "Listings", icon: FileText, suffix: "" },
   { label: "Previews & Screenshots", icon: Image, suffix: "/screenshots" },
-  { label: "App Review", icon: ShieldCheck, suffix: "/review" },
-  { label: "Age Rating", icon: ShieldAlert, suffix: "/age-rating" },
+  { label: "App Review", icon: ShieldCheck, suffix: "/review", iosOnly: true },
+  { label: "Age Rating", icon: ShieldAlert, suffix: "/age-rating", iosOnly: true },
 ] as const;
 
 const STATE_BAR_COLORS: Record<string, string> = {
@@ -104,12 +104,12 @@ export default function AppLayout({
 
   // Auto-select draft (or first) version when none remembered yet
   useEffect(() => {
-    if (!isIos || versionList.length === 0 || rememberedVersionId) return;
+    if (versionList.length === 0 || rememberedVersionId) return;
     const target = draftVersion ?? versionList[0];
     if (target) {
       setRememberedVersionId(target.id);
     }
-  }, [isIos, versionList, rememberedVersionId, draftVersion]);
+  }, [versionList, rememberedVersionId, draftVersion]);
 
   const selectedVersionId = rememberedVersionId;
   const selectedVersion = versionList.find((v) => v.id === selectedVersionId);
@@ -131,14 +131,22 @@ export default function AppLayout({
   const handleSyncAll = useCallback(async () => {
     setIsSyncing(true);
     try {
-      const results = await Promise.allSettled([
+      const syncTasks = [
         api.listings.sync(appId),
         api.assets.sync(appId),
         api.reviews.sync(appId),
-        api.publishing.syncVersions(appId),
-      ]);
+      ];
 
-      const failed = results.filter((r) => r.status === "rejected").length;
+      // Version sync is iOS/App Store only
+      if (isIos) {
+        syncTasks.push(api.publishing.syncVersions(appId));
+      }
+
+      const results = await Promise.allSettled(syncTasks);
+
+      const errors = results
+        .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+        .map((r) => (r.reason as Error)?.message ?? String(r.reason));
 
       queryClient.invalidateQueries({ queryKey: ["listings", appId] });
       queryClient.invalidateQueries({ queryKey: ["assets", appId] });
@@ -146,8 +154,10 @@ export default function AppLayout({
       queryClient.invalidateQueries({ queryKey: ["publishing", appId] });
       queryClient.invalidateQueries({ queryKey: ["apps"] });
 
-      if (failed > 0) {
-        toast.warning(`Synced with ${failed} error(s)`);
+      if (errors.length > 0) {
+        for (const msg of errors) {
+          toast.error(msg);
+        }
       } else {
         toast.success("Everything synced");
       }
@@ -156,22 +166,30 @@ export default function AppLayout({
     } finally {
       setIsSyncing(false);
     }
-  }, [appId, queryClient]);
+  }, [appId, isIos, queryClient]);
 
   const handlePushToStore = useCallback(async () => {
     setIsPushing(true);
     try {
-      const results = await Promise.allSettled([
-        api.listings.publish(appId),
-        api.listings.publishCategories(appId),
-        api.ageRating.publish(appId),
-        api.privacyDeclaration.publish(appId),
-      ]);
+      const pushTasks: Promise<unknown>[] = [api.listings.publish(appId)];
 
-      const failed = results.filter((r) => r.status === "rejected").length;
+      if (isIos) {
+        pushTasks.push(
+          api.listings.publishCategories(appId),
+          api.ageRating.publish(appId),
+          api.privacyDeclaration.publish(appId),
+        );
+      }
 
-      if (failed > 0) {
-        toast.warning(`Pushed with ${failed} error(s)`);
+      const results = await Promise.allSettled(pushTasks);
+      const errors = results
+        .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+        .map((r) => (r.reason as Error)?.message ?? String(r.reason));
+
+      if (errors.length > 0) {
+        for (const msg of errors) {
+          toast.error(msg);
+        }
       } else {
         toast.success("Pushed to store");
       }
@@ -180,7 +198,7 @@ export default function AppLayout({
     } finally {
       setIsPushing(false);
     }
-  }, [appId]);
+  }, [appId, isIos]);
 
   const lastSyncedAt = app.data?.lastSyncedAt;
 
@@ -196,7 +214,7 @@ export default function AppLayout({
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
           <div className="space-y-0.5">
-            {NAV_ITEMS.map((item) => {
+            {NAV_ITEMS.filter((item) => !("iosOnly" in item && item.iosOnly) || isIos).map((item) => {
               const href = `${basePath}${item.suffix}`;
               const isActive =
                 currentPath.startsWith(href) && !isVersionPage;
@@ -361,6 +379,39 @@ export default function AppLayout({
               </div>
             </>
           )}
+
+          {/* Content navigation — Google Play (no version selector) */}
+          {!isIos && selectedVersionId && (
+            <>
+              <div className="mx-3 my-3 h-px bg-border" />
+              <div className="space-y-0.5">
+                {VERSION_NAV_ITEMS
+                  .filter((item) => !("iosOnly" in item && item.iosOnly))
+                  .map((item) => {
+                    const href = `${basePath}/versions/${selectedVersionId}${item.suffix}`;
+                    const isActive =
+                      item.suffix === ""
+                        ? currentPath === `${basePath}/versions/${selectedVersionId}`
+                        : currentPath.startsWith(href);
+                    return (
+                      <Link
+                        key={item.label}
+                        href={href}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+              </div>
+            </>
+          )}
         </nav>
 
         <div className="border-t border-border px-2 py-3 space-y-2">
@@ -376,7 +427,7 @@ export default function AppLayout({
             ) : (
               <Upload className="h-3.5 w-3.5" />
             )}
-            {isPushing ? "Pushing..." : `Push to ${isIos ? "App Store" : "Google Play"}`}
+            {isPushing ? "Pushing..." : isIos ? "Push to App Store" : "Push as Draft"}
           </Button>
           <Button
             variant="outline"

@@ -324,7 +324,7 @@ function ConnectingStep() {
   );
 }
 
-function SuccessStep() {
+function SuccessStep({ syncedApps, warnings }: { syncedApps: number; warnings: string[] }) {
   const router = useRouter();
 
   return (
@@ -332,8 +332,23 @@ function SuccessStep() {
       <CheckCircle2 className="mb-4 h-12 w-12 text-green-500" />
       <h3 className="text-lg font-semibold">Connected!</h3>
       <p className="mt-2 text-sm text-muted-foreground">
-        Your store has been connected successfully. Apps have been synced.
+        Your store has been connected successfully.{" "}
+        {syncedApps > 0
+          ? `${syncedApps} app${syncedApps !== 1 ? "s" : ""} synced.`
+          : "No apps were found during sync."}
       </p>
+      {warnings.length > 0 && (
+        <div className="mt-4 w-full max-w-md space-y-2">
+          {warnings.map((warning) => (
+            <div
+              key={warning}
+              className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3 text-left text-xs text-yellow-200"
+            >
+              {warning}
+            </div>
+          ))}
+        </div>
+      )}
       <Button className="mt-6" onClick={() => router.push("/dashboard")}>
         Go to Dashboard
       </Button>
@@ -346,6 +361,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [storeType, setStoreType] = useState<StoreType | null>(null);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
+  const [connectResult, setConnectResult] = useState<{ syncedApps: number; warnings: string[] } | null>(null);
 
   const [accountName, setAccountName] = useState("");
   const [serviceAccountJson, setServiceAccountJson] = useState("");
@@ -400,9 +416,10 @@ export default function OnboardingPage() {
     }
 
     try {
-      await connectStore.mutateAsync({ name, type: storeType, credentials });
+      const result = await connectStore.mutateAsync({ name, type: storeType, credentials });
+      setConnectResult({ syncedApps: result.syncedApps, warnings: result.warnings });
       setStep(4);
-      toast.success("Store connected successfully!");
+      toast.success(`Store connected! ${result.syncedApps} app${result.syncedApps !== 1 ? "s" : ""} synced.`);
     } catch {
       setStep(2);
       toast.error("Failed to connect store. Please check your credentials.");
@@ -498,7 +515,7 @@ export default function OnboardingPage() {
         )}
 
         {step === 3 && <ConnectingStep />}
-        {step === 4 && <SuccessStep />}
+        {step === 4 && <SuccessStep syncedApps={connectResult?.syncedApps ?? 0} warnings={connectResult?.warnings ?? []} />}
 
         {step === 2 && (
           <div className="mt-6 flex justify-between">

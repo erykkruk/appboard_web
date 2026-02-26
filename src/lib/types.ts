@@ -9,6 +9,12 @@ export interface Store {
 	lastSyncedAt: string | null;
 }
 
+export interface ConnectStoreResponse {
+	store: Store;
+	syncedApps: number;
+	warnings: string[];
+}
+
 export type Platform = "android" | "ios";
 
 export interface App {
@@ -225,6 +231,7 @@ export type ListingFieldName =
 	| "subtitle"
 	| "shortDescription"
 	| "description"
+	| "fullDescription"
 	| "keywords"
 	| "promotionalText"
 	| "whatsNew";
@@ -286,6 +293,8 @@ export interface VersionLocalization {
 	promotionalText?: string;
 	marketingUrl?: string;
 	supportUrl?: string;
+	shortDescription?: string;
+	fullDescription?: string;
 	isDirty?: boolean;
 }
 
@@ -479,6 +488,26 @@ export interface SplitPreviewResult {
 export interface SplitUploadResult {
 	screenshots: VersionScreenshot[];
 	count: number;
+}
+
+export interface PlatformCapabilities {
+	listings: {
+		fields: string[];
+		maxLengths: Record<string, number>;
+	};
+	publishing: {
+		hasVersions: boolean;
+		hasTracks: boolean;
+		hasReviewSubmission: boolean;
+	};
+	ageRating: { supported: boolean };
+	categories: { supported: boolean };
+	privacy: { supported: boolean };
+	reviews: { supported: boolean; canReply: boolean };
+	assets: {
+		types: string[];
+		screenshotDevices: string[];
+	};
 }
 
 export const APP_STORE_LANGUAGES = [

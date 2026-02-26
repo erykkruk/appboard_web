@@ -4,6 +4,27 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 
+export function usePublishSettings(appId: string) {
+	return useQuery({
+		enabled: !!appId,
+		queryFn: () => api.publishing.publishSettings(appId),
+		queryKey: ["publishing", appId, "settings"],
+	});
+}
+
+export function useUpdatePublishSettings(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (data: { publishMode: string; publishScheduledAt?: string }) =>
+			api.publishing.updatePublishSettings(appId, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["publishing", appId, "settings"],
+			});
+		},
+	});
+}
+
 export function usePublishingOverview(appId: string) {
 	return useQuery({
 		enabled: !!appId,
@@ -214,6 +235,8 @@ export function useUpdateLocalization(appId: string, versionId: string) {
 				promotionalText: string;
 				marketingUrl: string;
 				supportUrl: string;
+				shortDescription: string;
+				fullDescription: string;
 			}>;
 		}) =>
 			api.publishing.updateLocalization(appId, versionId, localizationId, data),
