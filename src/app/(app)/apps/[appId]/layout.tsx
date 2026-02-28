@@ -5,6 +5,7 @@ import { usePathname, useParams, useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ChevronDown,
+  CreditCard,
   FileText,
   Globe,
   Image,
@@ -43,6 +44,7 @@ const NAV_ITEMS = [
   { label: "Dashboard", icon: LayoutDashboard, suffix: "/dashboard" },
   { label: "Information", icon: Info, suffix: "/information" },
   { label: "Publish", icon: Rocket, suffix: "/publish" },
+  { label: "Purchases", icon: CreditCard, suffix: "/purchases" },
   { label: "Reviews", icon: Star, suffix: "/reviews" },
   { label: "Settings", icon: Settings, suffix: "/settings" },
 ] as const;
@@ -140,6 +142,7 @@ export default function AppLayout({
         api.listings.sync(appId),
         api.assets.sync(appId),
         api.reviews.sync(appId),
+        api.purchases.sync(appId),
       ];
 
       // Version sync is iOS/App Store only
@@ -156,6 +159,7 @@ export default function AppLayout({
       queryClient.invalidateQueries({ queryKey: ["listings", appId] });
       queryClient.invalidateQueries({ queryKey: ["assets", appId] });
       queryClient.invalidateQueries({ queryKey: ["reviews", appId] });
+      queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
       queryClient.invalidateQueries({ queryKey: ["publishing", appId] });
       queryClient.invalidateQueries({ queryKey: ["apps"] });
 

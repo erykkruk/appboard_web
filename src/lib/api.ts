@@ -5,6 +5,8 @@ import type {
 	AiResponse,
 	App,
 	AppAiPrompt,
+	AppGroup,
+	AppGroupMember,
 	AppReviewDetail,
 	AppVersion,
 	AsoProfile,
@@ -20,6 +22,7 @@ import type {
 	GenerateReleaseNotesRequest,
 	GlobalPromptEntry,
 	HistoryEntry,
+	InAppPurchase,
 	Listing,
 	PlatformCapabilities,
 	PrivacyDeclaration,
@@ -28,6 +31,7 @@ import type {
 	PublishingOverview,
 	PublishLocalizationsResult,
 	PublishResult,
+	PurchaseSyncResult,
 	Review,
 	ReviewStats,
 	SettingRow,
@@ -35,6 +39,7 @@ import type {
 	SplitPreviewResult,
 	SplitUploadResult,
 	Store,
+	SubscriptionGroup,
 	SuggestCategoryRequest,
 	SuggestCategoryResponse,
 	SuggestKeywordsRequest,
@@ -147,6 +152,57 @@ export const api = {
 			}),
 	},
 
+	appGroups: {
+		addMember: (groupId: string, appId: string) =>
+			fetchApi<{ member: AppGroupMember }>(
+				`/api/app-groups/${groupId}/members`,
+				{
+					body: JSON.stringify({ appId }),
+					method: "POST",
+				},
+			).then((r) => r.member),
+		create: (data: { name: string; iconUrl?: string }) =>
+			fetchApi<{ appGroup: AppGroup }>("/api/app-groups", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}).then((r) => r.appGroup),
+		delete: (groupId: string) =>
+			fetchApi<{ success: boolean }>(`/api/app-groups/${groupId}`, {
+				method: "DELETE",
+			}),
+		get: (groupId: string) =>
+			fetchApi<{ appGroup: AppGroup }>(`/api/app-groups/${groupId}`).then(
+				(r) => r.appGroup,
+			),
+		list: () =>
+			fetchApi<{ appGroups: AppGroup[] }>("/api/app-groups").then(
+				(r) => r.appGroups,
+			),
+		removeMember: (groupId: string, appId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/app-groups/${groupId}/members/${appId}`,
+				{ method: "DELETE" },
+			),
+		reorderGroups: (groupIds: string[]) =>
+			fetchApi<{ success: boolean }>("/api/app-groups/reorder", {
+				body: JSON.stringify({ groupIds }),
+				method: "PUT",
+			}),
+		reorderMembers: (groupId: string, appIds: string[]) =>
+			fetchApi<{ success: boolean }>(
+				`/api/app-groups/${groupId}/reorder`,
+				{
+					body: JSON.stringify({ appIds }),
+					method: "PUT",
+				},
+			),
+		update: (groupId: string, data: { name?: string; iconUrl?: string | null }) =>
+			fetchApi<{ appGroup: AppGroup }>(`/api/app-groups/${groupId}`, {
+				body: JSON.stringify(data),
+				method: "PUT",
+			}).then((r) => r.appGroup),
+	},
+
 	apps: {
 		capabilities: (appId: string) =>
 			fetchApi<{ capabilities: PlatformCapabilities }>(
@@ -158,6 +214,30 @@ export const api = {
 			fetchApi<{ apps: App[] }>(`/api/apps${toQuery(params ?? {})}`).then(
 				(r) => r.apps,
 			),
+	},
+
+	purchases: {
+		list: (appId: string) =>
+			fetchApi<{ purchases: InAppPurchase[] }>(
+				`/api/apps/${appId}/purchases`,
+			).then((r) => r.purchases),
+		get: (appId: string, purchaseId: string) =>
+			fetchApi<{ purchase: InAppPurchase }>(
+				`/api/apps/${appId}/purchases/${purchaseId}`,
+			).then((r) => r.purchase),
+		sync: (appId: string) =>
+			fetchApi<PurchaseSyncResult>(
+				`/api/apps/${appId}/purchases/sync`,
+				{ method: "POST" },
+			),
+		subscriptionGroups: (appId: string) =>
+			fetchApi<{ groups: SubscriptionGroup[] }>(
+				`/api/apps/${appId}/subscription-groups`,
+			).then((r) => r.groups),
+		subscriptionGroup: (appId: string, groupId: string) =>
+			fetchApi<{ group: SubscriptionGroup }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}`,
+			).then((r) => r.group),
 	},
 
 	asoProfile: {

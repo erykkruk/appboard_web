@@ -483,6 +483,31 @@ export interface SuggestCategoryResponse {
 	model: string;
 }
 
+// App Groups
+export interface AppGroupMember {
+	id: string;
+	appId: string;
+	sortOrder: number;
+	app: {
+		id: string;
+		name: string;
+		platform: Platform;
+		iconUrl: string | null;
+		bundleId: string;
+	};
+}
+
+export interface AppGroup {
+	id: string;
+	name: string;
+	iconUrl: string | null;
+	sortOrder: number;
+	workspaceId: string;
+	createdAt: string;
+	updatedAt: string;
+	members: AppGroupMember[];
+}
+
 export interface SplitPreviewResult {
 	availableSizes: { height: number; width: number }[];
 	originalWidth: number;
@@ -519,6 +544,57 @@ export interface PlatformCapabilities {
 		types: string[];
 		screenshotDevices: string[];
 	};
+}
+
+// In-App Purchases & Subscriptions
+export interface PurchaseLocalization {
+	id: string;
+	purchaseId: string;
+	language: string;
+	name: string | null;
+	description: string | null;
+	externalId: string | null;
+	syncedAt: string | null;
+}
+
+export interface PurchasePrice {
+	id: string;
+	purchaseId: string;
+	territory: string;
+	currency: string;
+	price: string;
+	externalId: string | null;
+	syncedAt: string | null;
+}
+
+export interface InAppPurchase {
+	id: string;
+	appId: string;
+	externalId: string;
+	productId: string;
+	name: string;
+	productType: string;
+	status: string;
+	duration: string | null;
+	groupId: string | null;
+	syncedAt: string | null;
+	localizations: PurchaseLocalization[];
+	prices: PurchasePrice[];
+}
+
+export interface SubscriptionGroup {
+	id: string;
+	appId: string;
+	externalId: string;
+	name: string;
+	syncedAt: string | null;
+	subscriptions: InAppPurchase[];
+}
+
+export interface PurchaseSyncResult {
+	syncedGroups: number;
+	syncedSubscriptions: number;
+	syncedIaps: number;
 }
 
 export const APP_STORE_LANGUAGES = [
