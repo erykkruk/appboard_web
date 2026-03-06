@@ -15,6 +15,9 @@ import type {
 	CategoriesData,
 	ConnectStoreData,
 	ConnectStoreResponse,
+	CreateGroupInput,
+	CreatePurchaseInput,
+	CreateSubscriptionInput,
 	DraftReplyRequest,
 	GenerateDescriptionRequest,
 	GenerateListingFieldRequest,
@@ -49,6 +52,7 @@ import type {
 	UpdateCategoriesInput,
 	UpdateCopyrightResult,
 	UpdateLocalizationResult,
+	UpdatePurchaseInput,
 	VersionDetail,
 	VersionInfo,
 	VersionScreenshot,
@@ -150,6 +154,70 @@ export const api = {
 				body: JSON.stringify(data),
 				method: "POST",
 			}),
+		monetizationExecute: (
+			appId: string,
+			plan: {
+				deletes?: string[];
+				edits?: Array<{
+					localizations?: Array<{
+						description?: string;
+						language: string;
+						name?: string;
+					}>;
+					name?: string;
+					prices?: Array<{
+						currency: string;
+						price: string;
+						territory: string;
+					}>;
+					purchaseId: string;
+				}>;
+				groups?: Array<{
+					name: string;
+					subscriptions: Array<{
+						duration: string;
+						localizations?: Array<{
+							description?: string;
+							language: string;
+							name?: string;
+						}>;
+						name: string;
+						prices?: Array<{
+							currency: string;
+							price: string;
+							territory: string;
+						}>;
+						productId: string;
+					}>;
+				}>;
+				purchases?: Array<{
+					localizations?: Array<{
+						description?: string;
+						language: string;
+						name?: string;
+					}>;
+					name: string;
+					prices?: Array<{
+						currency: string;
+						price: string;
+						territory: string;
+					}>;
+					productId: string;
+					productType: string;
+				}>;
+			},
+		) =>
+			fetchApi<{
+				results: {
+					created: Array<{ id: string; name: string; type: string }>;
+					deleted: string[];
+					edited: Array<{ id: string; name: string }>;
+					failed: Array<{ error: string; item: string }>;
+				};
+			}>("/api/ai/monetization-execute", {
+				body: JSON.stringify({ appId, plan }),
+				method: "POST",
+			}).then((r) => r.results),
 	},
 
 	appGroups: {
@@ -225,6 +293,21 @@ export const api = {
 			fetchApi<{ purchase: InAppPurchase }>(
 				`/api/apps/${appId}/purchases/${purchaseId}`,
 			).then((r) => r.purchase),
+		create: (appId: string, data: CreatePurchaseInput) =>
+			fetchApi<{ purchase: InAppPurchase }>(
+				`/api/apps/${appId}/purchases`,
+				{ body: JSON.stringify(data), method: "POST" },
+			).then((r) => r.purchase),
+		update: (appId: string, purchaseId: string, data: UpdatePurchaseInput) =>
+			fetchApi<{ purchase: InAppPurchase }>(
+				`/api/apps/${appId}/purchases/${purchaseId}`,
+				{ body: JSON.stringify(data), method: "PATCH" },
+			).then((r) => r.purchase),
+		delete: (appId: string, purchaseId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/purchases/${purchaseId}`,
+				{ method: "DELETE" },
+			),
 		sync: (appId: string) =>
 			fetchApi<PurchaseSyncResult>(
 				`/api/apps/${appId}/purchases/sync`,
@@ -238,6 +321,16 @@ export const api = {
 			fetchApi<{ group: SubscriptionGroup }>(
 				`/api/apps/${appId}/subscription-groups/${groupId}`,
 			).then((r) => r.group),
+		createGroup: (appId: string, data: CreateGroupInput) =>
+			fetchApi<{ group: SubscriptionGroup }>(
+				`/api/apps/${appId}/subscription-groups`,
+				{ body: JSON.stringify(data), method: "POST" },
+			).then((r) => r.group),
+		createSubscription: (appId: string, groupId: string, data: CreateSubscriptionInput) =>
+			fetchApi<{ purchase: InAppPurchase }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/subscriptions`,
+				{ body: JSON.stringify(data), method: "POST" },
+			).then((r) => r.purchase),
 	},
 
 	asoProfile: {

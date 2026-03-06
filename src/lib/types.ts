@@ -597,6 +597,32 @@ export interface PurchaseSyncResult {
 	syncedIaps: number;
 }
 
+export interface CreatePurchaseInput {
+	name: string;
+	productId: string;
+	productType: string;
+	localizations?: { language: string; name?: string; description?: string }[];
+	prices?: { territory: string; currency: string; price: string }[];
+}
+
+export interface UpdatePurchaseInput {
+	name?: string;
+	localizations?: { language: string; name?: string; description?: string }[];
+	prices?: { territory: string; currency: string; price: string }[];
+}
+
+export interface CreateGroupInput {
+	name: string;
+}
+
+export interface CreateSubscriptionInput {
+	name: string;
+	productId: string;
+	duration: string;
+	localizations?: { language: string; name?: string; description?: string }[];
+	prices?: { territory: string; currency: string; price: string }[];
+}
+
 export const APP_STORE_LANGUAGES = [
 	{ label: "Arabic", locale: "ar-SA" },
 	{ label: "Catalan", locale: "ca" },

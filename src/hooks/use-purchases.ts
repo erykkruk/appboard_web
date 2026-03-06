@@ -3,6 +3,12 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
+import type {
+	CreateGroupInput,
+	CreatePurchaseInput,
+	CreateSubscriptionInput,
+	UpdatePurchaseInput,
+} from "@/lib/types";
 
 export function usePurchases(appId: string) {
 	return useQuery({
@@ -40,6 +46,71 @@ export function useSyncPurchases(appId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({
 		mutationFn: () => api.purchases.sync(appId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
+		},
+	});
+}
+
+export function useCreatePurchase(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (data: CreatePurchaseInput) =>
+			api.purchases.create(appId, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
+		},
+	});
+}
+
+export function useUpdatePurchase(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({
+			purchaseId,
+			data,
+		}: {
+			purchaseId: string;
+			data: UpdatePurchaseInput;
+		}) => api.purchases.update(appId, purchaseId, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
+		},
+	});
+}
+
+export function useDeletePurchase(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (purchaseId: string) =>
+			api.purchases.delete(appId, purchaseId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
+		},
+	});
+}
+
+export function useCreateGroup(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (data: CreateGroupInput) =>
+			api.purchases.createGroup(appId, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
+		},
+	});
+}
+
+export function useCreateSubscription(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({
+			groupId,
+			data,
+		}: {
+			groupId: string;
+			data: CreateSubscriptionInput;
+		}) => api.purchases.createSubscription(appId, groupId, data),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
 		},

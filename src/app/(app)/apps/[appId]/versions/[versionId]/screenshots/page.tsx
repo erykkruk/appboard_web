@@ -433,7 +433,7 @@ export default function VersionScreenshotsPage() {
   const hasLanguage = !!activeLang;
 
   return (
-    <div className="space-y-5 p-6">
+    <div className="mx-auto max-w-5xl space-y-5 p-6">
       {/* Hidden file inputs */}
       <input
         ref={fileInputRef}

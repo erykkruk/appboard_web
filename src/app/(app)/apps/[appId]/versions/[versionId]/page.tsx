@@ -1121,7 +1121,7 @@ export default function VersionDetailPage() {
 	];
 
 	return (
-		<div className="p-6 space-y-6">
+		<div className="mx-auto max-w-3xl space-y-6 p-6">
 			{/* Cache banner */}
 			{isFromCache && (
 				<div className="flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-2.5 text-sm text-yellow-200">
