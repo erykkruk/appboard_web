@@ -66,7 +66,7 @@ import {
 	useSyncPurchases,
 } from "@/hooks/use-purchases";
 import type { InAppPurchase, SubscriptionGroup } from "@/lib/types";
-import { cn } from "@/lib/utils";
+import { cn, sortPricesByCurrency } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
 	approved: "bg-green-500/10 text-green-500",
@@ -175,7 +175,7 @@ function PurchaseCard({
 				{purchase.prices.length > 0 && (
 					<div className="mt-3 flex flex-wrap gap-2">
 						<CreditCard className="mt-0.5 h-3.5 w-3.5 text-muted-foreground" />
-						{purchase.prices.slice(0, 5).map((p) => (
+						{sortPricesByCurrency(purchase.prices).slice(0, 5).map((p) => (
 							<span
 								key={p.id}
 								className="rounded-md bg-muted px-2 py-0.5 text-xs tabular-nums"

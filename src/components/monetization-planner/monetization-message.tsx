@@ -21,7 +21,7 @@ import {
 	CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 import { extractPlan } from "@/hooks/use-monetization-chat";
-import { cn } from "@/lib/utils";
+import { cn, sortPricesByCurrency } from "@/lib/utils";
 
 const DEFAULT_PRIMARY_TERRITORY = "US";
 
@@ -43,26 +43,11 @@ interface MonetizationMessageProps {
 	role: "assistant" | "user";
 }
 
-const PRIORITY_CURRENCIES = ["USD", "EUR"];
-
-function sortPrices(
-	prices: Array<{ currency: string; price: string; territory: string }>,
-) {
-	return [...prices].sort((a, b) => {
-		const ai = PRIORITY_CURRENCIES.indexOf(a.currency);
-		const bi = PRIORITY_CURRENCIES.indexOf(b.currency);
-		if (ai !== -1 && bi !== -1) return ai - bi;
-		if (ai !== -1) return -1;
-		if (bi !== -1) return 1;
-		return a.territory.localeCompare(b.territory);
-	});
-}
-
 function PriceList({
 	prices,
 }: { prices: Array<{ currency: string; price: string; territory: string }> }) {
 	if (prices.length === 0) return null;
-	const sorted = sortPrices(prices);
+	const sorted = sortPricesByCurrency(prices);
 	return (
 		<div className="space-y-0.5">
 			<span className="text-xs font-medium text-foreground/70">Prices</span>

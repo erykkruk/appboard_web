@@ -6,6 +6,7 @@ import {
 	TableHeader,
 	TableRow,
 } from "@/components/ui/table";
+import { sortPricesByCurrency } from "@/lib/utils";
 
 interface PriceEntry {
 	id: string;
@@ -27,9 +28,7 @@ export function PricesTable({ prices }: PricesTableProps) {
 		);
 	}
 
-	const sorted = [...prices].sort((a, b) =>
-		a.territory.localeCompare(b.territory),
-	);
+	const sorted = sortPricesByCurrency(prices);
 
 	return (
 		<Table>

@@ -72,7 +72,7 @@ import {
 	useUpdateGroupReviewInfo,
 	useUpsertGroupLocalizations,
 } from "@/hooks/use-purchases";
-import { cn } from "@/lib/utils";
+import { cn, sortPricesByCurrency } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
 	approved: "bg-green-500/10 text-green-500",
@@ -392,7 +392,7 @@ function SubscriptionsTab({
 								{sub.prices.length > 0 && (
 									<div className="mt-2 flex flex-wrap gap-2">
 										<CreditCard className="mt-0.5 h-3.5 w-3.5 text-muted-foreground" />
-										{sub.prices.slice(0, 3).map((p) => (
+										{sortPricesByCurrency(sub.prices).slice(0, 3).map((p) => (
 											<span
 												key={p.id}
 												className="rounded-md bg-muted px-2 py-0.5 text-xs tabular-nums"
