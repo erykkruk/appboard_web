@@ -443,23 +443,6 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
     }
   };
 
-  if (groups.isLoading || groupProfile.isLoading) {
-    return (
-      <div className="mx-auto max-w-3xl space-y-4 p-6">
-        <Skeleton className="h-24 w-full rounded-xl" />
-        <Skeleton className="h-48 w-full rounded-xl" />
-      </div>
-    );
-  }
-
-  if (!group) {
-    return (
-      <div className="flex flex-1 items-center justify-center p-6">
-        <p className="text-sm text-muted-foreground">Group not found.</p>
-      </div>
-    );
-  }
-
   const actionsMenuItems = useMemo<ActionsMenuAction[]>(() => [
     {
       key: "ai-prompt",
@@ -494,6 +477,23 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
       onSelect: () => {},
     },
   ], [handleCopyAiPrompt, handleExportCsv, handleExportJson, handleDownloadTemplate, isImporting]);
+
+  if (groups.isLoading || groupProfile.isLoading) {
+    return (
+      <div className="mx-auto max-w-3xl space-y-4 p-6">
+        <Skeleton className="h-24 w-full rounded-xl" />
+        <Skeleton className="h-48 w-full rounded-xl" />
+      </div>
+    );
+  }
+
+  if (!group) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <p className="text-sm text-muted-foreground">Group not found.</p>
+      </div>
+    );
+  }
 
   return (
     <TooltipProvider>
