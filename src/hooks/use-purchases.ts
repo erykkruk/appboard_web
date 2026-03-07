@@ -10,6 +10,15 @@ import type {
 	UpdatePurchaseInput,
 } from "@/lib/types";
 
+export function usePurchasesCapabilities(appId: string) {
+	return useQuery({
+		queryKey: ["purchases", appId, "capabilities"],
+		queryFn: () => api.purchases.capabilities(appId),
+		enabled: !!appId,
+		staleTime: 5 * 60 * 1000,
+	});
+}
+
 export function usePurchases(appId: string) {
 	return useQuery({
 		queryKey: ["purchases", appId],

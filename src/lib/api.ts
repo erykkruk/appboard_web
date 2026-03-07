@@ -24,6 +24,8 @@ import type {
 	GeneratePrivacyRequest,
 	GenerateReleaseNotesRequest,
 	GlobalPromptEntry,
+	GroupAsoProfile,
+	GroupAsoProfileInput,
 	HistoryEntry,
 	InAppPurchase,
 	Listing,
@@ -277,11 +279,31 @@ export const api = {
 					method: "PUT",
 				},
 			),
-		update: (groupId: string, data: { name?: string; iconUrl?: string | null }) =>
+		update: (groupId: string, data: { name?: string; iconUrl?: string | null; useSharedProfile?: boolean }) =>
 			fetchApi<{ appGroup: AppGroup }>(`/api/app-groups/${groupId}`, {
 				body: JSON.stringify(data),
 				method: "PUT",
 			}).then((r) => r.appGroup),
+		getAsoProfile: (groupId: string) =>
+			fetchApi<{ asoProfile: GroupAsoProfile | null; useSharedProfile: boolean }>(
+				`/api/app-groups/${groupId}/aso-profile`,
+			),
+		updateAsoProfile: (groupId: string, data: GroupAsoProfileInput) =>
+			fetchApi<{ asoProfile: GroupAsoProfile }>(
+				`/api/app-groups/${groupId}/aso-profile`,
+				{
+					body: JSON.stringify(data),
+					method: "PUT",
+				},
+			).then((r) => r.asoProfile),
+		enableSharedProfile: (groupId: string, sourceAppId?: string | null) =>
+			fetchApi<{ asoProfile: GroupAsoProfile | null; useSharedProfile: boolean }>(
+				`/api/app-groups/${groupId}/aso-profile/enable`,
+				{
+					body: JSON.stringify({ sourceAppId: sourceAppId ?? null }),
+					method: "POST",
+				},
+			),
 	},
 
 	apps: {
@@ -298,6 +320,10 @@ export const api = {
 	},
 
 	purchases: {
+		capabilities: (appId: string) =>
+			fetchApi<{ reason?: string; supported: boolean }>(
+				`/api/apps/${appId}/purchases/capabilities`,
+			),
 		list: (appId: string) =>
 			fetchApi<{ purchases: InAppPurchase[] }>(
 				`/api/apps/${appId}/purchases`,
@@ -356,9 +382,9 @@ export const api = {
 				},
 			).then((r) => r.asoProfile),
 		get: (appId: string) =>
-			fetchApi<{ asoProfile: AsoProfile | null }>(
+			fetchApi<{ asoProfile: AsoProfile | null; locked?: boolean; groupId?: string }>(
 				`/api/apps/${appId}/aso-profile`,
-			).then((r) => r.asoProfile),
+			),
 		update: (appId: string, data: AsoProfileInput) =>
 			fetchApi<{ asoProfile: AsoProfile }>(`/api/apps/${appId}/aso-profile`, {
 				body: JSON.stringify(data),

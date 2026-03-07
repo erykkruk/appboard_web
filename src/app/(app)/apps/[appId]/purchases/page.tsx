@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import {
+	AlertTriangle,
 	CreditCard,
 	Globe,
 	Loader2,
@@ -17,6 +18,7 @@ import {
 import { toast } from "sonner";
 
 import { MonetizationChat } from "@/components/monetization-planner/monetization-chat";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -59,6 +61,7 @@ import {
 	useCreateSubscription,
 	useDeletePurchase,
 	usePurchases,
+	usePurchasesCapabilities,
 	useSubscriptionGroups,
 	useSyncPurchases,
 	useUpdatePurchase,
@@ -1009,6 +1012,7 @@ export default function PurchasesPage() {
 	const purchases = usePurchases(appId);
 	const subscriptionGroups = useSubscriptionGroups(appId);
 	const syncPurchases = useSyncPurchases(appId);
+	const capabilities = usePurchasesCapabilities(appId);
 
 	const [showMonetizationChat, setShowMonetizationChat] = useState(false);
 	const [showCreatePurchase, setShowCreatePurchase] = useState(false);
@@ -1098,6 +1102,17 @@ export default function PurchasesPage() {
 					</Button>
 				</div>
 			</div>
+
+			{capabilities.data && !capabilities.data.supported && (
+				<Alert variant="destructive" className="mb-4">
+					<AlertTriangle className="h-4 w-4" />
+					<AlertTitle>Monetization unavailable</AlertTitle>
+					<AlertDescription>
+						{capabilities.data.reason ??
+							"This store does not support in-app purchase management."}
+					</AlertDescription>
+				</Alert>
+			)}
 
 			{isLoading && (
 				<div className="space-y-4">
