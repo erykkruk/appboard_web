@@ -467,31 +467,62 @@ export default function VersionScreenshotsPage() {
         </div>
       </div>
 
-      {/* App Icon */}
-      <div className="rounded-xl border border-border p-5">
-        <div className="mb-3 flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">App Icon</p>
-            <p className="text-xs text-muted-foreground">
-              512 &times; 512px PNG or JPEG
-            </p>
+      {/* App Icon — only for Android (Google Play manages icons as assets) */}
+      {isAndroid && (
+        <div className="rounded-xl border border-border p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">App Icon</p>
+              <p className="text-xs text-muted-foreground">
+                512 &times; 512px PNG or JPEG
+              </p>
+            </div>
           </div>
-        </div>
-        <input
-          ref={iconFileInputRef}
-          type="file"
-          accept="image/png,image/jpeg"
-          className="hidden"
-          onChange={handleIconUpload}
-        />
-        {currentIcon ? (
-          <div className="flex items-end gap-4">
-            <img
-              src={currentIcon.url}
-              alt="App Icon"
-              className="h-[128px] w-[128px] rounded-2xl border border-border object-cover"
-            />
-            <div className="flex gap-2">
+          <input
+            ref={iconFileInputRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            className="hidden"
+            onChange={handleIconUpload}
+          />
+          {currentIcon ? (
+            <div className="flex items-end gap-4">
+              <img
+                src={currentIcon.url}
+                alt="App Icon"
+                className="h-[128px] w-[128px] rounded-2xl border border-border object-cover"
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => iconFileInputRef.current?.click()}
+                  disabled={uploadIconAsset.isPending || !hasLanguage}
+                >
+                  {uploadIconAsset.isPending ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Replace
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleIconDelete}
+                  disabled={deleteIconAsset.isPending}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Delete
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="flex h-[128px] w-[128px] items-center justify-center rounded-2xl border-2 border-dashed border-border text-muted-foreground">
+                <ImageIcon className="h-8 w-8 opacity-30" />
+              </div>
               <Button
                 variant="outline"
                 size="sm"
@@ -503,41 +534,12 @@ export default function VersionScreenshotsPage() {
                 ) : (
                   <Upload className="mr-1.5 h-3.5 w-3.5" />
                 )}
-                Replace
-              </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={handleIconDelete}
-                disabled={deleteIconAsset.isPending}
-                className="text-destructive hover:text-destructive"
-              >
-                <Trash2 className="mr-1.5 h-3.5 w-3.5" />
-                Delete
+                Upload Icon
               </Button>
             </div>
-          </div>
-        ) : (
-          <div className="flex items-center gap-4">
-            <div className="flex h-[128px] w-[128px] items-center justify-center rounded-2xl border-2 border-dashed border-border text-muted-foreground">
-              <ImageIcon className="h-8 w-8 opacity-30" />
-            </div>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => iconFileInputRef.current?.click()}
-              disabled={uploadIconAsset.isPending || !hasLanguage}
-            >
-              {uploadIconAsset.isPending ? (
-                <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Upload className="mr-1.5 h-3.5 w-3.5" />
-              )}
-              Upload Icon
-            </Button>
-          </div>
-        )}
-      </div>
+          )}
+        </div>
+      )}
 
       {/* Device Tabs */}
       <Tabs
