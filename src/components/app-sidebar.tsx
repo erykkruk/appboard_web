@@ -631,9 +631,9 @@ function GroupHeader({
                 className="relative"
                 onGotPointerCapture={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
               >
-                <button
-                  type="button"
-                  onClick={onToggle}
+                <Link
+                  href={`/groups/${group.id}/information`}
+                  draggable={false}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setMenuOpen(true);
@@ -655,7 +655,7 @@ function GroupHeader({
                   ) : (
                     getInitials(group.name)
                   )}
-                </button>
+                </Link>
                 <div className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#111111]">
                   {badgeType === "star" ? (
                     <Star className="h-2.5 w-2.5 fill-yellow-500 text-yellow-500" />
@@ -677,6 +677,14 @@ function GroupHeader({
                 {group.name}
               </DropdownMenuLabel>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => { onToggle(); setMenuOpen(false); }}>
+                {isCollapsed ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+                {isCollapsed ? "Expand" : "Collapse"}
+              </DropdownMenuItem>
               <DropdownMenuItem onSelect={() => { onToggleFavorite(); setMenuOpen(false); }}>
                 <Star className={cn("h-4 w-4", isFavorite && "fill-yellow-500 text-yellow-500")} />
                 {isFavorite ? "Remove from Favorites" : "Add to Favorites"}

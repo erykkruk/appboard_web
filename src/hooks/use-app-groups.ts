@@ -30,10 +30,15 @@ export function useUpdateAppGroup() {
       data,
     }: {
       groupId: string;
-      data: { name?: string; iconUrl?: string | null };
+      data: { name?: string; iconUrl?: string | null; useSharedProfile?: boolean };
     }) => api.appGroups.update(groupId, data),
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: ["app-groups"] });
+      if (variables.data.useSharedProfile !== undefined) {
+        queryClient.invalidateQueries({
+          queryKey: ["group-aso-profile", variables.groupId],
+        });
+      }
     },
   });
 }

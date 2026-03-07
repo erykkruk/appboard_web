@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import {
   Apple,
   ChevronRight,
   Info,
+  Link2,
   Loader2,
+  Lock,
   Store,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -251,12 +254,14 @@ function MultiInput({
   onChange,
   placeholder,
   hint,
+  disabled,
 }: {
   label: string;
   values: string[];
   onChange: (values: string[]) => void;
   placeholder?: string;
   hint?: FieldHint;
+  disabled?: boolean;
 }) {
   const [input, setInput] = useState("");
 
@@ -278,42 +283,46 @@ function MultiInput({
         <Label className="text-sm">{label}</Label>
         {hint && <FieldTooltip hint={hint} />}
       </div>
-      <div className="flex gap-2">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              addItem();
-            }
-          }}
-          placeholder={placeholder ?? `Add ${label.toLowerCase()}...`}
-          className="flex-1"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addItem}
-          disabled={!input.trim()}
-        >
-          Add
-        </Button>
-      </div>
+      {!disabled && (
+        <div className="flex gap-2">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addItem();
+              }
+            }}
+            placeholder={placeholder ?? `Add ${label.toLowerCase()}...`}
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addItem}
+            disabled={!input.trim()}
+          >
+            Add
+          </Button>
+        </div>
+      )}
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {values.map((item, i) => (
             <Badge
               key={`${item}-${i}`}
               variant="secondary"
-              className="cursor-pointer gap-1 pr-1.5"
-              onClick={() => removeItem(i)}
+              className={disabled ? "" : "cursor-pointer gap-1 pr-1.5"}
+              onClick={disabled ? undefined : () => removeItem(i)}
             >
               {item}
-              <span className="ml-0.5 text-muted-foreground hover:text-foreground">
-                ×
-              </span>
+              {!disabled && (
+                <span className="ml-0.5 text-muted-foreground hover:text-foreground">
+                  ×
+                </span>
+              )}
             </Badge>
           ))}
         </div>
@@ -366,6 +375,7 @@ function TextField({
   multiline = false,
   placeholder,
   hint,
+  disabled,
 }: {
   label: string;
   value: string;
@@ -374,6 +384,7 @@ function TextField({
   multiline?: boolean;
   placeholder?: string;
   hint?: FieldHint;
+  disabled?: boolean;
 }) {
   const Component = multiline ? Textarea : Input;
   return (
@@ -392,6 +403,7 @@ function TextField({
         onChange={(e) => onChange(e.target.value)}
         maxLength={maxLength}
         placeholder={placeholder}
+        disabled={disabled}
         className={multiline ? "min-h-[80px] resize-y" : ""}
       />
     </div>
@@ -417,6 +429,9 @@ export default function AppInformationPage() {
   const allApps = useApps();
   const copyFrom = useCopyFromAsoProfile(appId);
 
+  const isLocked = profile.data?.locked === true;
+  const lockedGroupId = profile.data?.groupId;
+
   const [form, setForm] = useState<AsoProfileInput>(EMPTY_PROFILE);
   const [initialized, setInitialized] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
@@ -426,8 +441,8 @@ export default function AppInformationPage() {
   );
 
   useEffect(() => {
-    if (profile.data !== undefined && !initialized) {
-      setForm(profileToForm(profile.data));
+    if (profile.data?.asoProfile !== undefined && !initialized) {
+      setForm(profileToForm(profile.data.asoProfile));
       setInitialized(true);
     }
   }, [profile.data, initialized]);
@@ -456,7 +471,7 @@ export default function AppInformationPage() {
   const { saveNow } = useAutoSave({
     data: form,
     onSave: (data) => updateProfile.mutateAsync(data),
-    enabled: initialized,
+    enabled: initialized && !isLocked,
   });
 
   const handleExportCsv = useCallback(() => {
@@ -691,12 +706,36 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           </Badge>
 
           {/* Three-dot menu */}
-          <ActionsMenu
-            actions={infoMenuActions}
-            importConfig={{ accept: ".csv,.json", onChange: handleImport }}
-          />
+          {!isLocked && (
+            <ActionsMenu
+              actions={infoMenuActions}
+              importConfig={{ accept: ".csv,.json", onChange: handleImport }}
+            />
+          )}
         </div>
       </div>
+
+      {/* Locked banner */}
+      {isLocked && lockedGroupId && (
+        <div className="flex items-start gap-3 rounded-lg border border-blue-500/30 bg-blue-500/5 p-4">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-blue-400">
+              ASO Profile is managed at group level
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This app&apos;s profile is read-only because the group has shared ASO profile enabled.
+            </p>
+            <Link
+              href={`/groups/${lockedGroupId}/information`}
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-blue-400 hover:text-blue-300"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Go to group settings
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* REQUIRED: Core Information */}
       <Card>
@@ -712,6 +751,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             onChange={(v) => set("category", v || null)}
             placeholder="e.g. Productivity, Health & Fitness"
             hint={FIELD_HINTS.category}
+            disabled={isLocked}
           />
           <TextField
             label="One-liner"
@@ -719,6 +759,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             onChange={(v) => set("oneLiner", v || null)}
             placeholder="A short tagline describing your app"
             hint={FIELD_HINTS.oneLiner}
+            disabled={isLocked}
           />
           <TextField
             label="Problem it solves"
@@ -727,6 +768,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             multiline
             placeholder="What problem does your app solve for users?"
             hint={FIELD_HINTS.problem}
+            disabled={isLocked}
           />
           <TextField
             label="Main Benefit"
@@ -735,6 +777,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             multiline
             placeholder="The #1 benefit users get from your app"
             hint={FIELD_HINTS.mainBenefit}
+            disabled={isLocked}
           />
           <MultiInput
             label="Key Features"
@@ -742,6 +785,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             onChange={(v) => set("keyFeatures", v.length ? v : null)}
             placeholder="Add a key feature..."
             hint={FIELD_HINTS.keyFeatures}
+            disabled={isLocked}
           />
           <TextField
             label="Differentiator"
@@ -750,6 +794,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             multiline
             placeholder="What makes your app unique vs competitors?"
             hint={FIELD_HINTS.differentiator}
+            disabled={isLocked}
           />
 
           {/* Tone & Branding */}
@@ -764,6 +809,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
                 onChange={(v) => set("tone", v || null)}
                 placeholder="e.g. Professional, Casual, Playful"
                 hint={FIELD_HINTS.tone}
+                disabled={isLocked}
               />
               <TextField
                 label="Brand Voice Example"
@@ -772,6 +818,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
                 multiline
                 placeholder="Paste a sentence that captures your brand voice"
                 hint={FIELD_HINTS.brandVoiceExample}
+                disabled={isLocked}
               />
               <MultiInput
                 label="Words to Include"
@@ -779,6 +826,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
                 onChange={(v) => set("wordsToInclude", v.length ? v : null)}
                 placeholder="Add a word..."
                 hint={FIELD_HINTS.wordsToInclude}
+                disabled={isLocked}
               />
               <MultiInput
                 label="Words to Avoid"
@@ -786,6 +834,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
                 onChange={(v) => set("wordsToAvoid", v.length ? v : null)}
                 placeholder="Add a word..."
                 hint={FIELD_HINTS.wordsToAvoid}
+                disabled={isLocked}
               />
             </div>
           </div>
@@ -801,6 +850,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           multiline
           placeholder="Who is your ideal user? Demographics, interests..."
           hint={FIELD_HINTS.targetAudience}
+          disabled={isLocked}
         />
         <MultiInput
           label="Pain Points"
@@ -808,6 +858,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("painPoints", v.length ? v : null)}
           placeholder="Add a pain point..."
           hint={FIELD_HINTS.painPoints}
+          disabled={isLocked}
         />
         <TextField
           label="User Language / Tone"
@@ -815,6 +866,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("userLanguage", v || null)}
           placeholder="How do your users talk about this problem?"
           hint={FIELD_HINTS.userLanguage}
+          disabled={isLocked}
         />
       </Section>
 
@@ -825,6 +877,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("competitors", v.length ? v : null)}
           placeholder="App Store or Google Play link..."
           hint={FIELD_HINTS.competitors}
+          disabled={isLocked}
         />
       </Section>
 
@@ -835,6 +888,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("downloadCount", v || null)}
           placeholder="e.g. 1M+, 500K+"
           hint={FIELD_HINTS.downloadCount}
+          disabled={isLocked}
         />
         <MultiInput
           label="Awards"
@@ -842,6 +896,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("awards", v.length ? v : null)}
           placeholder="Add an award..."
           hint={FIELD_HINTS.awards}
+          disabled={isLocked}
         />
         <MultiInput
           label="Press Quotes"
@@ -849,6 +904,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("pressQuotes", v.length ? v : null)}
           placeholder="Add a press quote..."
           hint={FIELD_HINTS.pressQuotes}
+          disabled={isLocked}
         />
         <MultiInput
           label="Testimonials"
@@ -856,6 +912,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("testimonials", v.length ? v : null)}
           placeholder="Add a testimonial..."
           hint={FIELD_HINTS.testimonials}
+          disabled={isLocked}
         />
       </Section>
 
@@ -866,6 +923,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("pricingModel", v || null)}
           placeholder="e.g. Freemium, Subscription, One-time"
           hint={FIELD_HINTS.pricingModel}
+          disabled={isLocked}
         />
         <TextField
           label="Price"
@@ -873,6 +931,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("price", v || null)}
           placeholder="e.g. Free, $4.99/month, $29.99/year"
           hint={FIELD_HINTS.price}
+          disabled={isLocked}
         />
         <MultiInput
           label="Free Features"
@@ -880,6 +939,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("freeFeatures", v.length ? v : null)}
           placeholder="Add a free feature..."
           hint={FIELD_HINTS.freeFeatures}
+          disabled={isLocked}
         />
         <MultiInput
           label="Premium Features"
@@ -887,6 +947,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("premiumFeatures", v.length ? v : null)}
           placeholder="Add a premium feature..."
           hint={FIELD_HINTS.premiumFeatures}
+          disabled={isLocked}
         />
       </Section>
 
@@ -897,6 +958,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("mustIncludeKeywords", v.length ? v : null)}
           placeholder="Add a keyword..."
           hint={FIELD_HINTS.mustIncludeKeywords}
+          disabled={isLocked}
         />
         <MultiInput
           label="Long-tail Keywords"
@@ -904,6 +966,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("longTailKeywords", v.length ? v : null)}
           placeholder="Add a keyword phrase..."
           hint={FIELD_HINTS.longTailKeywords}
+          disabled={isLocked}
         />
         <MultiInput
           label="Exclude Keywords"
@@ -911,6 +974,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("excludeKeywords", v.length ? v : null)}
           placeholder="Add a keyword to exclude..."
           hint={FIELD_HINTS.excludeKeywords}
+          disabled={isLocked}
         />
       </Section>
 

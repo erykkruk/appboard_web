@@ -502,11 +502,51 @@ export interface AppGroup {
 	name: string;
 	iconUrl: string | null;
 	sortOrder: number;
+	useSharedProfile: boolean;
 	workspaceId: string;
 	createdAt: string;
 	updatedAt: string;
 	members: AppGroupMember[];
 }
+
+export interface GroupAsoProfile {
+	id: string;
+	groupId: string;
+	createdAt: string;
+	updatedAt: string;
+	category: string | null;
+	differentiator: string | null;
+	keyFeatures: string[] | null;
+	mainBenefit: string | null;
+	oneLiner: string | null;
+	problem: string | null;
+	painPoints: string[] | null;
+	targetAudience: string | null;
+	userLanguage: string | null;
+	competitiveAdvantage: string | null;
+	competitors: string[] | null;
+	positioning: string | null;
+	brandVoiceExample: string | null;
+	tone: string | null;
+	wordsToAvoid: string[] | null;
+	wordsToInclude: string[] | null;
+	awards: string[] | null;
+	downloadCount: string | null;
+	pressQuotes: string[] | null;
+	testimonials: string[] | null;
+	freeFeatures: string[] | null;
+	premiumFeatures: string[] | null;
+	price: string | null;
+	pricingModel: string | null;
+	excludeKeywords: string[] | null;
+	longTailKeywords: string[] | null;
+	mustIncludeKeywords: string[] | null;
+}
+
+export type GroupAsoProfileInput = Omit<
+	GroupAsoProfile,
+	"id" | "groupId" | "createdAt" | "updatedAt"
+>;
 
 export interface SplitPreviewResult {
 	availableSizes: { height: number; width: number }[];
