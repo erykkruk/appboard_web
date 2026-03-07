@@ -724,12 +724,26 @@ export interface MonetizationPlan {
 		purchaseId: string;
 	}>;
 	groupEdits?: Array<{
+		availability?: string[];
 		groupId: string;
+		localizations?: Array<{
+			description?: string;
+			language: string;
+			name?: string;
+		}>;
 		name?: string;
+		reviewNotes?: string;
 	}>;
 	groups?: Array<{
+		availability?: string[];
 		id?: string;
+		localizations?: Array<{
+			description?: string;
+			language: string;
+			name?: string;
+		}>;
 		name: string;
+		reviewNotes?: string;
 		subscriptions: Array<{
 			duration: string;
 			localizations?: Array<{

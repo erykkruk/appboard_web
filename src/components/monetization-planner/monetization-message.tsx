@@ -5,6 +5,8 @@ import {
 	CheckCircle2,
 	ChevronDown,
 	ChevronRight,
+	FileText,
+	Globe,
 	Loader2,
 	Package,
 	Pencil,
@@ -167,6 +169,68 @@ function ExpandableItem({
 	);
 }
 
+function GroupMetadata({
+	localizations,
+	reviewNotes,
+	availability,
+}: {
+	localizations?: Array<{ description?: string; language: string; name?: string }>;
+	reviewNotes?: string;
+	availability?: string[];
+}) {
+	const hasContent =
+		(localizations && localizations.length > 0) ||
+		reviewNotes ||
+		(availability && availability.length > 0);
+
+	if (!hasContent) return null;
+
+	return (
+		<div className="space-y-1.5">
+			{localizations && localizations.length > 0 && (
+				<div className="space-y-0.5">
+					<span className="flex items-center gap-1 text-xs font-medium text-foreground/70">
+						<Globe className="h-3 w-3" /> Localizations
+					</span>
+					<LocalizationList localizations={localizations} />
+				</div>
+			)}
+			{reviewNotes && (
+				<div className="space-y-0.5">
+					<span className="flex items-center gap-1 text-xs font-medium text-foreground/70">
+						<FileText className="h-3 w-3" /> Review Notes
+					</span>
+					<p className="text-xs text-muted-foreground whitespace-pre-wrap">
+						{reviewNotes}
+					</p>
+				</div>
+			)}
+			{availability && availability.length > 0 && (
+				<div className="space-y-0.5">
+					<span className="flex items-center gap-1 text-xs font-medium text-foreground/70">
+						<Globe className="h-3 w-3" /> Availability
+					</span>
+					<div className="flex flex-wrap gap-1">
+						{availability.slice(0, 10).map((t) => (
+							<span
+								key={t}
+								className="rounded bg-muted px-1.5 py-0.5 text-xs"
+							>
+								{t}
+							</span>
+						))}
+						{availability.length > 10 && (
+							<span className="text-xs text-muted-foreground">
+								+{availability.length - 10} more
+							</span>
+						)}
+					</div>
+				</div>
+			)}
+		</div>
+	);
+}
+
 export function PlanPreview({
 	plan,
 	onExecute,
@@ -206,8 +270,16 @@ export function PlanPreview({
 						label={`Group: ${group.name}`}
 						labelClassName="font-medium"
 						details={
-							group.subscriptions.length > 0 ? (
+							group.subscriptions.length > 0 ||
+							group.localizations?.length ||
+							group.reviewNotes ||
+							group.availability?.length ? (
 								<div className="space-y-2">
+									<GroupMetadata
+										localizations={group.localizations}
+										reviewNotes={group.reviewNotes}
+										availability={group.availability}
+									/>
 									{group.subscriptions.map((sub) => (
 										<ExpandableItem
 											key={sub.productId}
@@ -326,15 +398,22 @@ export function PlanPreview({
 				))}
 
 				{plan.groupEdits?.map((e) => (
-					<div
+					<ExpandableItem
 						key={e.groupId}
-						className="flex items-center gap-2 text-muted-foreground"
-					>
-						<Pencil className="h-3.5 w-3.5 shrink-0" />
-						<span className="truncate">
-							Rename group: {e.groupId} → {e.name}
-						</span>
-					</div>
+						icon={<Pencil className="h-3.5 w-3.5 shrink-0" />}
+						label={`Edit group: ${e.groupId}${e.name ? ` → ${e.name}` : ""}`}
+						details={
+							e.localizations?.length ||
+							e.reviewNotes ||
+							e.availability?.length ? (
+								<GroupMetadata
+									localizations={e.localizations}
+									reviewNotes={e.reviewNotes}
+									availability={e.availability}
+								/>
+							) : null
+						}
+					/>
 				))}
 
 				{plan.deletes?.map((id) => (
