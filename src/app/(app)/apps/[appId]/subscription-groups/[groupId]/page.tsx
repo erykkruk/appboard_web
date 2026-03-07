@@ -8,6 +8,7 @@ import {
 	CreditCard,
 	Globe,
 	Loader2,
+	MessageSquare,
 	Plus,
 	Repeat,
 	Save,
@@ -15,7 +16,20 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { MonetizationChat } from "@/components/monetization-planner/monetization-chat";
+import { AiFieldAction } from "@/components/purchases/ai-field-action";
+import { PurchaseQuickAction } from "@/components/purchases/purchase-quick-action";
 import { TerritorySelector } from "@/components/purchases/territory-selector";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -43,9 +57,11 @@ import {
 	TabsTrigger,
 } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useApp } from "@/hooks/use-apps";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import {
 	useCreateSubscription,
+	useDeleteGroup,
 	useDeleteGroupLocalization,
 	useGroupAvailability,
 	useGroupLocalizations,
@@ -94,11 +110,16 @@ export default function SubscriptionGroupDetailPage() {
 	const searchParams = useSearchParams();
 	const defaultTab = searchParams.get("tab") || "subscriptions";
 	const { data: group, isLoading } = useSubscriptionGroup(appId, groupId);
+	const { data: app } = useApp(appId);
 	const updateGroup = useUpdateGroup(appId);
+	const deleteGroup = useDeleteGroup(appId);
+	const appName = app?.name ?? "";
 
 	const [name, setName] = useState("");
 	const [nameInitialized, setNameInitialized] = useState(false);
 	const [showCreateSub, setShowCreateSub] = useState(false);
+	const [showChat, setShowChat] = useState(false);
+	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
 	// Initialize name from fetched data
 	if (group && !nameInitialized) {
@@ -165,12 +186,86 @@ export default function SubscriptionGroupDetailPage() {
 						className="h-9 max-w-sm text-lg font-semibold"
 						placeholder="Group Name"
 					/>
+					<AiFieldAction
+						appId={appId}
+						field="groupName"
+						context={{ appName, groupName: name }}
+						currentValue={name}
+						onResult={setName}
+					/>
 					<Badge variant="outline" className="shrink-0 text-xs">
 						{group.subscriptions.length} subscription
 						{group.subscriptions.length !== 1 ? "s" : ""}
 					</Badge>
 				</div>
+				<div className="flex items-center gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => setShowChat(true)}
+					>
+						<MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+						AI Chat
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8 text-destructive hover:text-destructive"
+						onClick={() => setShowDeleteDialog(true)}
+					>
+						<Trash2 className="h-4 w-4" />
+					</Button>
+				</div>
 			</div>
+
+			<AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete subscription group?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will delete the subscription group &ldquo;{group.name}&rdquo;
+							and all its subscriptions from the store and local database.
+							This action cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={async () => {
+								try {
+									await deleteGroup.mutateAsync(groupId);
+									toast.success(`Deleted group "${group.name}"`);
+									router.push(`/apps/${appId}/purchases`);
+								} catch {
+									toast.error("Failed to delete subscription group");
+								}
+							}}
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+						>
+							{deleteGroup.isPending && (
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							)}
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			{/* AI Quick Action */}
+			<PurchaseQuickAction
+				appId={appId}
+				focusContext={{
+					id: group.id,
+					name: group.name,
+					type: "group",
+				}}
+			/>
+
+			<MonetizationChat
+				appId={appId}
+				open={showChat}
+				onOpenChange={setShowChat}
+			/>
 
 			{/* Tabs */}
 			<Tabs defaultValue={defaultTab}>
@@ -193,7 +288,7 @@ export default function SubscriptionGroupDetailPage() {
 				</TabsContent>
 
 				<TabsContent value="localizations" className="mt-4">
-					<GroupLocalizationsTab appId={appId} groupId={groupId} />
+					<GroupLocalizationsTab appId={appId} groupId={groupId} appName={appName} groupName={name} />
 				</TabsContent>
 
 				<TabsContent value="availability" className="mt-4">
@@ -201,7 +296,7 @@ export default function SubscriptionGroupDetailPage() {
 				</TabsContent>
 
 				<TabsContent value="review-info" className="mt-4">
-					<GroupReviewInfoTab appId={appId} groupId={groupId} />
+					<GroupReviewInfoTab appId={appId} groupId={groupId} appName={appName} groupName={name} />
 				</TabsContent>
 			</Tabs>
 		</div>
@@ -332,9 +427,13 @@ function SubscriptionsTab({
 function GroupLocalizationsTab({
 	appId,
 	groupId,
+	appName,
+	groupName,
 }: {
 	appId: string;
 	groupId: string;
+	appName: string;
+	groupName: string;
 }) {
 	const { data: localizations, isLoading } = useGroupLocalizations(appId, groupId);
 	const upsertLocs = useUpsertGroupLocalizations(appId, groupId);
@@ -465,9 +564,37 @@ function GroupLocalizationsTab({
 								className="mt-4 space-y-4"
 							>
 								<div className="space-y-2">
-									<label className="text-xs font-medium text-muted-foreground">
-										Display Name
-									</label>
+									<div className="flex items-center gap-1">
+										<label className="text-xs font-medium text-muted-foreground">
+											Display Name
+										</label>
+										<AiFieldAction
+											appId={appId}
+											field="groupName"
+											context={{ appName, groupName }}
+											currentValue={localEdits[lang]?.name ?? ""}
+											language={lang}
+											onResult={(v) =>
+												setLocalEdits((prev) => ({
+													...prev,
+													[lang]: { ...prev[lang], name: v },
+												}))
+											}
+											showTranslate
+											otherLocales={localeKeys.filter((l) => l !== lang)}
+											onTranslateResults={(translations) => {
+												setLocalEdits((prev) => {
+													const next = { ...prev };
+													for (const [locale, value] of Object.entries(translations)) {
+														if (next[locale]) {
+															next[locale] = { ...next[locale], name: value };
+														}
+													}
+													return next;
+												});
+											}}
+										/>
+									</div>
 									<Input
 										value={localEdits[lang]?.name ?? ""}
 										onChange={(e) =>
@@ -483,9 +610,37 @@ function GroupLocalizationsTab({
 									/>
 								</div>
 								<div className="space-y-2">
-									<label className="text-xs font-medium text-muted-foreground">
-										Description
-									</label>
+									<div className="flex items-center gap-1">
+										<label className="text-xs font-medium text-muted-foreground">
+											Description
+										</label>
+										<AiFieldAction
+											appId={appId}
+											field="groupDescription"
+											context={{ appName, groupName }}
+											currentValue={localEdits[lang]?.description ?? ""}
+											language={lang}
+											onResult={(v) =>
+												setLocalEdits((prev) => ({
+													...prev,
+													[lang]: { ...prev[lang], description: v },
+												}))
+											}
+											showTranslate
+											otherLocales={localeKeys.filter((l) => l !== lang)}
+											onTranslateResults={(translations) => {
+												setLocalEdits((prev) => {
+													const next = { ...prev };
+													for (const [locale, value] of Object.entries(translations)) {
+														if (next[locale]) {
+															next[locale] = { ...next[locale], description: value };
+														}
+													}
+													return next;
+												});
+											}}
+										/>
+									</div>
 									<Textarea
 										value={
 											localEdits[lang]?.description ?? ""
@@ -591,9 +746,13 @@ function GroupAvailabilityTab({
 function GroupReviewInfoTab({
 	appId,
 	groupId,
+	appName,
+	groupName,
 }: {
 	appId: string;
 	groupId: string;
+	appName: string;
+	groupName: string;
 }) {
 	const { data: reviewInfo, isLoading } = useGroupReviewInfo(appId, groupId);
 	const updateReviewInfo = useUpdateGroupReviewInfo(appId, groupId);
@@ -646,7 +805,16 @@ function GroupReviewInfoTab({
 			</CardHeader>
 			<CardContent className="space-y-4">
 				<div className="space-y-2">
-					<Label>Review Notes</Label>
+					<div className="flex items-center gap-1">
+						<Label>Review Notes</Label>
+						<AiFieldAction
+							appId={appId}
+							field="reviewNotes"
+							context={{ appName, groupName }}
+							currentValue={notes}
+							onResult={setNotes}
+						/>
+					</div>
 					<Textarea
 						value={notes}
 						onChange={(e) => setNotes(e.target.value)}

@@ -4,54 +4,13 @@ import { useCallback, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
+import type { MonetizationPlan } from "@/lib/types";
+
+export type { MonetizationPlan };
 
 interface ChatMessage {
 	content: string;
 	role: "assistant" | "user";
-}
-
-interface MonetizationPlan {
-	deletes?: string[];
-	edits?: Array<{
-		localizations?: Array<{
-			description?: string;
-			language: string;
-			name?: string;
-		}>;
-		name?: string;
-		prices?: Array<{ currency: string; price: string; territory: string }>;
-		purchaseId: string;
-	}>;
-	groupEdits?: Array<{
-		groupId: string;
-		name?: string;
-	}>;
-	groups?: Array<{
-		id?: string;
-		name: string;
-		subscriptions: Array<{
-			duration: string;
-			localizations?: Array<{
-				description?: string;
-				language: string;
-				name?: string;
-			}>;
-			name: string;
-			prices?: Array<{ currency: string; price: string; territory: string }>;
-			productId: string;
-		}>;
-	}>;
-	purchases?: Array<{
-		localizations?: Array<{
-			description?: string;
-			language: string;
-			name?: string;
-		}>;
-		name: string;
-		prices?: Array<{ currency: string; price: string; territory: string }>;
-		productId: string;
-		productType: string;
-	}>;
 }
 
 export function extractPlan(content: string): MonetizationPlan | null {

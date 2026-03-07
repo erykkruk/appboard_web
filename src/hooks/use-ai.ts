@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import type {
   DraftReplyRequest,
   GenerateDescriptionRequest,
+  GeneratePurchaseFieldRequest,
   GenerateReleaseNotesRequest,
   SuggestKeywordsRequest,
   TranslateRequest,
@@ -40,5 +41,12 @@ export function useGenerateReleaseNotes() {
   return useMutation({
     mutationFn: (data: GenerateReleaseNotesRequest) =>
       api.ai.generateReleaseNotes(data),
+  });
+}
+
+export function useGeneratePurchaseField() {
+  return useMutation({
+    mutationFn: (data: GeneratePurchaseFieldRequest) =>
+      api.ai.generatePurchaseField(data),
   });
 }

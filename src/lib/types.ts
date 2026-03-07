@@ -162,6 +162,7 @@ export interface Settings {
 	ai_model_rephrase?: string;
 	ai_model_research?: string;
 	ai_temperature?: string;
+	primary_territory?: string;
 	[key: string]: string | undefined;
 }
 
@@ -237,6 +238,29 @@ export type ListingFieldName =
 	| "keywords"
 	| "promotionalText"
 	| "whatsNew";
+
+export type PurchaseFieldName =
+	| "purchaseName"
+	| "purchaseDescription"
+	| "reviewNotes"
+	| "productId"
+	| "groupName"
+	| "groupDescription";
+
+export interface GeneratePurchaseFieldRequest {
+	appId: string;
+	field: PurchaseFieldName;
+	context: {
+		appName: string;
+		productType?: string;
+		productName?: string;
+		groupName?: string;
+		duration?: string;
+		bundleId?: string;
+	};
+	currentValue?: string;
+	language?: string;
+}
 
 export interface GenerateListingFieldRequest {
 	appId: string;
@@ -683,6 +707,68 @@ export interface CreateSubscriptionInput {
 	duration: string;
 	localizations?: { language: string; name?: string; description?: string }[];
 	prices?: { territory: string; currency: string; price: string }[];
+}
+
+// AI Quick Action
+export interface MonetizationPlan {
+	deletes?: string[];
+	groupDeletes?: string[];
+	edits?: Array<{
+		localizations?: Array<{
+			description?: string;
+			language: string;
+			name?: string;
+		}>;
+		name?: string;
+		prices?: Array<{ currency: string; price: string; territory: string }>;
+		purchaseId: string;
+	}>;
+	groupEdits?: Array<{
+		groupId: string;
+		name?: string;
+	}>;
+	groups?: Array<{
+		id?: string;
+		name: string;
+		subscriptions: Array<{
+			duration: string;
+			localizations?: Array<{
+				description?: string;
+				language: string;
+				name?: string;
+			}>;
+			name: string;
+			prices?: Array<{ currency: string; price: string; territory: string }>;
+			productId: string;
+		}>;
+	}>;
+	purchases?: Array<{
+		localizations?: Array<{
+			description?: string;
+			language: string;
+			name?: string;
+		}>;
+		name: string;
+		prices?: Array<{ currency: string; price: string; territory: string }>;
+		productId: string;
+		productType: string;
+	}>;
+}
+
+export interface QuickActionFocusContext {
+	duration?: string;
+	groupName?: string;
+	id: string;
+	localizations?: Array<{
+		description?: string;
+		language: string;
+		name?: string;
+	}>;
+	name: string;
+	prices?: Array<{ currency: string; price: string; territory: string }>;
+	productId?: string;
+	productType?: string;
+	type: "group" | "purchase";
 }
 
 export const APP_STORE_LANGUAGES = [

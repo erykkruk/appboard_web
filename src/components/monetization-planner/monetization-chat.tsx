@@ -15,6 +15,7 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { useMonetizationChat } from "@/hooks/use-monetization-chat";
+import { useSettings } from "@/hooks/use-settings";
 import { api } from "@/lib/api";
 
 import { MonetizationMessage } from "./monetization-message";
@@ -31,6 +32,9 @@ export function MonetizationChat({
 	open,
 	onOpenChange,
 }: MonetizationChatProps) {
+	const { data: settings } = useSettings();
+	const primaryTerritory = settings?.primary_territory || "US";
+
 	const [territoryMode, setTerritoryMode] = useState<"all" | "custom">("all");
 	const [selectedTerritoryCodes, setSelectedTerritoryCodes] = useState<
 		string[] | null
@@ -172,6 +176,7 @@ export function MonetizationChat({
 							role={msg.role}
 							onExecutePlan={handleExecutePlan}
 							isExecuting={executePlan.isPending}
+							primaryTerritory={primaryTerritory}
 							planExecuted={executedPlans.has(
 								JSON.stringify(
 									(() => {

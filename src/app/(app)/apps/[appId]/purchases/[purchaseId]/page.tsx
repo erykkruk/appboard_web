@@ -2,11 +2,24 @@
 
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { ChevronRight, Globe, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { useParams, useRouter } from "next/navigation";
+import { ChevronRight, Globe, Loader2, MessageSquare, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
+import { MonetizationChat } from "@/components/monetization-planner/monetization-chat";
+import { AiFieldAction } from "@/components/purchases/ai-field-action";
+import { PurchaseQuickAction } from "@/components/purchases/purchase-quick-action";
 import { InheritToggle } from "@/components/purchases/inherit-toggle";
+import {
+	AlertDialog,
+	AlertDialogAction,
+	AlertDialogCancel,
+	AlertDialogContent,
+	AlertDialogDescription,
+	AlertDialogFooter,
+	AlertDialogHeader,
+	AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { MetadataGrid } from "@/components/purchases/metadata-grid";
 import { PricesTable } from "@/components/purchases/prices-table";
 import { TerritorySelector } from "@/components/purchases/territory-selector";
@@ -24,8 +37,10 @@ import {
 	TabsTrigger,
 } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { useApp } from "@/hooks/use-apps";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import {
+	useDeletePurchase,
 	usePurchase,
 	usePurchaseAvailability,
 	usePurchaseReviewInfo,
@@ -66,9 +81,16 @@ export default function PurchaseDetailPage() {
 		appId: string;
 		purchaseId: string;
 	}>();
+	const router = useRouter();
 	const { data: purchase, isLoading } = usePurchase(appId, purchaseId);
+	const { data: app } = useApp(appId);
 	const updatePurchase = useUpdatePurchase(appId);
 	const updateFamilySharing = useUpdateFamilySharing(appId);
+	const deletePurchase = useDeletePurchase(appId);
+
+	const appName = app?.name ?? "";
+	const [showChat, setShowChat] = useState(false);
+	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
 	const [name, setName] = useState("");
 	const [nameInitialized, setNameInitialized] = useState(false);
@@ -249,6 +271,14 @@ export default function PurchaseDetailPage() {
 		);
 	}
 
+	const aiContext = {
+		appName,
+		productType: purchase.productType,
+		productName: purchase.name,
+		groupName: undefined as string | undefined,
+		duration: purchase.duration ?? undefined,
+	};
+
 	const statusClass =
 		STATUS_COLORS[purchase.status] ?? "bg-muted text-muted-foreground";
 
@@ -276,12 +306,100 @@ export default function PurchaseDetailPage() {
 							className="h-9 max-w-sm text-lg font-semibold"
 							placeholder="Reference Name"
 						/>
+						<AiFieldAction
+							appId={appId}
+							field="purchaseName"
+							context={aiContext}
+							currentValue={name}
+							onResult={setName}
+						/>
 						<Badge className={cn("shrink-0 text-xs", statusClass)}>
 							{purchase.status}
 						</Badge>
 					</div>
 				</div>
+				<div className="flex items-center gap-2">
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => setShowChat(true)}
+					>
+						<MessageSquare className="mr-1.5 h-3.5 w-3.5" />
+						AI Chat
+					</Button>
+					<Button
+						variant="ghost"
+						size="icon"
+						className="h-8 w-8 text-destructive hover:text-destructive"
+						onClick={() => setShowDeleteDialog(true)}
+					>
+						<Trash2 className="h-4 w-4" />
+					</Button>
+				</div>
 			</div>
+
+			<AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>Delete purchase?</AlertDialogTitle>
+						<AlertDialogDescription>
+							This will delete &ldquo;{purchase.name}&rdquo; (
+							{purchase.productId}) from the store and local database.
+							This action cannot be undone.
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							onClick={async () => {
+								try {
+									await deletePurchase.mutateAsync(purchaseId);
+									toast.success(`Deleted "${purchase.name}"`);
+									router.push(`/apps/${appId}/purchases`);
+								} catch {
+									toast.error("Failed to delete purchase");
+								}
+							}}
+							className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+						>
+							{deletePurchase.isPending && (
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							)}
+							Delete
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
+
+			{/* AI Quick Action */}
+			<PurchaseQuickAction
+				appId={appId}
+				focusContext={{
+					duration: purchase.duration ?? undefined,
+					groupName: undefined,
+					id: purchase.id,
+					localizations: purchase.localizations.map((l) => ({
+						description: l.description ?? undefined,
+						language: l.language,
+						name: l.name ?? undefined,
+					})),
+					name: purchase.name,
+					prices: purchase.prices.map((p) => ({
+						currency: p.currency,
+						price: p.price,
+						territory: p.territory,
+					})),
+					productId: purchase.productId,
+					productType: purchase.productType,
+					type: "purchase",
+				}}
+			/>
+
+			<MonetizationChat
+				appId={appId}
+				open={showChat}
+				onOpenChange={setShowChat}
+			/>
 
 			{/* Metadata */}
 			<Card>
@@ -359,9 +477,28 @@ export default function PurchaseDetailPage() {
 									className="mt-4 space-y-4"
 								>
 									<div className="space-y-2">
-										<label className="text-xs font-medium text-muted-foreground">
-											Display Name
-										</label>
+										<div className="flex items-center gap-1">
+											<label className="text-xs font-medium text-muted-foreground">
+												Display Name
+											</label>
+											<AiFieldAction
+												appId={appId}
+												field="purchaseName"
+												context={aiContext}
+												currentValue={localizations[lang]?.name ?? ""}
+												language={lang}
+												onResult={(v) => updateLocField(lang, "name", v)}
+												showTranslate
+												otherLocales={localeKeys.filter((l) => l !== lang)}
+												onTranslateResults={(translations) => {
+													for (const [locale, value] of Object.entries(translations)) {
+														if (localizations[locale]) {
+															updateLocField(locale, "name", value);
+														}
+													}
+												}}
+											/>
+										</div>
 										<Input
 											value={
 												localizations[lang]?.name ?? ""
@@ -377,9 +514,28 @@ export default function PurchaseDetailPage() {
 										/>
 									</div>
 									<div className="space-y-2">
-										<label className="text-xs font-medium text-muted-foreground">
-											Description
-										</label>
+										<div className="flex items-center gap-1">
+											<label className="text-xs font-medium text-muted-foreground">
+												Description
+											</label>
+											<AiFieldAction
+												appId={appId}
+												field="purchaseDescription"
+												context={aiContext}
+												currentValue={localizations[lang]?.description ?? ""}
+												language={lang}
+												onResult={(v) => updateLocField(lang, "description", v)}
+												showTranslate
+												otherLocales={localeKeys.filter((l) => l !== lang)}
+												onTranslateResults={(translations) => {
+													for (const [locale, value] of Object.entries(translations)) {
+														if (localizations[locale]) {
+															updateLocField(locale, "description", value);
+														}
+													}
+												}}
+											/>
+										</div>
 										<Textarea
 											value={
 												localizations[lang]
@@ -441,6 +597,7 @@ export default function PurchaseDetailPage() {
 					appId={appId}
 					purchaseId={purchaseId}
 					groupId={purchase.groupId}
+					aiContext={aiContext}
 				/>
 			)}
 		</div>
@@ -549,10 +706,18 @@ function PurchaseReviewInfoSection({
 	appId,
 	purchaseId,
 	groupId,
+	aiContext,
 }: {
 	appId: string;
 	purchaseId: string;
 	groupId?: string | null;
+	aiContext: {
+		appName: string;
+		productType?: string;
+		productName?: string;
+		groupName?: string;
+		duration?: string;
+	};
 }) {
 	const { data: reviewInfo, isLoading } = usePurchaseReviewInfo(appId, purchaseId);
 	const updateReviewInfo = useUpdatePurchaseReviewInfo(appId, purchaseId);
@@ -637,7 +802,16 @@ function PurchaseReviewInfoSection({
 				{!useGroupDefault && (
 					<>
 						<div className="space-y-2">
-							<Label>Review Notes</Label>
+							<div className="flex items-center gap-1">
+								<Label>Review Notes</Label>
+								<AiFieldAction
+									appId={appId}
+									field="reviewNotes"
+									context={aiContext}
+									currentValue={notes}
+									onResult={setNotes}
+								/>
+							</div>
 							<Textarea
 								value={notes}
 								onChange={(e) => setNotes(e.target.value)}

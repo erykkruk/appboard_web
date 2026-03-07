@@ -21,10 +21,13 @@ import type {
 	DraftReplyRequest,
 	GenerateDescriptionRequest,
 	GenerateListingFieldRequest,
+	GeneratePurchaseFieldRequest,
 	GeneratePrivacyRequest,
 	GenerateReleaseNotesRequest,
 	GlobalPromptEntry,
 	GroupAsoProfile,
+	MonetizationPlan,
+	QuickActionFocusContext,
 	GroupAsoProfileInput,
 	GroupLocalization,
 	HistoryEntry,
@@ -130,6 +133,11 @@ export const api = {
 				body: JSON.stringify(data),
 				method: "POST",
 			}),
+		generatePurchaseField: (data: GeneratePurchaseFieldRequest) =>
+			fetchApi<AiResponse>("/api/ai/generate-purchase-field", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}),
 		generateReleaseNotes: (data: GenerateReleaseNotesRequest) =>
 			fetchApi<AiResponse>("/api/ai/generate-release-notes", {
 				body: JSON.stringify(data),
@@ -166,10 +174,24 @@ export const api = {
 					name: string;
 				}>;
 			}>("/api/ai/territories").then((r) => r.territories),
+		quickAction: (data: {
+			appId: string;
+			instruction: string;
+			focusContext?: QuickActionFocusContext;
+			territories?: string[];
+		}) =>
+			fetchApi<{ explanation: string; plan: MonetizationPlan | null }>(
+				"/api/ai/purchase-quick-action",
+				{
+					body: JSON.stringify(data),
+					method: "POST",
+				},
+			),
 		monetizationExecute: (
 			appId: string,
 			plan: {
 				deletes?: string[];
+				groupDeletes?: string[];
 				edits?: Array<{
 					localizations?: Array<{
 						description?: string;
@@ -377,6 +399,11 @@ export const api = {
 				`/api/apps/${appId}/subscription-groups/${groupId}`,
 				{ body: JSON.stringify(data), method: "PATCH" },
 			).then((r) => r.group),
+		deleteGroup: (appId: string, groupId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}`,
+				{ method: "DELETE" },
+			),
 
 		// Group localizations
 		groupLocalizations: (appId: string, groupId: string) =>

@@ -43,6 +43,29 @@ import {
 
 const OTHER_VALUE = "__other__";
 
+const PRIMARY_TERRITORIES = [
+  { code: "US", currency: "USD", label: "United States" },
+  { code: "GB", currency: "GBP", label: "United Kingdom" },
+  { code: "DE", currency: "EUR", label: "Germany" },
+  { code: "FR", currency: "EUR", label: "France" },
+  { code: "JP", currency: "JPY", label: "Japan" },
+  { code: "AU", currency: "AUD", label: "Australia" },
+  { code: "CA", currency: "CAD", label: "Canada" },
+  { code: "BR", currency: "BRL", label: "Brazil" },
+  { code: "IN", currency: "INR", label: "India" },
+  { code: "KR", currency: "KRW", label: "South Korea" },
+  { code: "MX", currency: "MXN", label: "Mexico" },
+  { code: "PL", currency: "PLN", label: "Poland" },
+  { code: "SE", currency: "SEK", label: "Sweden" },
+  { code: "CH", currency: "CHF", label: "Switzerland" },
+  { code: "TR", currency: "TRY", label: "Turkey" },
+  { code: "SA", currency: "SAR", label: "Saudi Arabia" },
+  { code: "AE", currency: "AED", label: "UAE" },
+  { code: "SG", currency: "SGD", label: "Singapore" },
+  { code: "HK", currency: "HKD", label: "Hong Kong" },
+  { code: "NO", currency: "NOK", label: "Norway" },
+] as const;
+
 const FLAGSHIP_MODELS = [
   { label: "Gemini 2.0 Flash", value: "google/gemini-2.0-flash-001" },
   { label: "Gemini 2.5 Flash", value: "google/gemini-2.5-flash-preview" },
@@ -142,6 +165,7 @@ export default function SettingsGeneralPage() {
   const [modelRephrase, setModelRephrase] = useState("");
   const [modelResearch, setModelResearch] = useState("");
   const [temperature, setTemperature] = useState(0.7);
+  const [primaryTerritory, setPrimaryTerritory] = useState("US");
 
   const settings = useSettings();
   const updateSettings = useUpdateSettings();
@@ -169,6 +193,9 @@ export default function SettingsGeneralPage() {
       if (settings.data.ai_temperature) {
         setTemperature(Number.parseFloat(settings.data.ai_temperature));
       }
+      if (settings.data.primary_territory) {
+        setPrimaryTerritory(settings.data.primary_territory);
+      }
     }
   }, [settings.data]);
 
@@ -188,8 +215,8 @@ export default function SettingsGeneralPage() {
   };
 
   const aiSettingsData = useMemo(
-    () => ({ modelGenerate, modelRephrase, modelResearch, temperature }),
-    [modelGenerate, modelRephrase, modelResearch, temperature],
+    () => ({ modelGenerate, modelRephrase, modelResearch, primaryTerritory, temperature }),
+    [modelGenerate, modelRephrase, modelResearch, primaryTerritory, temperature],
   );
 
   useAutoSave({
@@ -200,6 +227,7 @@ export default function SettingsGeneralPage() {
         ai_model_rephrase: data.modelRephrase || undefined,
         ai_model_research: data.modelResearch || undefined,
         ai_temperature: String(data.temperature),
+        primary_territory: data.primaryTerritory || undefined,
       });
     },
     enabled: !!settings.data,
@@ -454,6 +482,31 @@ export default function SettingsGeneralPage() {
               <span>Precise</span>
               <span>Creative</span>
             </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <div>
+              <Label className="text-sm font-medium" htmlFor="primary-territory">
+                Primary Currency Territory
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Displayed as the main price in monetization plans and previews.
+              </p>
+            </div>
+            <Select value={primaryTerritory} onValueChange={setPrimaryTerritory}>
+              <SelectTrigger id="primary-territory">
+                <SelectValue placeholder="US (USD)" />
+              </SelectTrigger>
+              <SelectContent>
+                {PRIMARY_TERRITORIES.map((t) => (
+                  <SelectItem key={t.code} value={t.code}>
+                    {t.code} — {t.currency} ({t.label})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
         </CardContent>

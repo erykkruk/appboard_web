@@ -23,23 +23,51 @@ import {
 import { extractPlan } from "@/hooks/use-monetization-chat";
 import { cn } from "@/lib/utils";
 
+const DEFAULT_PRIMARY_TERRITORY = "US";
+
+function getPrimaryPrice(
+	prices: Array<{ currency: string; price: string; territory: string }>,
+	primaryTerritory: string,
+): { currency: string; price: string; territory: string } | undefined {
+	return (
+		prices.find((p) => p.territory === primaryTerritory) ?? prices[0]
+	);
+}
+
 interface MonetizationMessageProps {
 	content: string;
 	isExecuting: boolean;
 	onExecutePlan: (plan: NonNullable<ReturnType<typeof extractPlan>>) => void;
 	planExecuted: boolean;
+	primaryTerritory?: string;
 	role: "assistant" | "user";
+}
+
+const PRIORITY_CURRENCIES = ["USD", "EUR"];
+
+function sortPrices(
+	prices: Array<{ currency: string; price: string; territory: string }>,
+) {
+	return [...prices].sort((a, b) => {
+		const ai = PRIORITY_CURRENCIES.indexOf(a.currency);
+		const bi = PRIORITY_CURRENCIES.indexOf(b.currency);
+		if (ai !== -1 && bi !== -1) return ai - bi;
+		if (ai !== -1) return -1;
+		if (bi !== -1) return 1;
+		return a.territory.localeCompare(b.territory);
+	});
 }
 
 function PriceList({
 	prices,
 }: { prices: Array<{ currency: string; price: string; territory: string }> }) {
 	if (prices.length === 0) return null;
+	const sorted = sortPrices(prices);
 	return (
 		<div className="space-y-0.5">
 			<span className="text-xs font-medium text-foreground/70">Prices</span>
 			<div className="flex flex-wrap gap-1.5">
-				{prices.map((p) => (
+				{sorted.map((p) => (
 					<span
 						key={p.territory}
 						className="rounded bg-muted px-1.5 py-0.5 text-xs tabular-nums"
@@ -154,16 +182,18 @@ function ExpandableItem({
 	);
 }
 
-function PlanPreview({
+export function PlanPreview({
 	plan,
 	onExecute,
 	isExecuting,
 	planExecuted,
+	primaryTerritory = DEFAULT_PRIMARY_TERRITORY,
 }: {
 	plan: NonNullable<ReturnType<typeof extractPlan>>;
 	onExecute: () => void;
 	isExecuting: boolean;
 	planExecuted: boolean;
+	primaryTerritory?: string;
 }) {
 	const totalGroups = plan.groups?.length ?? 0;
 	const totalSubs =
@@ -171,6 +201,7 @@ function PlanPreview({
 	const totalPurchases = plan.purchases?.length ?? 0;
 	const totalEdits = plan.edits?.length ?? 0;
 	const totalDeletes = plan.deletes?.length ?? 0;
+	const totalGroupDeletes = plan.groupDeletes?.length ?? 0;
 
 	return (
 		<div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
@@ -195,11 +226,14 @@ function PlanPreview({
 											icon={<Repeat className="h-3 w-3 shrink-0" />}
 											label={sub.name}
 											rightContent={
-												sub.prices?.[0] && (
-													<span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
-														{sub.prices[0].price} {sub.prices[0].currency}
-													</span>
-												)
+												(() => {
+													const p = sub.prices && getPrimaryPrice(sub.prices, primaryTerritory);
+													return p ? (
+														<span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
+															{p.price} {p.currency}
+														</span>
+													) : null;
+												})()
 											}
 											details={
 												(sub.prices && sub.prices.length > 0) ||
@@ -245,11 +279,14 @@ function PlanPreview({
 						label={p.name}
 						labelClassName="font-medium"
 						rightContent={
-							p.prices?.[0] && (
-								<span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
-									{p.prices[0].price} {p.prices[0].currency}
-								</span>
-							)
+							(() => {
+								const pr = p.prices && getPrimaryPrice(p.prices, primaryTerritory);
+								return pr ? (
+									<span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
+										{pr.price} {pr.currency}
+									</span>
+								) : null;
+							})()
 						}
 						details={
 							<>
@@ -309,6 +346,16 @@ function PlanPreview({
 						<span className="truncate">Delete: {id}</span>
 					</div>
 				))}
+
+				{plan.groupDeletes?.map((id) => (
+					<div
+						key={id}
+						className="flex items-center gap-2 text-destructive"
+					>
+						<Trash2 className="h-3.5 w-3.5 shrink-0" />
+						<span className="truncate">Delete group: {id}</span>
+					</div>
+				))}
 			</div>
 
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -317,6 +364,7 @@ function PlanPreview({
 				{totalPurchases > 0 && <span>{totalPurchases} IAPs</span>}
 				{totalEdits > 0 && <span>{totalEdits} edits</span>}
 				{totalDeletes > 0 && <span>{totalDeletes} deletes</span>}
+				{totalGroupDeletes > 0 && <span>{totalGroupDeletes} group deletes</span>}
 			</div>
 
 			{planExecuted ? (
@@ -349,6 +397,7 @@ export function MonetizationMessage({
 	onExecutePlan,
 	isExecuting,
 	planExecuted,
+	primaryTerritory,
 }: MonetizationMessageProps) {
 	const plan = useMemo(() => extractPlan(content), [content]);
 
@@ -400,6 +449,7 @@ export function MonetizationMessage({
 						onExecute={() => onExecutePlan(plan)}
 						isExecuting={isExecuting}
 						planExecuted={planExecuted}
+						primaryTerritory={primaryTerritory}
 					/>
 				)}
 			</div>

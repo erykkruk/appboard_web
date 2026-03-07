@@ -126,6 +126,17 @@ export function useUpdateGroup(appId: string) {
 	});
 }
 
+export function useDeleteGroup(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (groupId: string) =>
+			api.purchases.deleteGroup(appId, groupId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
+		},
+	});
+}
+
 export function useCreateSubscription(appId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({
