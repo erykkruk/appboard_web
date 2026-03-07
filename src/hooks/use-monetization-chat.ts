@@ -22,7 +22,12 @@ interface MonetizationPlan {
 		prices?: Array<{ currency: string; price: string; territory: string }>;
 		purchaseId: string;
 	}>;
+	groupEdits?: Array<{
+		groupId: string;
+		name?: string;
+	}>;
 	groups?: Array<{
+		id?: string;
 		name: string;
 		subscriptions: Array<{
 			duration: string;
@@ -62,7 +67,10 @@ export function extractPlan(content: string): MonetizationPlan | null {
 	}
 }
 
-export function useMonetizationChat(appId: string) {
+export function useMonetizationChat(
+	appId: string,
+	territories?: string[],
+) {
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [isStreaming, setIsStreaming] = useState(false);
 	const abortRef = useRef<AbortController | null>(null);
@@ -83,6 +91,7 @@ export function useMonetizationChat(appId: string) {
 					body: JSON.stringify({
 						appId,
 						messages: updatedMessages,
+						...(territories ? { territories } : {}),
 					}),
 					headers: { "Content-Type": "application/json" },
 					method: "POST",
@@ -168,12 +177,23 @@ export function useMonetizationChat(appId: string) {
 				abortRef.current = null;
 			}
 		},
-		[appId, messages],
+		[appId, messages, territories],
 	);
 
 	const executePlan = useMutation({
 		mutationFn: (plan: MonetizationPlan) =>
 			api.ai.monetizationExecute(appId, plan),
+		onError: (error) => {
+			const message =
+				error instanceof Error ? error.message : "Unknown error";
+			setMessages((prev) => [
+				...prev,
+				{
+					content: `Failed to execute plan: ${message}`,
+					role: "assistant",
+				},
+			]);
+		},
 		onSuccess: (results) => {
 			queryClient.invalidateQueries({
 				queryKey: ["purchases", appId],

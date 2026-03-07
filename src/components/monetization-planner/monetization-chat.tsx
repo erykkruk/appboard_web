@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Eraser, Loader2, Send, Square } from "lucide-react";
+
+import { useQuery } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -12,8 +15,10 @@ import {
 	SheetTitle,
 } from "@/components/ui/sheet";
 import { useMonetizationChat } from "@/hooks/use-monetization-chat";
+import { api } from "@/lib/api";
 
 import { MonetizationMessage } from "./monetization-message";
+import { TerritorySelector } from "./territory-selector";
 
 interface MonetizationChatProps {
 	appId: string;
@@ -26,6 +31,30 @@ export function MonetizationChat({
 	open,
 	onOpenChange,
 }: MonetizationChatProps) {
+	const [territoryMode, setTerritoryMode] = useState<"all" | "custom">("all");
+	const [selectedTerritoryCodes, setSelectedTerritoryCodes] = useState<
+		string[] | null
+	>(null);
+
+	const { data: territories = [] } = useQuery({
+		queryFn: () => api.ai.territories(),
+		queryKey: ["territories"],
+		staleTime: Number.POSITIVE_INFINITY,
+	});
+
+	const allCodes = useMemo(
+		() => territories.map((t) => t.code),
+		[territories],
+	);
+
+	const resolvedSelectedCodes = selectedTerritoryCodes ?? allCodes;
+
+	const effectiveTerritories = useMemo(
+		() =>
+			territoryMode === "all" ? undefined : resolvedSelectedCodes,
+		[territoryMode, resolvedSelectedCodes],
+	);
+
 	const {
 		clearMessages,
 		executePlan,
@@ -33,7 +62,7 @@ export function MonetizationChat({
 		messages,
 		sendMessage,
 		stopStreaming,
-	} = useMonetizationChat(appId);
+	} = useMonetizationChat(appId, effectiveTerritories);
 
 	const [input, setInput] = useState("");
 	const [executedPlans, setExecutedPlans] = useState<Set<string>>(new Set());
@@ -75,8 +104,16 @@ export function MonetizationChat({
 		(plan: Parameters<typeof executePlan.mutate>[0]) => {
 			const planKey = JSON.stringify(plan);
 			executePlan.mutate(plan, {
+				onError: (error) => {
+					toast.error(
+						error instanceof Error
+							? error.message
+							: "Failed to execute plan",
+					);
+				},
 				onSuccess: () => {
 					setExecutedPlans((prev) => new Set(prev).add(planKey));
+					toast.success("Monetization plan executed");
 				},
 			});
 		},
@@ -102,6 +139,16 @@ export function MonetizationChat({
 						propose products and subscriptions.
 					</SheetDescription>
 				</SheetHeader>
+
+				{territories.length > 0 && (
+					<TerritorySelector
+						territories={territories}
+						selectedCodes={resolvedSelectedCodes}
+						mode={territoryMode}
+						onModeChange={setTerritoryMode}
+						onSelectionChange={setSelectedTerritoryCodes}
+					/>
+				)}
 
 				{/* Messages */}
 				<div

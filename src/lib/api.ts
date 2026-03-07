@@ -154,6 +154,14 @@ export const api = {
 				body: JSON.stringify(data),
 				method: "POST",
 			}),
+		territories: () =>
+			fetchApi<{
+				territories: Array<{
+					code: string;
+					currency: string;
+					name: string;
+				}>;
+			}>("/api/ai/territories").then((r) => r.territories),
 		monetizationExecute: (
 			appId: string,
 			plan: {
