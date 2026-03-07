@@ -1,8 +1,10 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
 	CheckCircle2,
+	ChevronDown,
+	ChevronRight,
 	Loader2,
 	Package,
 	Pencil,
@@ -13,6 +15,11 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { extractPlan } from "@/hooks/use-monetization-chat";
 import { cn } from "@/lib/utils";
 
@@ -22,6 +29,129 @@ interface MonetizationMessageProps {
 	onExecutePlan: (plan: NonNullable<ReturnType<typeof extractPlan>>) => void;
 	planExecuted: boolean;
 	role: "assistant" | "user";
+}
+
+function PriceList({
+	prices,
+}: { prices: Array<{ currency: string; price: string; territory: string }> }) {
+	if (prices.length === 0) return null;
+	return (
+		<div className="space-y-0.5">
+			<span className="text-xs font-medium text-foreground/70">Prices</span>
+			<div className="flex flex-wrap gap-1.5">
+				{prices.map((p) => (
+					<span
+						key={p.territory}
+						className="rounded bg-muted px-1.5 py-0.5 text-xs tabular-nums"
+					>
+						{p.territory}: {p.price} {p.currency}
+					</span>
+				))}
+			</div>
+		</div>
+	);
+}
+
+function LocalizationList({
+	localizations,
+}: {
+	localizations: Array<{
+		description?: string;
+		language: string;
+		name?: string;
+	}>;
+}) {
+	if (localizations.length === 0) return null;
+	return (
+		<div className="space-y-0.5">
+			<span className="text-xs font-medium text-foreground/70">
+				Localizations
+			</span>
+			<div className="space-y-1">
+				{localizations.map((l) => (
+					<div key={l.language} className="text-xs">
+						<span className="rounded bg-muted px-1.5 py-0.5 font-medium">
+							{l.language}
+						</span>
+						{l.name && (
+							<span className="ml-1.5 text-muted-foreground">{l.name}</span>
+						)}
+						{l.description && (
+							<span className="ml-1.5 text-muted-foreground/70">
+								— {l.description}
+							</span>
+						)}
+					</div>
+				))}
+			</div>
+		</div>
+	);
+}
+
+function ExpandableItem({
+	children,
+	details,
+	icon,
+	label,
+	labelClassName,
+	rightContent,
+}: {
+	children?: React.ReactNode;
+	details: React.ReactNode;
+	icon: React.ReactNode;
+	label: string;
+	labelClassName?: string;
+	rightContent?: React.ReactNode;
+}) {
+	const [open, setOpen] = useState(false);
+	const hasDetails = details !== null;
+
+	if (!hasDetails) {
+		return (
+			<div
+				className={cn(
+					"flex items-center gap-2 text-muted-foreground",
+					labelClassName,
+				)}
+			>
+				{icon}
+				<span className="truncate">{label}</span>
+				{rightContent}
+			</div>
+		);
+	}
+
+	return (
+		<Collapsible open={open} onOpenChange={setOpen}>
+			<CollapsibleTrigger className="flex w-full items-center gap-2 rounded-md px-1 -mx-1 py-0.5 hover:bg-muted/50 transition-colors">
+				<span className="text-muted-foreground/50">
+					{open ? (
+						<ChevronDown className="h-3 w-3" />
+					) : (
+						<ChevronRight className="h-3 w-3" />
+					)}
+				</span>
+				<span className={cn("text-muted-foreground", labelClassName)}>
+					{icon}
+				</span>
+				<span
+					className={cn(
+						"truncate text-left text-muted-foreground",
+						labelClassName,
+					)}
+				>
+					{label}
+				</span>
+				{rightContent}
+			</CollapsibleTrigger>
+			<CollapsibleContent>
+				<div className="ml-[1.625rem] mt-1 space-y-1.5 border-l border-border/50 pl-3 pb-1">
+					{details}
+					{children}
+				</div>
+			</CollapsibleContent>
+		</Collapsible>
+	);
 }
 
 function PlanPreview({
@@ -49,73 +179,125 @@ function PlanPreview({
 				Monetization Plan
 			</div>
 
-			<div className="space-y-2.5 text-sm">
+			<div className="space-y-1.5 text-sm">
 				{plan.groups?.map((group) => (
-					<div key={group.name} className="space-y-1.5">
-						<div className="flex items-center gap-2 font-medium">
-							<Repeat className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-							<span className="truncate">Group: {group.name}</span>
-						</div>
-						{group.subscriptions.map((sub) => (
-							<div
-								key={sub.productId}
-								className="ml-6 space-y-0.5 text-muted-foreground"
-							>
-								<div className="flex items-baseline justify-between gap-2">
-									<span className="min-w-0 truncate font-medium">
-										{sub.name}
-									</span>
-									{sub.prices?.[0] && (
-										<span className="shrink-0 text-xs tabular-nums">
-											{sub.prices[0].price} {sub.prices[0].currency}
-										</span>
-									)}
+					<ExpandableItem
+						key={group.name}
+						icon={<Repeat className="h-3.5 w-3.5 shrink-0" />}
+						label={`Group: ${group.name}`}
+						labelClassName="font-medium"
+						details={
+							group.subscriptions.length > 0 ? (
+								<div className="space-y-2">
+									{group.subscriptions.map((sub) => (
+										<ExpandableItem
+											key={sub.productId}
+											icon={<Repeat className="h-3 w-3 shrink-0" />}
+											label={sub.name}
+											rightContent={
+												sub.prices?.[0] && (
+													<span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
+														{sub.prices[0].price} {sub.prices[0].currency}
+													</span>
+												)
+											}
+											details={
+												(sub.prices && sub.prices.length > 0) ||
+												(sub.localizations && sub.localizations.length > 0) ? (
+													<>
+														<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+															<span className="rounded bg-muted px-1.5 py-0.5">
+																{sub.productId}
+															</span>
+															<span>{sub.duration}</span>
+														</div>
+														{sub.prices && sub.prices.length > 0 && (
+															<PriceList prices={sub.prices} />
+														)}
+														{sub.localizations &&
+															sub.localizations.length > 0 && (
+																<LocalizationList
+																	localizations={sub.localizations}
+																/>
+															)}
+													</>
+												) : (
+													<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+														<span className="rounded bg-muted px-1.5 py-0.5">
+															{sub.productId}
+														</span>
+														<span>{sub.duration}</span>
+													</div>
+												)
+											}
+										/>
+									))}
 								</div>
-								<div className="flex items-center gap-1.5">
-									<span className="truncate rounded bg-muted px-1.5 py-0.5 text-xs">
-										{sub.productId}
-									</span>
-									<span className="shrink-0 text-xs">{sub.duration}</span>
-								</div>
-							</div>
-						))}
-					</div>
+							) : null
+						}
+					/>
 				))}
 
 				{plan.purchases?.map((p) => (
-					<div key={p.productId} className="space-y-0.5">
-						<div className="flex items-baseline justify-between gap-2">
-							<div className="flex min-w-0 items-center gap-2">
-								<Package className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-								<span className="truncate font-medium">{p.name}</span>
-							</div>
-							{p.prices?.[0] && (
-								<span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+					<ExpandableItem
+						key={p.productId}
+						icon={<Package className="h-3.5 w-3.5 shrink-0" />}
+						label={p.name}
+						labelClassName="font-medium"
+						rightContent={
+							p.prices?.[0] && (
+								<span className="ml-auto shrink-0 text-xs tabular-nums text-muted-foreground">
 									{p.prices[0].price} {p.prices[0].currency}
 								</span>
-							)}
-						</div>
-						<div className="ml-6 flex items-center gap-1.5">
-							<span className="truncate rounded bg-muted px-1.5 py-0.5 text-xs">
-								{p.productId}
-							</span>
-							<span className="shrink-0 text-xs text-muted-foreground">
-								{p.productType}
-							</span>
-						</div>
-					</div>
+							)
+						}
+						details={
+							<>
+								<div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+									<span className="rounded bg-muted px-1.5 py-0.5">
+										{p.productId}
+									</span>
+									<span>{p.productType}</span>
+								</div>
+								{p.prices && p.prices.length > 0 && (
+									<PriceList prices={p.prices} />
+								)}
+								{p.localizations && p.localizations.length > 0 && (
+									<LocalizationList localizations={p.localizations} />
+								)}
+							</>
+						}
+					/>
 				))}
 
 				{plan.edits?.map((e) => (
-					<div
+					<ExpandableItem
 						key={e.purchaseId}
-						className="flex items-center gap-2 text-muted-foreground"
-					>
-						<Pencil className="h-3.5 w-3.5 shrink-0" />
-						<span className="truncate">
-							Edit: {e.name ?? e.purchaseId}
-						</span>
-					</div>
+						icon={<Pencil className="h-3.5 w-3.5 shrink-0" />}
+						label={`Edit: ${e.name ?? e.purchaseId}`}
+						details={
+							(e.prices && e.prices.length > 0) ||
+							(e.localizations && e.localizations.length > 0) ||
+							e.name ? (
+								<>
+									{e.name && (
+										<div className="text-xs text-muted-foreground">
+											<span className="font-medium text-foreground/70">
+												Name:
+											</span>{" "}
+											{e.name}
+										</div>
+									)}
+									{e.prices && e.prices.length > 0 && (
+										<PriceList prices={e.prices} />
+									)}
+									{e.localizations && e.localizations.length > 0 && (
+										<LocalizationList localizations={e.localizations} />
+									)}
+								</>
+							) : null
+						}
+					/>
 				))}
 
 				{plan.deletes?.map((id) => (

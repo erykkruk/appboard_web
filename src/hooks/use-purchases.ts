@@ -141,3 +141,132 @@ export function useCreateSubscription(appId: string) {
 		},
 	});
 }
+
+// Group localizations
+export function useGroupLocalizations(appId: string, groupId: string) {
+	return useQuery({
+		enabled: !!appId && !!groupId,
+		queryFn: () => api.purchases.groupLocalizations(appId, groupId),
+		queryKey: ["group-localizations", appId, groupId],
+	});
+}
+
+export function useUpsertGroupLocalizations(appId: string, groupId: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (localizations: Array<{ language: string; name?: string | null; description?: string | null }>) =>
+			api.purchases.upsertGroupLocalizations(appId, groupId, localizations),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["group-localizations", appId, groupId] });
+			qc.invalidateQueries({ queryKey: ["purchases", appId, "subscription-groups", groupId] });
+		},
+	});
+}
+
+export function useDeleteGroupLocalization(appId: string, groupId: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (language: string) =>
+			api.purchases.deleteGroupLocalization(appId, groupId, language),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["group-localizations", appId, groupId] });
+			qc.invalidateQueries({ queryKey: ["purchases", appId, "subscription-groups", groupId] });
+		},
+	});
+}
+
+// Group availability
+export function useGroupAvailability(appId: string, groupId: string) {
+	return useQuery({
+		enabled: !!appId && !!groupId,
+		queryFn: () => api.purchases.groupAvailability(appId, groupId),
+		queryKey: ["group-availability", appId, groupId],
+	});
+}
+
+export function useUpdateGroupAvailability(appId: string, groupId: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (territories: string[]) =>
+			api.purchases.updateGroupAvailability(appId, groupId, territories),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["group-availability", appId, groupId] });
+			qc.invalidateQueries({ queryKey: ["purchases", appId, "subscription-groups", groupId] });
+		},
+	});
+}
+
+// Group review info
+export function useGroupReviewInfo(appId: string, groupId: string) {
+	return useQuery({
+		enabled: !!appId && !!groupId,
+		queryFn: () => api.purchases.groupReviewInfo(appId, groupId),
+		queryKey: ["group-review-info", appId, groupId],
+	});
+}
+
+export function useUpdateGroupReviewInfo(appId: string, groupId: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (data: { reviewNotes?: string | null; screenshotUrl?: string | null }) =>
+			api.purchases.updateGroupReviewInfo(appId, groupId, data),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["group-review-info", appId, groupId] });
+			qc.invalidateQueries({ queryKey: ["purchases", appId, "subscription-groups", groupId] });
+		},
+	});
+}
+
+// Purchase availability
+export function usePurchaseAvailability(appId: string, purchaseId: string) {
+	return useQuery({
+		enabled: !!appId && !!purchaseId,
+		queryFn: () => api.purchases.purchaseAvailability(appId, purchaseId),
+		queryKey: ["purchase-availability", appId, purchaseId],
+	});
+}
+
+export function useUpdatePurchaseAvailability(appId: string, purchaseId: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (territories: string[] | null) =>
+			api.purchases.updatePurchaseAvailability(appId, purchaseId, territories),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["purchase-availability", appId, purchaseId] });
+			qc.invalidateQueries({ queryKey: ["purchases", appId] });
+		},
+	});
+}
+
+// Purchase review info
+export function usePurchaseReviewInfo(appId: string, purchaseId: string) {
+	return useQuery({
+		enabled: !!appId && !!purchaseId,
+		queryFn: () => api.purchases.purchaseReviewInfo(appId, purchaseId),
+		queryKey: ["purchase-review-info", appId, purchaseId],
+	});
+}
+
+export function useUpdatePurchaseReviewInfo(appId: string, purchaseId: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (data: { reviewNotes?: string | null; screenshotUrl?: string | null; useGroupDefault?: boolean }) =>
+			api.purchases.updatePurchaseReviewInfo(appId, purchaseId, data),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["purchase-review-info", appId, purchaseId] });
+			qc.invalidateQueries({ queryKey: ["purchases", appId] });
+		},
+	});
+}
+
+// Family sharing
+export function useUpdateFamilySharing(appId: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: ({ purchaseId, familySharable }: { purchaseId: string; familySharable: boolean }) =>
+			api.purchases.updateFamilySharing(appId, purchaseId, familySharable),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["purchases", appId] });
+		},
+	});
+}

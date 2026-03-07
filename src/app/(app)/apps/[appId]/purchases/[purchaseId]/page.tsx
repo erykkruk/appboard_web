@@ -3,15 +3,20 @@
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { ChevronRight, Globe, Loader2, Plus, Trash2 } from "lucide-react";
+import { ChevronRight, Globe, Loader2, Plus, Save, Trash2 } from "lucide-react";
+import { toast } from "sonner";
 
+import { InheritToggle } from "@/components/purchases/inherit-toggle";
 import { MetadataGrid } from "@/components/purchases/metadata-grid";
 import { PricesTable } from "@/components/purchases/prices-table";
+import { TerritorySelector } from "@/components/purchases/territory-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import {
 	Tabs,
 	TabsContent,
@@ -20,7 +25,15 @@ import {
 } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useAutoSave } from "@/hooks/use-auto-save";
-import { usePurchase, useUpdatePurchase } from "@/hooks/use-purchases";
+import {
+	usePurchase,
+	usePurchaseAvailability,
+	usePurchaseReviewInfo,
+	useUpdateFamilySharing,
+	useUpdatePurchase,
+	useUpdatePurchaseAvailability,
+	useUpdatePurchaseReviewInfo,
+} from "@/hooks/use-purchases";
 import { cn } from "@/lib/utils";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -55,6 +68,7 @@ export default function PurchaseDetailPage() {
 	}>();
 	const { data: purchase, isLoading } = usePurchase(appId, purchaseId);
 	const updatePurchase = useUpdatePurchase(appId);
+	const updateFamilySharing = useUpdateFamilySharing(appId);
 
 	const [name, setName] = useState("");
 	const [nameInitialized, setNameInitialized] = useState(false);
@@ -160,10 +174,26 @@ export default function PurchaseDetailPage() {
 		purchase?.productType === "auto_renewable" ||
 		purchase?.productType === "non_renewing";
 
+	const isAutoRenewable = purchase?.productType === "auto_renewable";
+
 	const localeKeys = useMemo(
 		() => Object.keys(localizations),
 		[localizations],
 	);
+
+	const handleFamilySharingToggle = async (checked: boolean) => {
+		try {
+			await updateFamilySharing.mutateAsync({
+				purchaseId,
+				familySharable: checked,
+			});
+			toast.success(
+				checked ? "Family Sharing enabled" : "Family Sharing disabled",
+			);
+		} catch {
+			toast.error("Failed to update Family Sharing");
+		}
+	};
 
 	const metadataItems = purchase
 		? [
@@ -260,6 +290,25 @@ export default function PurchaseDetailPage() {
 				</CardHeader>
 				<CardContent>
 					<MetadataGrid items={metadataItems} />
+					{/* Family Sharing toggle - only for auto-renewable subscriptions */}
+					{isAutoRenewable && (
+						<div className="mt-4 flex items-center justify-between rounded-lg border p-4">
+							<div className="space-y-0.5">
+								<Label className="text-sm font-medium">
+									Family Sharing
+								</Label>
+								<p className="text-xs text-muted-foreground">
+									Allow family members to share this
+									subscription.
+								</p>
+							</div>
+							<Switch
+								checked={purchase.familySharable}
+								onCheckedChange={handleFamilySharingToggle}
+								disabled={updateFamilySharing.isPending}
+							/>
+						</div>
+					)}
 				</CardContent>
 			</Card>
 
@@ -376,6 +425,247 @@ export default function PurchaseDetailPage() {
 					<PricesTable prices={purchase.prices} />
 				</CardContent>
 			</Card>
+
+			{/* Availability - only for subscriptions */}
+			{isSubscription && (
+				<PurchaseAvailabilitySection
+					appId={appId}
+					purchaseId={purchaseId}
+					groupId={purchase.groupId}
+				/>
+			)}
+
+			{/* Review Info - only for subscriptions */}
+			{isSubscription && (
+				<PurchaseReviewInfoSection
+					appId={appId}
+					purchaseId={purchaseId}
+					groupId={purchase.groupId}
+				/>
+			)}
 		</div>
+	);
+}
+
+// --- Purchase Availability Section ---
+function PurchaseAvailabilitySection({
+	appId,
+	purchaseId,
+	groupId,
+}: {
+	appId: string;
+	purchaseId: string;
+	groupId?: string | null;
+}) {
+	const { data: territories, isLoading } = usePurchaseAvailability(appId, purchaseId);
+	const updateAvailability = useUpdatePurchaseAvailability(appId, purchaseId);
+	const [selected, setSelected] = useState<string[]>([]);
+	const [useGroupDefault, setUseGroupDefault] = useState(true);
+	const [initialized, setInitialized] = useState(false);
+
+	if (territories !== undefined && !initialized) {
+		if (territories === null) {
+			setUseGroupDefault(true);
+			setSelected([]);
+		} else {
+			setUseGroupDefault(false);
+			setSelected(territories);
+		}
+		setInitialized(true);
+	}
+
+	const handleToggleInherit = async (inherit: boolean) => {
+		setUseGroupDefault(inherit);
+		if (inherit) {
+			try {
+				await updateAvailability.mutateAsync(null);
+				toast.success("Using group availability");
+			} catch {
+				toast.error("Failed to update availability");
+			}
+		}
+	};
+
+	const handleSave = async () => {
+		try {
+			await updateAvailability.mutateAsync(selected);
+			toast.success("Availability updated");
+		} catch {
+			toast.error("Failed to update availability");
+		}
+	};
+
+	if (isLoading) {
+		return <Skeleton className="h-40 rounded-xl" />;
+	}
+
+	return (
+		<Card>
+			<CardHeader>
+				<div className="flex items-center justify-between">
+					<CardTitle className="text-sm">Availability</CardTitle>
+					{!useGroupDefault && (
+						<Button
+							variant="outline"
+							size="sm"
+							className="h-7 text-xs"
+							onClick={handleSave}
+							disabled={updateAvailability.isPending}
+						>
+							{updateAvailability.isPending ? (
+								<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+							) : (
+								<Save className="mr-1 h-3 w-3" />
+							)}
+							Save
+						</Button>
+					)}
+				</div>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				{groupId && (
+					<InheritToggle
+						useDefault={useGroupDefault}
+						onChange={handleToggleInherit}
+						label="Use group availability"
+						description="When enabled, this subscription uses the availability settings from its subscription group."
+						groupHref={`/apps/${appId}/subscription-groups/${groupId}?tab=availability`}
+					/>
+				)}
+				{!useGroupDefault && (
+					<TerritorySelector
+						selected={selected}
+						onChange={setSelected}
+						disabled={updateAvailability.isPending}
+					/>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
+// --- Purchase Review Info Section ---
+function PurchaseReviewInfoSection({
+	appId,
+	purchaseId,
+	groupId,
+}: {
+	appId: string;
+	purchaseId: string;
+	groupId?: string | null;
+}) {
+	const { data: reviewInfo, isLoading } = usePurchaseReviewInfo(appId, purchaseId);
+	const updateReviewInfo = useUpdatePurchaseReviewInfo(appId, purchaseId);
+	const [notes, setNotes] = useState("");
+	const [screenshotUrl, setScreenshotUrl] = useState("");
+	const [useGroupDefault, setUseGroupDefault] = useState(true);
+	const [initialized, setInitialized] = useState(false);
+
+	if (reviewInfo !== undefined && !initialized) {
+		if (reviewInfo === null || reviewInfo.useGroupDefault) {
+			setUseGroupDefault(true);
+		} else {
+			setUseGroupDefault(false);
+			setNotes(reviewInfo.reviewNotes ?? "");
+			setScreenshotUrl(reviewInfo.screenshotUrl ?? "");
+		}
+		setInitialized(true);
+	}
+
+	const handleToggleInherit = async (inherit: boolean) => {
+		setUseGroupDefault(inherit);
+		if (inherit) {
+			try {
+				await updateReviewInfo.mutateAsync({ useGroupDefault: true });
+				toast.success("Using group review info");
+			} catch {
+				toast.error("Failed to update review info");
+			}
+		}
+	};
+
+	const handleSave = async () => {
+		try {
+			await updateReviewInfo.mutateAsync({
+				reviewNotes: notes || null,
+				screenshotUrl: screenshotUrl || null,
+				useGroupDefault: false,
+			});
+			toast.success("Review info updated");
+		} catch {
+			toast.error("Failed to update review info");
+		}
+	};
+
+	if (isLoading) {
+		return <Skeleton className="h-40 rounded-xl" />;
+	}
+
+	return (
+		<Card>
+			<CardHeader>
+				<div className="flex items-center justify-between">
+					<CardTitle className="text-sm">Review Information</CardTitle>
+					{!useGroupDefault && (
+						<Button
+							variant="outline"
+							size="sm"
+							className="h-7 text-xs"
+							onClick={handleSave}
+							disabled={updateReviewInfo.isPending}
+						>
+							{updateReviewInfo.isPending ? (
+								<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+							) : (
+								<Save className="mr-1 h-3 w-3" />
+							)}
+							Save
+						</Button>
+					)}
+				</div>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				{groupId && (
+					<InheritToggle
+						useDefault={useGroupDefault}
+						onChange={handleToggleInherit}
+						label="Use group review info"
+						description="When enabled, this subscription uses the review information from its subscription group."
+						groupHref={`/apps/${appId}/subscription-groups/${groupId}?tab=review-info`}
+					/>
+				)}
+				{!useGroupDefault && (
+					<>
+						<div className="space-y-2">
+							<Label>Review Notes</Label>
+							<Textarea
+								value={notes}
+								onChange={(e) => setNotes(e.target.value)}
+								placeholder="Notes for the App Store review team..."
+								rows={4}
+							/>
+							<p className="text-xs text-muted-foreground">
+								Provide any information that may help the review
+								team understand this subscription.
+							</p>
+						</div>
+						<div className="space-y-2">
+							<Label>Screenshot URL</Label>
+							<Input
+								value={screenshotUrl}
+								onChange={(e) =>
+									setScreenshotUrl(e.target.value)
+								}
+								placeholder="https://example.com/screenshot.png"
+							/>
+							<p className="text-xs text-muted-foreground">
+								URL to a screenshot demonstrating the
+								subscription experience.
+							</p>
+						</div>
+					</>
+				)}
+			</CardContent>
+		</Card>
 	);
 }

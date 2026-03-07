@@ -26,6 +26,7 @@ import type {
 	GlobalPromptEntry,
 	GroupAsoProfile,
 	GroupAsoProfileInput,
+	GroupLocalization,
 	HistoryEntry,
 	InAppPurchase,
 	Listing,
@@ -38,6 +39,7 @@ import type {
 	PublishResult,
 	PurchaseSyncResult,
 	Review,
+	ReviewInfo,
 	ReviewStats,
 	SettingRow,
 	Settings,
@@ -375,6 +377,73 @@ export const api = {
 				`/api/apps/${appId}/subscription-groups/${groupId}`,
 				{ body: JSON.stringify(data), method: "PATCH" },
 			).then((r) => r.group),
+
+		// Group localizations
+		groupLocalizations: (appId: string, groupId: string) =>
+			fetchApi<{ localizations: GroupLocalization[] }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/localizations`,
+			).then((r) => r.localizations),
+		upsertGroupLocalizations: (appId: string, groupId: string, localizations: Array<{ language: string; name?: string | null; description?: string | null }>) =>
+			fetchApi<{ localizations: GroupLocalization[] }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/localizations`,
+				{ body: JSON.stringify({ localizations }), method: "PUT" },
+			).then((r) => r.localizations),
+		deleteGroupLocalization: (appId: string, groupId: string, language: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/localizations/${language}`,
+				{ method: "DELETE" },
+			),
+
+		// Group availability
+		groupAvailability: (appId: string, groupId: string) =>
+			fetchApi<{ territories: string[] }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/availability`,
+			).then((r) => r.territories),
+		updateGroupAvailability: (appId: string, groupId: string, territories: string[]) =>
+			fetchApi<{ territories: string[] }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/availability`,
+				{ body: JSON.stringify({ territories }), method: "PUT" },
+			).then((r) => r.territories),
+
+		// Group review info
+		groupReviewInfo: (appId: string, groupId: string) =>
+			fetchApi<{ reviewInfo: ReviewInfo | null }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/review-info`,
+			).then((r) => r.reviewInfo),
+		updateGroupReviewInfo: (appId: string, groupId: string, data: { reviewNotes?: string | null; screenshotUrl?: string | null }) =>
+			fetchApi<{ reviewInfo: ReviewInfo }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/review-info`,
+				{ body: JSON.stringify(data), method: "PUT" },
+			).then((r) => r.reviewInfo),
+
+		// Purchase availability
+		purchaseAvailability: (appId: string, purchaseId: string) =>
+			fetchApi<{ territories: string[] | null }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/availability`,
+			).then((r) => r.territories),
+		updatePurchaseAvailability: (appId: string, purchaseId: string, territories: string[] | null) =>
+			fetchApi<{ territories: string[] | null }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/availability`,
+				{ body: JSON.stringify({ territories }), method: "PUT" },
+			).then((r) => r.territories),
+
+		// Purchase review info
+		purchaseReviewInfo: (appId: string, purchaseId: string) =>
+			fetchApi<{ reviewInfo: ReviewInfo | null }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/review-info`,
+			).then((r) => r.reviewInfo),
+		updatePurchaseReviewInfo: (appId: string, purchaseId: string, data: { reviewNotes?: string | null; screenshotUrl?: string | null; useGroupDefault?: boolean }) =>
+			fetchApi<{ reviewInfo: ReviewInfo }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/review-info`,
+				{ body: JSON.stringify(data), method: "PUT" },
+			).then((r) => r.reviewInfo),
+
+		// Family sharing
+		updateFamilySharing: (appId: string, purchaseId: string, familySharable: boolean) =>
+			fetchApi<{ purchase: InAppPurchase }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/family-sharing`,
+				{ body: JSON.stringify({ familySharable }), method: "PATCH" },
+			).then((r) => r.purchase),
 	},
 
 	asoProfile: {

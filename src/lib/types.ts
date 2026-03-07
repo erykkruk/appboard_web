@@ -586,6 +586,22 @@ export interface PlatformCapabilities {
 	};
 }
 
+// Group Localizations & Review Info
+export interface GroupLocalization {
+	id: string;
+	groupId: string;
+	language: string;
+	name: string | null;
+	description: string | null;
+}
+
+export interface ReviewInfo {
+	id: string;
+	reviewNotes: string | null;
+	screenshotUrl: string | null;
+	useGroupDefault?: boolean;
+}
+
 // In-App Purchases & Subscriptions
 export interface PurchaseLocalization {
 	id: string;
@@ -617,6 +633,9 @@ export interface InAppPurchase {
 	status: string;
 	duration: string | null;
 	groupId: string | null;
+	familySharable: boolean;
+	availableTerritories: string[] | null;
+	reviewInfo: ReviewInfo | null;
 	syncedAt: string | null;
 	localizations: PurchaseLocalization[];
 	prices: PurchasePrice[];
@@ -627,6 +646,9 @@ export interface SubscriptionGroup {
 	appId: string;
 	externalId: string;
 	name: string;
+	localizations: GroupLocalization[];
+	availableTerritories: string[] | null;
+	reviewInfo: ReviewInfo | null;
 	syncedAt: string | null;
 	subscriptions: InAppPurchase[];
 }

@@ -2,15 +2,20 @@
 
 import { useCallback, useState } from "react";
 import Link from "next/link";
-import { useParams, useRouter } from "next/navigation";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import {
 	ChevronRight,
 	CreditCard,
+	Globe,
 	Loader2,
 	Plus,
 	Repeat,
+	Save,
+	Trash2,
 } from "lucide-react";
+import { toast } from "sonner";
 
+import { TerritorySelector } from "@/components/purchases/territory-selector";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -31,14 +36,27 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
+import {
+	Tabs,
+	TabsContent,
+	TabsList,
+	TabsTrigger,
+} from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import {
 	useCreateSubscription,
+	useDeleteGroupLocalization,
+	useGroupAvailability,
+	useGroupLocalizations,
+	useGroupReviewInfo,
 	useSubscriptionGroup,
 	useUpdateGroup,
+	useUpdateGroupAvailability,
+	useUpdateGroupReviewInfo,
+	useUpsertGroupLocalizations,
 } from "@/hooks/use-purchases";
 import { cn } from "@/lib/utils";
-import { toast } from "sonner";
 
 const STATUS_COLORS: Record<string, string> = {
 	approved: "bg-green-500/10 text-green-500",
@@ -73,6 +91,8 @@ export default function SubscriptionGroupDetailPage() {
 		groupId: string;
 	}>();
 	const router = useRouter();
+	const searchParams = useSearchParams();
+	const defaultTab = searchParams.get("tab") || "subscriptions";
 	const { data: group, isLoading } = useSubscriptionGroup(appId, groupId);
 	const updateGroup = useUpdateGroup(appId);
 
@@ -152,7 +172,60 @@ export default function SubscriptionGroupDetailPage() {
 				</div>
 			</div>
 
-			{/* Subscriptions List */}
+			{/* Tabs */}
+			<Tabs defaultValue={defaultTab}>
+				<TabsList>
+					<TabsTrigger value="subscriptions">Subscriptions</TabsTrigger>
+					<TabsTrigger value="localizations">Localizations</TabsTrigger>
+					<TabsTrigger value="availability">Availability</TabsTrigger>
+					<TabsTrigger value="review-info">Review Info</TabsTrigger>
+				</TabsList>
+
+				<TabsContent value="subscriptions" className="mt-4">
+					<SubscriptionsTab
+						appId={appId}
+						groupId={groupId}
+						group={group}
+						router={router}
+						showCreateSub={showCreateSub}
+						setShowCreateSub={setShowCreateSub}
+					/>
+				</TabsContent>
+
+				<TabsContent value="localizations" className="mt-4">
+					<GroupLocalizationsTab appId={appId} groupId={groupId} />
+				</TabsContent>
+
+				<TabsContent value="availability" className="mt-4">
+					<GroupAvailabilityTab appId={appId} groupId={groupId} />
+				</TabsContent>
+
+				<TabsContent value="review-info" className="mt-4">
+					<GroupReviewInfoTab appId={appId} groupId={groupId} />
+				</TabsContent>
+			</Tabs>
+		</div>
+	);
+}
+
+// --- Subscriptions Tab ---
+function SubscriptionsTab({
+	appId,
+	groupId,
+	group,
+	router,
+	showCreateSub,
+	setShowCreateSub,
+}: {
+	appId: string;
+	groupId: string;
+	group: { subscriptions: Array<{ id: string; name: string; productId: string; status: string; duration: string | null; prices: Array<{ id: string; price: string; currency: string }> }> };
+	router: ReturnType<typeof useRouter>;
+	showCreateSub: boolean;
+	setShowCreateSub: (v: boolean) => void;
+}) {
+	return (
+		<>
 			<Card>
 				<CardHeader>
 					<div className="flex items-center justify-between">
@@ -245,17 +318,363 @@ export default function SubscriptionGroupDetailPage() {
 				</CardContent>
 			</Card>
 
-			{/* Create Subscription Dialog */}
 			<CreateSubscriptionInGroupDialog
 				open={showCreateSub}
 				onOpenChange={setShowCreateSub}
 				appId={appId}
 				groupId={groupId}
 			/>
-		</div>
+		</>
 	);
 }
 
+// --- Group Localizations Tab ---
+function GroupLocalizationsTab({
+	appId,
+	groupId,
+}: {
+	appId: string;
+	groupId: string;
+}) {
+	const { data: localizations, isLoading } = useGroupLocalizations(appId, groupId);
+	const upsertLocs = useUpsertGroupLocalizations(appId, groupId);
+	const deleteLoc = useDeleteGroupLocalization(appId, groupId);
+
+	const [localEdits, setLocalEdits] = useState<
+		Record<string, { name: string; description: string }>
+	>({});
+	const [initialized, setInitialized] = useState(false);
+	const [activeLocale, setActiveLocale] = useState("");
+
+	if (localizations && !initialized) {
+		const edits: Record<string, { name: string; description: string }> = {};
+		for (const l of localizations) {
+			edits[l.language] = {
+				name: l.name ?? "",
+				description: l.description ?? "",
+			};
+		}
+		setLocalEdits(edits);
+		if (localizations.length > 0) {
+			setActiveLocale(localizations[0].language);
+		}
+		setInitialized(true);
+	}
+
+	const localeKeys = Object.keys(localEdits);
+
+	const addLanguage = () => {
+		const lang = prompt("Enter language code (e.g. en-US, pl, de):");
+		if (!lang || localEdits[lang]) return;
+		setLocalEdits((prev) => ({
+			...prev,
+			[lang]: { name: "", description: "" },
+		}));
+		setActiveLocale(lang);
+	};
+
+	const removeLanguage = async (lang: string) => {
+		try {
+			await deleteLoc.mutateAsync(lang);
+			setLocalEdits((prev) => {
+				const next = { ...prev };
+				delete next[lang];
+				return next;
+			});
+			const remaining = localeKeys.filter((l) => l !== lang);
+			setActiveLocale(remaining[0] ?? "");
+			toast.success(`Removed localization for ${lang}`);
+		} catch {
+			toast.error("Failed to remove localization");
+		}
+	};
+
+	const handleSave = async () => {
+		const locsArray = Object.entries(localEdits).map(([language, loc]) => ({
+			language,
+			name: loc.name || null,
+			description: loc.description || null,
+		}));
+		try {
+			await upsertLocs.mutateAsync(locsArray);
+			toast.success("Localizations saved");
+		} catch {
+			toast.error("Failed to save localizations");
+		}
+	};
+
+	if (isLoading) {
+		return <Skeleton className="h-40 rounded-xl" />;
+	}
+
+	return (
+		<Card>
+			<CardHeader>
+				<div className="flex items-center justify-between">
+					<CardTitle className="text-sm">Group Localizations</CardTitle>
+					<div className="flex gap-2">
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-7 text-xs"
+							onClick={addLanguage}
+						>
+							<Plus className="mr-1 h-3 w-3" />
+							Add Language
+						</Button>
+						<Button
+							variant="outline"
+							size="sm"
+							className="h-7 text-xs"
+							onClick={handleSave}
+							disabled={upsertLocs.isPending}
+						>
+							{upsertLocs.isPending ? (
+								<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+							) : (
+								<Save className="mr-1 h-3 w-3" />
+							)}
+							Save
+						</Button>
+					</div>
+				</div>
+			</CardHeader>
+			<CardContent>
+				{localeKeys.length === 0 ? (
+					<p className="py-4 text-center text-sm text-muted-foreground">
+						No localizations. Click &ldquo;Add Language&rdquo; to get started.
+					</p>
+				) : (
+					<Tabs value={activeLocale} onValueChange={setActiveLocale}>
+						<TabsList className="flex-wrap">
+							{localeKeys.map((lang) => (
+								<TabsTrigger
+									key={lang}
+									value={lang}
+									className="gap-1 uppercase"
+								>
+									<Globe className="h-3 w-3" />
+									{lang}
+								</TabsTrigger>
+							))}
+						</TabsList>
+						{localeKeys.map((lang) => (
+							<TabsContent
+								key={lang}
+								value={lang}
+								className="mt-4 space-y-4"
+							>
+								<div className="space-y-2">
+									<label className="text-xs font-medium text-muted-foreground">
+										Display Name
+									</label>
+									<Input
+										value={localEdits[lang]?.name ?? ""}
+										onChange={(e) =>
+											setLocalEdits((prev) => ({
+												...prev,
+												[lang]: {
+													...prev[lang],
+													name: e.target.value,
+												},
+											}))
+										}
+										placeholder="Display name for this language"
+									/>
+								</div>
+								<div className="space-y-2">
+									<label className="text-xs font-medium text-muted-foreground">
+										Description
+									</label>
+									<Textarea
+										value={
+											localEdits[lang]?.description ?? ""
+										}
+										onChange={(e) =>
+											setLocalEdits((prev) => ({
+												...prev,
+												[lang]: {
+													...prev[lang],
+													description: e.target.value,
+												},
+											}))
+										}
+										placeholder="Description for this language"
+										rows={3}
+									/>
+								</div>
+								<div className="flex justify-end">
+									<Button
+										variant="ghost"
+										size="sm"
+										className="h-7 text-xs text-destructive hover:text-destructive"
+										onClick={() => removeLanguage(lang)}
+										disabled={deleteLoc.isPending}
+									>
+										<Trash2 className="mr-1 h-3 w-3" />
+										Remove {lang}
+									</Button>
+								</div>
+							</TabsContent>
+						))}
+					</Tabs>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
+// --- Group Availability Tab ---
+function GroupAvailabilityTab({
+	appId,
+	groupId,
+}: {
+	appId: string;
+	groupId: string;
+}) {
+	const { data: territories, isLoading } = useGroupAvailability(appId, groupId);
+	const updateAvailability = useUpdateGroupAvailability(appId, groupId);
+	const [selected, setSelected] = useState<string[]>([]);
+	const [initialized, setInitialized] = useState(false);
+
+	if (territories && !initialized) {
+		setSelected(territories);
+		setInitialized(true);
+	}
+
+	const handleSave = async () => {
+		try {
+			await updateAvailability.mutateAsync(selected);
+			toast.success("Availability updated");
+		} catch {
+			toast.error("Failed to update availability");
+		}
+	};
+
+	if (isLoading) {
+		return <Skeleton className="h-40 rounded-xl" />;
+	}
+
+	return (
+		<Card>
+			<CardHeader>
+				<div className="flex items-center justify-between">
+					<CardTitle className="text-sm">Group Availability</CardTitle>
+					<Button
+						variant="outline"
+						size="sm"
+						className="h-7 text-xs"
+						onClick={handleSave}
+						disabled={updateAvailability.isPending}
+					>
+						{updateAvailability.isPending ? (
+							<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+						) : (
+							<Save className="mr-1 h-3 w-3" />
+						)}
+						Save
+					</Button>
+				</div>
+			</CardHeader>
+			<CardContent>
+				<TerritorySelector
+					selected={selected}
+					onChange={setSelected}
+					disabled={updateAvailability.isPending}
+				/>
+			</CardContent>
+		</Card>
+	);
+}
+
+// --- Group Review Info Tab ---
+function GroupReviewInfoTab({
+	appId,
+	groupId,
+}: {
+	appId: string;
+	groupId: string;
+}) {
+	const { data: reviewInfo, isLoading } = useGroupReviewInfo(appId, groupId);
+	const updateReviewInfo = useUpdateGroupReviewInfo(appId, groupId);
+	const [notes, setNotes] = useState("");
+	const [screenshotUrl, setScreenshotUrl] = useState("");
+	const [initialized, setInitialized] = useState(false);
+
+	if (reviewInfo !== undefined && !initialized) {
+		setNotes(reviewInfo?.reviewNotes ?? "");
+		setScreenshotUrl(reviewInfo?.screenshotUrl ?? "");
+		setInitialized(true);
+	}
+
+	const handleSave = async () => {
+		try {
+			await updateReviewInfo.mutateAsync({
+				reviewNotes: notes || null,
+				screenshotUrl: screenshotUrl || null,
+			});
+			toast.success("Review info updated");
+		} catch {
+			toast.error("Failed to update review info");
+		}
+	};
+
+	if (isLoading) {
+		return <Skeleton className="h-40 rounded-xl" />;
+	}
+
+	return (
+		<Card>
+			<CardHeader>
+				<div className="flex items-center justify-between">
+					<CardTitle className="text-sm">Review Information</CardTitle>
+					<Button
+						variant="outline"
+						size="sm"
+						className="h-7 text-xs"
+						onClick={handleSave}
+						disabled={updateReviewInfo.isPending}
+					>
+						{updateReviewInfo.isPending ? (
+							<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+						) : (
+							<Save className="mr-1 h-3 w-3" />
+						)}
+						Save
+					</Button>
+				</div>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				<div className="space-y-2">
+					<Label>Review Notes</Label>
+					<Textarea
+						value={notes}
+						onChange={(e) => setNotes(e.target.value)}
+						placeholder="Notes for the App Store review team..."
+						rows={4}
+					/>
+					<p className="text-xs text-muted-foreground">
+						Provide any information that may help the review team understand
+						your subscription group.
+					</p>
+				</div>
+				<div className="space-y-2">
+					<Label>Screenshot URL</Label>
+					<Input
+						value={screenshotUrl}
+						onChange={(e) => setScreenshotUrl(e.target.value)}
+						placeholder="https://example.com/screenshot.png"
+					/>
+					<p className="text-xs text-muted-foreground">
+						URL to a screenshot demonstrating the subscription experience.
+					</p>
+				</div>
+			</CardContent>
+		</Card>
+	);
+}
+
+// --- Create Subscription Dialog ---
 function CreateSubscriptionInGroupDialog({
 	open,
 	onOpenChange,

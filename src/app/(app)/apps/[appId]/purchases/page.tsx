@@ -1,14 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import {
 	AlertTriangle,
+	ChevronRight,
 	CreditCard,
 	Globe,
+	Layers,
 	Loader2,
 	Package,
-	Pencil,
 	Plus,
 	RefreshCw,
 	Repeat,
@@ -31,7 +32,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
 	Dialog,
 	DialogContent,
@@ -58,13 +59,11 @@ import {
 import {
 	useCreateGroup,
 	useCreatePurchase,
-	useCreateSubscription,
 	useDeletePurchase,
 	usePurchases,
 	usePurchasesCapabilities,
 	useSubscriptionGroups,
 	useSyncPurchases,
-	useUpdatePurchase,
 } from "@/hooks/use-purchases";
 import type { InAppPurchase, SubscriptionGroup } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -85,24 +84,15 @@ const TYPE_LABELS: Record<string, string> = {
 	non_renewing: "Non-Renewing",
 };
 
-const DURATION_OPTIONS = [
-	{ label: "1 Week", value: "P1W" },
-	{ label: "1 Month", value: "P1M" },
-	{ label: "2 Months", value: "P2M" },
-	{ label: "3 Months", value: "P3M" },
-	{ label: "6 Months", value: "P6M" },
-	{ label: "1 Year", value: "P1Y" },
-];
-
 function PurchaseCard({
 	purchase,
 	appId,
-	onEdit,
+	groupName,
 	onDelete,
 }: {
 	purchase: InAppPurchase;
 	appId: string;
-	onEdit: (p: InAppPurchase) => void;
+	groupName?: string;
 	onDelete: (p: InAppPurchase) => void;
 }) {
 	const router = useRouter();
@@ -121,6 +111,24 @@ function PurchaseCard({
 			}
 		>
 			<CardContent className="pt-6">
+				{/* Group label for subscriptions */}
+				{isSubscription && purchase.groupId && groupName && (
+					<button
+						type="button"
+						className="mb-2 flex items-center gap-1 rounded-md text-xs text-muted-foreground transition-colors hover:text-primary"
+						onClick={(e) => {
+							e.stopPropagation();
+							router.push(
+								`/apps/${appId}/subscription-groups/${purchase.groupId}`,
+							);
+						}}
+					>
+						<Layers className="h-3 w-3" />
+						<span>{groupName}</span>
+						<ChevronRight className="h-3 w-3" />
+					</button>
+				)}
+
 				<div className="flex items-start justify-between gap-4">
 					<div className="min-w-0 flex-1 space-y-1">
 						<div className="flex items-center gap-2">
@@ -148,17 +156,6 @@ function PurchaseCard({
 							variant="ghost"
 							size="sm"
 							className="h-7 w-7 p-0"
-							onClick={(e) => {
-								e.stopPropagation();
-								onEdit(purchase);
-							}}
-						>
-							<Pencil className="h-3.5 w-3.5" />
-						</Button>
-						<Button
-							variant="ghost"
-							size="sm"
-							className="h-7 w-7 p-0 text-destructive hover:text-destructive"
 							onClick={(e) => {
 								e.stopPropagation();
 								onDelete(purchase);
@@ -212,136 +209,69 @@ function PurchaseCard({
 	);
 }
 
-function SubscriptionGroupCard({
+function GroupOverviewCard({
 	group,
 	appId,
-	onAddSubscription,
-	onEdit,
-	onDelete,
 }: {
 	group: SubscriptionGroup;
 	appId: string;
-	onAddSubscription: (group: SubscriptionGroup) => void;
-	onEdit: (p: InAppPurchase) => void;
-	onDelete: (p: InAppPurchase) => void;
 }) {
 	const router = useRouter();
+
 	return (
-		<Card>
-			<CardHeader className="pb-3">
-				<div className="flex items-center justify-between">
-					<CardTitle
-						className="cursor-pointer text-base hover:text-primary"
-						onClick={() =>
-							router.push(
-								`/apps/${appId}/subscription-groups/${group.id}`,
-							)
-						}
-					>
-						{group.name}
-					</CardTitle>
-					<div className="flex items-center gap-2">
-						<Badge variant="outline" className="text-xs">
+		<Card
+			className="cursor-pointer transition-all hover:shadow-sm"
+			onClick={() =>
+				router.push(
+					`/apps/${appId}/subscription-groups/${group.id}`,
+				)
+			}
+		>
+			<CardContent className="pt-6">
+				<div className="flex items-start justify-between gap-4">
+					<div className="min-w-0 flex-1 space-y-1">
+						<div className="flex items-center gap-2">
+							<Layers className="h-4 w-4 shrink-0 text-muted-foreground" />
+							<p className="text-sm font-medium">
+								{group.name}
+							</p>
+						</div>
+						<p className="text-xs text-muted-foreground">
 							{group.subscriptions.length} subscription
 							{group.subscriptions.length !== 1 ? "s" : ""}
+						</p>
+					</div>
+					<div className="flex shrink-0 items-center gap-2">
+						<Badge variant="outline" className="text-xs">
+							Group
 						</Badge>
-						<Button
-							variant="outline"
-							size="sm"
-							className="h-7"
-							onClick={() => onAddSubscription(group)}
-						>
-							<Plus className="mr-1 h-3.5 w-3.5" />
-							Add
-						</Button>
+						<ChevronRight className="h-4 w-4 text-muted-foreground" />
 					</div>
 				</div>
-			</CardHeader>
-			<CardContent className="space-y-3">
-				{group.subscriptions.map((sub) => (
-					<div
-						key={sub.id}
-						className="cursor-pointer rounded-lg border border-border p-3 space-y-2 transition-colors hover:bg-muted/50"
-						onClick={() =>
-							router.push(
-								`/apps/${appId}/purchases/${sub.id}`,
-							)
-						}
-					>
-						<div className="flex items-start justify-between gap-3">
-							<div className="min-w-0 flex-1">
-								<p className="truncate text-sm font-medium">
-									{sub.name}
-								</p>
-								<p className="text-xs text-muted-foreground">
-									{sub.productId}
-								</p>
-							</div>
-							<div className="flex shrink-0 items-center gap-1">
-								<Badge
-									className={cn(
-										"text-xs",
-										STATUS_COLORS[sub.status] ??
-											"bg-muted text-muted-foreground",
+
+				{group.subscriptions.length > 0 && (
+					<div className="mt-3 space-y-1">
+						{group.subscriptions.map((sub) => {
+							const usd = sub.prices.find(
+								(p) => p.currency === "USD",
+							);
+							return (
+								<div
+									key={sub.id}
+									className="flex items-center justify-between text-xs text-muted-foreground"
+								>
+									<span className="truncate">
+										{sub.name}
+									</span>
+									{usd && (
+										<span className="shrink-0 tabular-nums">
+											{usd.price} USD
+										</span>
 									)}
-								>
-									{sub.status}
-								</Badge>
-								<Button
-									variant="ghost"
-									size="sm"
-									className="h-7 w-7 p-0"
-									onClick={(e) => {
-										e.stopPropagation();
-										onEdit(sub);
-									}}
-								>
-									<Pencil className="h-3.5 w-3.5" />
-								</Button>
-								<Button
-									variant="ghost"
-									size="sm"
-									className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-									onClick={(e) => {
-										e.stopPropagation();
-										onDelete(sub);
-									}}
-								>
-									<Trash2 className="h-3.5 w-3.5" />
-								</Button>
-							</div>
-						</div>
-
-						{sub.duration && (
-							<p className="text-xs text-muted-foreground">
-								Duration: {sub.duration}
-							</p>
-						)}
-
-						{sub.prices.length > 0 && (
-							<div className="flex flex-wrap gap-2">
-								{sub.prices.slice(0, 5).map((p) => (
-									<span
-										key={p.id}
-										className="rounded-md bg-muted px-2 py-0.5 text-xs tabular-nums"
-									>
-										{p.price} {p.currency} ({p.territory})
-									</span>
-								))}
-								{sub.prices.length > 5 && (
-									<span className="text-xs text-muted-foreground">
-										+{sub.prices.length - 5} more
-									</span>
-								)}
-							</div>
-						)}
+								</div>
+							);
+						})}
 					</div>
-				))}
-
-				{group.subscriptions.length === 0 && (
-					<p className="py-4 text-center text-sm text-muted-foreground">
-						No subscriptions in this group.
-					</p>
 				)}
 			</CardContent>
 		</Card>
@@ -655,141 +585,6 @@ function LocalizationRowEditor({
 	);
 }
 
-// ── Edit Purchase Dialog ───────────────────────────────────────────
-
-function EditPurchaseDialog({
-	purchase,
-	onOpenChange,
-	appId,
-}: {
-	purchase: InAppPurchase | null;
-	onOpenChange: (open: boolean) => void;
-	appId: string;
-}) {
-	const updatePurchase = useUpdatePurchase(appId);
-	const [name, setName] = useState("");
-	const [prices, setPrices] = useState<PriceRow[]>([]);
-	const [localizations, setLocalizations] = useState<LocalizationRow[]>([]);
-
-	useEffect(() => {
-		if (purchase) {
-			setName(purchase.name);
-			setPrices(
-				purchase.prices.map((p) => ({
-					territory: p.territory,
-					currency: p.currency,
-					price: p.price,
-				})),
-			);
-			setLocalizations(
-				purchase.localizations.map((l) => ({
-					language: l.language,
-					name: l.name ?? "",
-					description: l.description ?? "",
-				})),
-			);
-		}
-	}, [purchase]);
-
-	const handleSave = async () => {
-		if (!purchase) return;
-		try {
-			const data: {
-				name?: string;
-				prices?: PriceRow[];
-				localizations?: { language: string; name?: string; description?: string }[];
-			} = {};
-
-			if (name.trim() && name.trim() !== purchase.name) {
-				data.name = name.trim();
-			}
-
-			const validPrices = prices.filter(
-				(p) => p.territory.trim() && p.price.trim(),
-			);
-			if (validPrices.length > 0) {
-				data.prices = validPrices;
-			}
-
-			const validLocs = localizations.filter((l) => l.language.trim());
-			if (validLocs.length > 0) {
-				data.localizations = validLocs.map((l) => ({
-					language: l.language,
-					name: l.name || undefined,
-					description: l.description || undefined,
-				}));
-			}
-
-			await updatePurchase.mutateAsync({
-				purchaseId: purchase.id,
-				data,
-			});
-			toast.success("Purchase updated");
-			onOpenChange(false);
-		} catch {
-			toast.error("Failed to update purchase");
-		}
-	};
-
-	return (
-		<Dialog open={!!purchase} onOpenChange={onOpenChange}>
-			<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-				<DialogHeader>
-					<DialogTitle>Edit Purchase</DialogTitle>
-				</DialogHeader>
-				<div className="space-y-5 py-2">
-					<div className="space-y-2">
-						<Label>Name</Label>
-						<Input
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-							placeholder="Purchase name"
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label className="text-muted-foreground">
-							Product ID
-						</Label>
-						<Input
-							value={purchase?.productId ?? ""}
-							disabled
-							className="opacity-60"
-						/>
-					</div>
-
-					<div className="border-t pt-4">
-						<PriceRowEditor prices={prices} onChange={setPrices} />
-					</div>
-
-					<div className="border-t pt-4">
-						<LocalizationRowEditor
-							localizations={localizations}
-							onChange={setLocalizations}
-						/>
-					</div>
-				</div>
-				<DialogFooter>
-					<Button
-						variant="outline"
-						onClick={() => onOpenChange(false)}
-					>
-						Cancel
-					</Button>
-					<Button
-						onClick={handleSave}
-						disabled={!name.trim() || updatePurchase.isPending}
-					>
-						{updatePurchase.isPending && (
-							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-						)}
-						Save
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-	);
-}
-
 // ── Delete Confirmation ────────────────────────────────────────────
 
 function DeletePurchaseDialog({
@@ -905,142 +700,6 @@ function CreateGroupDialog({
 	);
 }
 
-// ── Create Subscription Dialog ─────────────────────────────────────
-
-function CreateSubscriptionDialog({
-	group,
-	onOpenChange,
-	appId,
-}: {
-	group: SubscriptionGroup | null;
-	onOpenChange: (open: boolean) => void;
-	appId: string;
-}) {
-	const createSub = useCreateSubscription(appId);
-	const [name, setName] = useState("");
-	const [productId, setProductId] = useState("");
-	const [duration, setDuration] = useState("P1M");
-	const [prices, setPrices] = useState<PriceRow[]>([]);
-	const [localizations, setLocalizations] = useState<LocalizationRow[]>([]);
-
-	const reset = () => {
-		setName("");
-		setProductId("");
-		setDuration("P1M");
-		setPrices([]);
-		setLocalizations([]);
-	};
-
-	const handleCreate = async () => {
-		if (!group) return;
-		const validPrices = prices.filter(
-			(p) => p.territory.trim() && p.price.trim(),
-		);
-		const validLocs = localizations
-			.filter((l) => l.language.trim())
-			.map((l) => ({
-				language: l.language,
-				name: l.name || undefined,
-				description: l.description || undefined,
-			}));
-
-		try {
-			await createSub.mutateAsync({
-				groupId: group.id,
-				data: {
-					name,
-					productId,
-					duration,
-					prices: validPrices.length > 0 ? validPrices : undefined,
-					localizations: validLocs.length > 0 ? validLocs : undefined,
-				},
-			});
-			toast.success(`Created subscription "${name}"`);
-			onOpenChange(false);
-			reset();
-		} catch {
-			toast.error("Failed to create subscription");
-		}
-	};
-
-	return (
-		<Dialog open={!!group} onOpenChange={onOpenChange}>
-			<DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
-				<DialogHeader>
-					<DialogTitle>
-						Add Subscription to &ldquo;{group?.name}&rdquo;
-					</DialogTitle>
-				</DialogHeader>
-				<div className="space-y-5 py-2">
-					<div className="space-y-2">
-						<Label>Name</Label>
-						<Input
-							value={name}
-							onChange={(e) => setName(e.target.value)}
-							placeholder="e.g. Monthly Premium"
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label>Product ID</Label>
-						<Input
-							value={productId}
-							onChange={(e) => setProductId(e.target.value)}
-							placeholder="e.g. com.app.premium.monthly"
-						/>
-					</div>
-					<div className="space-y-2">
-						<Label>Duration</Label>
-						<Select value={duration} onValueChange={setDuration}>
-							<SelectTrigger>
-								<SelectValue />
-							</SelectTrigger>
-							<SelectContent>
-								{DURATION_OPTIONS.map((d) => (
-									<SelectItem key={d.value} value={d.value}>
-										{d.label}
-									</SelectItem>
-								))}
-							</SelectContent>
-						</Select>
-					</div>
-
-					<div className="border-t pt-4">
-						<PriceRowEditor prices={prices} onChange={setPrices} />
-					</div>
-
-					<div className="border-t pt-4">
-						<LocalizationRowEditor
-							localizations={localizations}
-							onChange={setLocalizations}
-						/>
-					</div>
-				</div>
-				<DialogFooter>
-					<Button
-						variant="outline"
-						onClick={() => onOpenChange(false)}
-					>
-						Cancel
-					</Button>
-					<Button
-						onClick={handleCreate}
-						disabled={
-							!name.trim() ||
-							!productId.trim() ||
-							createSub.isPending
-						}
-					>
-						{createSub.isPending && (
-							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
-						)}
-						Create
-					</Button>
-				</DialogFooter>
-			</DialogContent>
-		</Dialog>
-	);
-}
-
 // ── Main Page ──────────────────────────────────────────────────────
 
 export default function PurchasesPage() {
@@ -1054,12 +713,8 @@ export default function PurchasesPage() {
 	const [showMonetizationChat, setShowMonetizationChat] = useState(false);
 	const [showCreatePurchase, setShowCreatePurchase] = useState(false);
 	const [showCreateGroup, setShowCreateGroup] = useState(false);
-	const [editingPurchase, setEditingPurchase] =
-		useState<InAppPurchase | null>(null);
 	const [deletingPurchase, setDeletingPurchase] =
 		useState<InAppPurchase | null>(null);
-	const [addSubToGroup, setAddSubToGroup] =
-		useState<SubscriptionGroup | null>(null);
 
 	const handleSync = async () => {
 		try {
@@ -1095,7 +750,21 @@ export default function PurchasesPage() {
 				p.productType === "non_renewing",
 		) ?? [];
 
+	const ungroupedSubscriptions = subscriptions.filter((s) => !s.groupId);
+
+	const groupMap = useMemo(() => {
+		const map: Record<string, string> = {};
+		for (const g of subscriptionGroups.data ?? []) {
+			map[g.id] = g.name;
+		}
+		return map;
+	}, [subscriptionGroups.data]);
+
 	const isLoading = purchases.isLoading || subscriptionGroups.isLoading;
+	const hasNoContent =
+		iaps.length === 0 &&
+		(subscriptionGroups.data?.length ?? 0) === 0 &&
+		ungroupedSubscriptions.length === 0;
 
 	return (
 		<div className="mx-auto max-w-4xl p-6">
@@ -1177,7 +846,7 @@ export default function PurchasesPage() {
 					</TabsList>
 
 					<TabsContent value="all" className="mt-4 space-y-3">
-						{purchases.data?.length === 0 && (
+						{hasNoContent && (
 							<div className="flex flex-col items-center justify-center gap-2 py-12">
 								<Package className="h-10 w-10 text-muted-foreground" />
 								<p className="text-sm text-muted-foreground">
@@ -1186,12 +855,32 @@ export default function PurchasesPage() {
 								</p>
 							</div>
 						)}
-						{purchases.data?.map((purchase) => (
-							<PurchaseCard
-								key={purchase.id}
-								purchase={purchase}
+
+						{/* Subscription Groups */}
+						{(subscriptionGroups.data ?? []).map((group) => (
+							<GroupOverviewCard
+								key={group.id}
+								group={group}
 								appId={appId}
-								onEdit={setEditingPurchase}
+							/>
+						))}
+
+						{/* Ungrouped subscriptions */}
+						{ungroupedSubscriptions.map((sub) => (
+							<PurchaseCard
+								key={sub.id}
+								purchase={sub}
+								appId={appId}
+								onDelete={setDeletingPurchase}
+							/>
+						))}
+
+						{/* In-App Purchases */}
+						{iaps.map((iap) => (
+							<PurchaseCard
+								key={iap.id}
+								purchase={iap}
+								appId={appId}
 								onDelete={setDeletingPurchase}
 							/>
 						))}
@@ -1214,7 +903,7 @@ export default function PurchasesPage() {
 								key={sub.id}
 								purchase={sub}
 								appId={appId}
-								onEdit={setEditingPurchase}
+								groupName={sub.groupId ? groupMap[sub.groupId] : undefined}
 								onDelete={setDeletingPurchase}
 							/>
 						))}
@@ -1234,7 +923,7 @@ export default function PurchasesPage() {
 								key={iap.id}
 								purchase={iap}
 								appId={appId}
-								onEdit={setEditingPurchase}
+								groupName={iap.groupId ? groupMap[iap.groupId] : undefined}
 								onDelete={setDeletingPurchase}
 							/>
 						))}
@@ -1260,13 +949,10 @@ export default function PurchasesPage() {
 							</div>
 						)}
 						{subscriptionGroups.data?.map((group) => (
-							<SubscriptionGroupCard
+							<GroupOverviewCard
 								key={group.id}
 								group={group}
 								appId={appId}
-								onAddSubscription={setAddSubToGroup}
-								onEdit={setEditingPurchase}
-								onDelete={setDeletingPurchase}
 							/>
 						))}
 					</TabsContent>
@@ -1279,11 +965,6 @@ export default function PurchasesPage() {
 				onOpenChange={setShowCreatePurchase}
 				appId={appId}
 			/>
-			<EditPurchaseDialog
-				purchase={editingPurchase}
-				onOpenChange={(open) => !open && setEditingPurchase(null)}
-				appId={appId}
-			/>
 			<DeletePurchaseDialog
 				purchase={deletingPurchase}
 				onOpenChange={(open) => !open && setDeletingPurchase(null)}
@@ -1292,11 +973,6 @@ export default function PurchasesPage() {
 			<CreateGroupDialog
 				open={showCreateGroup}
 				onOpenChange={setShowCreateGroup}
-				appId={appId}
-			/>
-			<CreateSubscriptionDialog
-				group={addSubToGroup}
-				onOpenChange={(open) => !open && setAddSubToGroup(null)}
 				appId={appId}
 			/>
 			<MonetizationChat
