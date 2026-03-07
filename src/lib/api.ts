@@ -370,6 +370,11 @@ export const api = {
 				`/api/apps/${appId}/subscription-groups/${groupId}/subscriptions`,
 				{ body: JSON.stringify(data), method: "POST" },
 			).then((r) => r.purchase),
+		updateGroup: (appId: string, groupId: string, data: { name?: string }) =>
+			fetchApi<{ group: SubscriptionGroup }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}`,
+				{ body: JSON.stringify(data), method: "PATCH" },
+			).then((r) => r.group),
 	},
 
 	asoProfile: {

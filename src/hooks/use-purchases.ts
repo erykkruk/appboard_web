@@ -110,6 +110,22 @@ export function useCreateGroup(appId: string) {
 	});
 }
 
+export function useUpdateGroup(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: ({
+			groupId,
+			data,
+		}: {
+			groupId: string;
+			data: { name?: string };
+		}) => api.purchases.updateGroup(appId, groupId, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
+		},
+	});
+}
+
 export function useCreateSubscription(appId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({

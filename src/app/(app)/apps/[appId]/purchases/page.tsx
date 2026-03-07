@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import {
 	AlertTriangle,
 	CreditCard,
@@ -96,13 +96,16 @@ const DURATION_OPTIONS = [
 
 function PurchaseCard({
 	purchase,
+	appId,
 	onEdit,
 	onDelete,
 }: {
 	purchase: InAppPurchase;
+	appId: string;
 	onEdit: (p: InAppPurchase) => void;
 	onDelete: (p: InAppPurchase) => void;
 }) {
+	const router = useRouter();
 	const statusClass =
 		STATUS_COLORS[purchase.status] ?? "bg-muted text-muted-foreground";
 	const typeLabel = TYPE_LABELS[purchase.productType] ?? purchase.productType;
@@ -111,7 +114,12 @@ function PurchaseCard({
 		purchase.productType === "non_renewing";
 
 	return (
-		<Card className="transition-all hover:shadow-sm">
+		<Card
+			className="cursor-pointer transition-all hover:shadow-sm"
+			onClick={() =>
+				router.push(`/apps/${appId}/purchases/${purchase.id}`)
+			}
+		>
 			<CardContent className="pt-6">
 				<div className="flex items-start justify-between gap-4">
 					<div className="min-w-0 flex-1 space-y-1">
@@ -140,7 +148,10 @@ function PurchaseCard({
 							variant="ghost"
 							size="sm"
 							className="h-7 w-7 p-0"
-							onClick={() => onEdit(purchase)}
+							onClick={(e) => {
+								e.stopPropagation();
+								onEdit(purchase);
+							}}
 						>
 							<Pencil className="h-3.5 w-3.5" />
 						</Button>
@@ -148,7 +159,10 @@ function PurchaseCard({
 							variant="ghost"
 							size="sm"
 							className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-							onClick={() => onDelete(purchase)}
+							onClick={(e) => {
+								e.stopPropagation();
+								onDelete(purchase);
+							}}
 						>
 							<Trash2 className="h-3.5 w-3.5" />
 						</Button>
@@ -200,20 +214,32 @@ function PurchaseCard({
 
 function SubscriptionGroupCard({
 	group,
+	appId,
 	onAddSubscription,
 	onEdit,
 	onDelete,
 }: {
 	group: SubscriptionGroup;
+	appId: string;
 	onAddSubscription: (group: SubscriptionGroup) => void;
 	onEdit: (p: InAppPurchase) => void;
 	onDelete: (p: InAppPurchase) => void;
 }) {
+	const router = useRouter();
 	return (
 		<Card>
 			<CardHeader className="pb-3">
 				<div className="flex items-center justify-between">
-					<CardTitle className="text-base">{group.name}</CardTitle>
+					<CardTitle
+						className="cursor-pointer text-base hover:text-primary"
+						onClick={() =>
+							router.push(
+								`/apps/${appId}/subscription-groups/${group.id}`,
+							)
+						}
+					>
+						{group.name}
+					</CardTitle>
 					<div className="flex items-center gap-2">
 						<Badge variant="outline" className="text-xs">
 							{group.subscriptions.length} subscription
@@ -235,7 +261,12 @@ function SubscriptionGroupCard({
 				{group.subscriptions.map((sub) => (
 					<div
 						key={sub.id}
-						className="rounded-lg border border-border p-3 space-y-2"
+						className="cursor-pointer rounded-lg border border-border p-3 space-y-2 transition-colors hover:bg-muted/50"
+						onClick={() =>
+							router.push(
+								`/apps/${appId}/purchases/${sub.id}`,
+							)
+						}
 					>
 						<div className="flex items-start justify-between gap-3">
 							<div className="min-w-0 flex-1">
@@ -260,7 +291,10 @@ function SubscriptionGroupCard({
 									variant="ghost"
 									size="sm"
 									className="h-7 w-7 p-0"
-									onClick={() => onEdit(sub)}
+									onClick={(e) => {
+										e.stopPropagation();
+										onEdit(sub);
+									}}
 								>
 									<Pencil className="h-3.5 w-3.5" />
 								</Button>
@@ -268,7 +302,10 @@ function SubscriptionGroupCard({
 									variant="ghost"
 									size="sm"
 									className="h-7 w-7 p-0 text-destructive hover:text-destructive"
-									onClick={() => onDelete(sub)}
+									onClick={(e) => {
+										e.stopPropagation();
+										onDelete(sub);
+									}}
 								>
 									<Trash2 className="h-3.5 w-3.5" />
 								</Button>
@@ -1153,6 +1190,7 @@ export default function PurchasesPage() {
 							<PurchaseCard
 								key={purchase.id}
 								purchase={purchase}
+								appId={appId}
 								onEdit={setEditingPurchase}
 								onDelete={setDeletingPurchase}
 							/>
@@ -1175,6 +1213,7 @@ export default function PurchasesPage() {
 							<PurchaseCard
 								key={sub.id}
 								purchase={sub}
+								appId={appId}
 								onEdit={setEditingPurchase}
 								onDelete={setDeletingPurchase}
 							/>
@@ -1194,6 +1233,7 @@ export default function PurchasesPage() {
 							<PurchaseCard
 								key={iap.id}
 								purchase={iap}
+								appId={appId}
 								onEdit={setEditingPurchase}
 								onDelete={setDeletingPurchase}
 							/>
@@ -1223,6 +1263,7 @@ export default function PurchasesPage() {
 							<SubscriptionGroupCard
 								key={group.id}
 								group={group}
+								appId={appId}
 								onAddSubscription={setAddSubToGroup}
 								onEdit={setEditingPurchase}
 								onDelete={setDeletingPurchase}
