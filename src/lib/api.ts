@@ -172,7 +172,12 @@ export const api = {
 					}>;
 					purchaseId: string;
 				}>;
+				groupEdits?: Array<{
+					groupId: string;
+					name?: string;
+				}>;
 				groups?: Array<{
+					id?: string;
 					name: string;
 					subscriptions: Array<{
 						duration: string;
@@ -334,6 +339,14 @@ export const api = {
 	},
 
 	asoProfile: {
+		copyFrom: (appId: string, sourceAppId: string) =>
+			fetchApi<{ asoProfile: AsoProfile }>(
+				`/api/apps/${appId}/aso-profile/copy-from`,
+				{
+					body: JSON.stringify({ sourceAppId }),
+					method: "POST",
+				},
+			).then((r) => r.asoProfile),
 		get: (appId: string) =>
 			fetchApi<{ asoProfile: AsoProfile | null }>(
 				`/api/apps/${appId}/aso-profile`,

@@ -30,6 +30,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,8 +49,12 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CharacterCounter } from "@/components/character-counter";
-import { useApp } from "@/hooks/use-apps";
-import { useAsoProfile, useUpdateAsoProfile } from "@/hooks/use-aso-profile";
+import { useApp, useApps } from "@/hooks/use-apps";
+import {
+  useAsoProfile,
+  useCopyFromAsoProfile,
+  useUpdateAsoProfile,
+} from "@/hooks/use-aso-profile";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import type { AsoProfileInput } from "@/lib/types";
 
@@ -402,9 +414,16 @@ export default function AppInformationPage() {
   const profile = useAsoProfile(appId);
   const updateProfile = useUpdateAsoProfile(appId);
 
+  const allApps = useApps();
+  const copyFrom = useCopyFromAsoProfile(appId);
+
   const [form, setForm] = useState<AsoProfileInput>(EMPTY_PROFILE);
   const [initialized, setInitialized] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [showCopyDialog, setShowCopyDialog] = useState(false);
+  const [selectedSourceAppId, setSelectedSourceAppId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
     if (profile.data !== undefined && !initialized) {
@@ -561,6 +580,19 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
     toast.success("AI prompt copied to clipboard");
   }, [app.data]);
 
+  const handleCopyFrom = useCallback(async () => {
+    if (!selectedSourceAppId) return;
+    try {
+      const result = await copyFrom.mutateAsync(selectedSourceAppId);
+      setForm(profileToForm(result));
+      setShowCopyDialog(false);
+      setSelectedSourceAppId(null);
+      toast.success("ASO Profile copied successfully");
+    } catch {
+      toast.error("Failed to copy ASO Profile");
+    }
+  }, [selectedSourceAppId, copyFrom]);
+
   if (app.isLoading || profile.isLoading) {
     return (
       <div className="mx-auto max-w-3xl space-y-4 p-6">
@@ -609,12 +641,18 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
       onSelect: handleDownloadTemplate,
     },
     {
+      key: "copy-from",
+      label: "Copy From App",
+      icon: "copy",
+      onSelect: () => setShowCopyDialog(true),
+      separatorBefore: true,
+    },
+    {
       key: "import",
       label: "Import",
       icon: "upload",
       disabled: isImporting,
       onSelect: () => {},
-      separatorBefore: true,
     },
   ];
 
@@ -931,6 +969,90 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
         </div>
       </Section>
     </div>
+
+      {/* Copy From Dialog */}
+      <Dialog
+        open={showCopyDialog}
+        onOpenChange={(open) => {
+          setShowCopyDialog(open);
+          if (!open) setSelectedSourceAppId(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Copy ASO Profile</DialogTitle>
+            <DialogDescription>
+              Select an app to copy its ASO Profile to{" "}
+              <span className="font-medium text-foreground">
+                {data.name}
+              </span>
+              . This will overwrite the current profile.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 space-y-1 overflow-y-auto py-2">
+            {allApps.data
+              ?.filter((a) => a.id !== appId)
+              .map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                    selectedSourceAppId === a.id
+                      ? "bg-primary/10 ring-1 ring-primary"
+                      : "hover:bg-muted"
+                  }`}
+                  onClick={() => setSelectedSourceAppId(a.id)}
+                >
+                  {a.iconUrl ? (
+                    <img
+                      src={a.iconUrl}
+                      alt={a.name}
+                      className="h-8 w-8 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-xs font-bold text-muted-foreground">
+                      {a.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{a.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {a.bundleId}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="shrink-0 text-xs">
+                    {a.platform === "ios" ? "iOS" : "Android"}
+                  </Badge>
+                </button>
+              ))}
+            {allApps.data?.filter((a) => a.id !== appId).length === 0 && (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                No other apps in workspace
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCopyDialog(false);
+                setSelectedSourceAppId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCopyFrom}
+              disabled={!selectedSourceAppId || copyFrom.isPending}
+            >
+              {copyFrom.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Copy Profile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }
