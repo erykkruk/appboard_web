@@ -584,14 +584,17 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
     if (!selectedSourceAppId) return;
     try {
       const result = await copyFrom.mutateAsync(selectedSourceAppId);
-      setForm(profileToForm(result));
+      const newForm = profileToForm(result);
+      setForm(newForm);
+      // Sync auto-save baseline so it doesn't trigger a redundant save
+      await saveNow(newForm);
       setShowCopyDialog(false);
       setSelectedSourceAppId(null);
       toast.success("ASO Profile copied successfully");
     } catch {
       toast.error("Failed to copy ASO Profile");
     }
-  }, [selectedSourceAppId, copyFrom]);
+  }, [selectedSourceAppId, copyFrom, saveNow]);
 
   if (app.isLoading || profile.isLoading) {
     return (
