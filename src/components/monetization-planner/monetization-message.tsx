@@ -185,8 +185,11 @@ export function PlanPreview({
 		plan.groups?.reduce((acc, g) => acc + g.subscriptions.length, 0) ?? 0;
 	const totalPurchases = plan.purchases?.length ?? 0;
 	const totalEdits = plan.edits?.length ?? 0;
+	const totalGroupEdits = plan.groupEdits?.length ?? 0;
 	const totalDeletes = plan.deletes?.length ?? 0;
 	const totalGroupDeletes = plan.groupDeletes?.length ?? 0;
+	const totalKnownItems =
+		totalGroups + totalPurchases + totalEdits + totalGroupEdits + totalDeletes + totalGroupDeletes;
 
 	return (
 		<div className="mt-3 rounded-lg border border-primary/20 bg-primary/5 p-4 space-y-3">
@@ -322,6 +325,18 @@ export function PlanPreview({
 					/>
 				))}
 
+				{plan.groupEdits?.map((e) => (
+					<div
+						key={e.groupId}
+						className="flex items-center gap-2 text-muted-foreground"
+					>
+						<Pencil className="h-3.5 w-3.5 shrink-0" />
+						<span className="truncate">
+							Rename group: {e.groupId} → {e.name}
+						</span>
+					</div>
+				))}
+
 				{plan.deletes?.map((id) => (
 					<div
 						key={id}
@@ -341,6 +356,12 @@ export function PlanPreview({
 						<span className="truncate">Delete group: {id}</span>
 					</div>
 				))}
+
+				{totalKnownItems === 0 && (
+					<pre className="max-h-40 overflow-auto rounded bg-muted p-2 text-xs text-muted-foreground">
+						{JSON.stringify(plan, null, 2)}
+					</pre>
+				)}
 			</div>
 
 			<div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted-foreground">
@@ -348,6 +369,7 @@ export function PlanPreview({
 				{totalSubs > 0 && <span>{totalSubs} subscriptions</span>}
 				{totalPurchases > 0 && <span>{totalPurchases} IAPs</span>}
 				{totalEdits > 0 && <span>{totalEdits} edits</span>}
+				{totalGroupEdits > 0 && <span>{totalGroupEdits} group edits</span>}
 				{totalDeletes > 0 && <span>{totalDeletes} deletes</span>}
 				{totalGroupDeletes > 0 && <span>{totalGroupDeletes} group deletes</span>}
 			</div>
