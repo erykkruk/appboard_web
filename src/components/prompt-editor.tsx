@@ -27,7 +27,7 @@ const LISTING_FIELDS = [
 
 const MODES = ["generate", "rephrase"] as const;
 
-function getSettingKey(field: string, mode: string): string {
+function defaultGetSettingKey(field: string, mode: string): string {
 	return `AI_PROMPT_${mode.toUpperCase()}_${field.toUpperCase()}`;
 }
 
@@ -37,6 +37,8 @@ interface PromptEntry {
 	isDefault: boolean;
 }
 
+export type { PromptEntry };
+
 interface PromptEditorProps {
 	prompts: Record<string, PromptEntry> | undefined;
 	onSave: (mode: string, field: string, prompt: string) => Promise<void>;
@@ -44,6 +46,10 @@ interface PromptEditorProps {
 	isSaving: boolean;
 	isResetting: boolean;
 	isLoading?: boolean;
+	fields?: ReadonlyArray<{ key: string; label: string; description?: string }>;
+	modes?: readonly string[];
+	getSettingKey?: (field: string, mode: string) => string;
+	description?: string;
 }
 
 function FieldPromptEditor({
@@ -143,6 +149,10 @@ export function PromptEditor({
 	isSaving,
 	isResetting,
 	isLoading,
+	fields = LISTING_FIELDS,
+	modes = MODES,
+	getSettingKey = defaultGetSettingKey,
+	description = "These prompts define the AI\u2019s behavior for each listing field. Data from the app\u2019s Information page (category, features, audience, tone, keywords, etc.) is automatically included in every AI request \u2014 no need to repeat it here.",
 }: PromptEditorProps) {
 	if (isLoading) {
 		return (
@@ -152,17 +162,14 @@ export function PromptEditor({
 		);
 	}
 
+	const hasModes = modes.length > 1;
+
 	return (
 		<div className="space-y-4">
-			<p className="text-sm text-muted-foreground">
-				These prompts define the AI&apos;s behavior for each listing field.
-				Data from the app&apos;s Information page (category, features,
-				audience, tone, keywords, etc.) is automatically included in every
-				AI request — no need to repeat it here.
-			</p>
+			<p className="text-sm text-muted-foreground">{description}</p>
 			<Accordion type="single" collapsible className="w-full">
-			{LISTING_FIELDS.map(({ key, label }) => {
-				const hasCustom = MODES.some((mode) => {
+			{fields.map(({ key, label, description: fieldDesc }) => {
+				const hasCustom = modes.some((mode) => {
 					const settingKey = getSettingKey(key, mode);
 					return prompts?.[settingKey] && !prompts[settingKey].isDefault;
 				});
@@ -171,7 +178,14 @@ export function PromptEditor({
 					<AccordionItem key={key} value={key}>
 						<AccordionTrigger className="text-sm">
 							<div className="flex items-center gap-2">
-								{label}
+								<div className="text-left">
+									{label}
+									{fieldDesc && (
+										<span className="ml-2 text-xs font-normal text-muted-foreground">
+											{fieldDesc}
+										</span>
+									)}
+								</div>
 								{hasCustom && (
 									<Badge variant="secondary" className="text-xs">
 										Custom
@@ -180,29 +194,44 @@ export function PromptEditor({
 							</div>
 						</AccordionTrigger>
 						<AccordionContent>
-							<Tabs defaultValue="generate" className="w-full">
-								<TabsList className="mb-3">
-									<TabsTrigger value="generate">Generate</TabsTrigger>
-									<TabsTrigger value="rephrase">Rephrase</TabsTrigger>
-								</TabsList>
-								{MODES.map((mode) => {
-									const settingKey = getSettingKey(key, mode);
-									const entry = prompts?.[settingKey];
-									return (
-										<TabsContent key={mode} value={mode}>
-											<FieldPromptEditor
-												field={key}
-												mode={mode}
-												entry={entry}
-												onSave={onSave}
-												onReset={onReset}
-												isSaving={isSaving}
-												isResetting={isResetting}
-											/>
-										</TabsContent>
-									);
-								})}
-							</Tabs>
+							{hasModes ? (
+								<Tabs defaultValue={modes[0]} className="w-full">
+									<TabsList className="mb-3">
+										{modes.map((mode) => (
+											<TabsTrigger key={mode} value={mode} className="capitalize">
+												{mode}
+											</TabsTrigger>
+										))}
+									</TabsList>
+									{modes.map((mode) => {
+										const settingKey = getSettingKey(key, mode);
+										const entry = prompts?.[settingKey];
+										return (
+											<TabsContent key={mode} value={mode}>
+												<FieldPromptEditor
+													field={key}
+													mode={mode}
+													entry={entry}
+													onSave={onSave}
+													onReset={onReset}
+													isSaving={isSaving}
+													isResetting={isResetting}
+												/>
+											</TabsContent>
+										);
+									})}
+								</Tabs>
+							) : (
+								<FieldPromptEditor
+									field={key}
+									mode={modes[0]}
+									entry={prompts?.[getSettingKey(key, modes[0])]}
+									onSave={onSave}
+									onReset={onReset}
+									isSaving={isSaving}
+									isResetting={isResetting}
+								/>
+							)}
 						</AccordionContent>
 					</AccordionItem>
 				);

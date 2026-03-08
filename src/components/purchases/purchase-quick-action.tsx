@@ -61,6 +61,9 @@ export function PurchaseQuickAction({
 			queryClient.invalidateQueries({
 				queryKey: ["subscription-group", appId],
 			});
+			queryClient.invalidateQueries({ queryKey: ["group-localizations"] });
+			queryClient.invalidateQueries({ queryKey: ["group-availability"] });
+			queryClient.invalidateQueries({ queryKey: ["group-review-info"] });
 
 			const parts: string[] = [];
 			if (results.created.length > 0)
@@ -72,7 +75,19 @@ export function PurchaseQuickAction({
 			if (results.failed.length > 0)
 				parts.push(`${results.failed.length} failed`);
 
-			toast.success(`Plan executed: ${parts.join(", ") || "No changes"}`);
+			const summary = parts.join(", ") || "No changes";
+
+			if (results.failed.length > 0) {
+				const failedDetails = results.failed
+					.map((f: { item: string; error: string }) => `• ${f.item}: ${f.error}`)
+					.join("\n");
+				toast.error(`Plan executed with errors: ${summary}`, {
+					description: failedDetails,
+					duration: 8000,
+				});
+			} else {
+				toast.success(`Plan executed: ${summary}`);
+			}
 		},
 		onError: (error) => {
 			toast.error(

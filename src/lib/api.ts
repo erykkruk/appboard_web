@@ -2,6 +2,7 @@ import type {
 	AgeRating,
 	AgeRatingInput,
 	AgeRatingPreset,
+	AiChatMessage,
 	AiResponse,
 	App,
 	AppAiPrompt,
@@ -257,6 +258,25 @@ export const api = {
 				body: JSON.stringify({ appId, plan }),
 				method: "POST",
 			}).then((r) => r.results),
+		chatHistory: (appId: string, chatType: string) =>
+			fetchApi<{ messages: AiChatMessage[] }>(
+				`/api/ai/chat-history?${toQuery({ appId, chatType })}`,
+			).then((r) => r.messages),
+		addChatMessage: (data: {
+			appId: string;
+			chatType: string;
+			content: string;
+			role: "assistant" | "user";
+		}) =>
+			fetchApi<{ message: AiChatMessage }>("/api/ai/chat-history", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}).then((r) => r.message),
+		clearChatHistory: (appId: string, chatType: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/ai/chat-history?${toQuery({ appId, chatType })}`,
+				{ method: "DELETE" },
+			),
 	},
 
 	appGroups: {
@@ -957,6 +977,44 @@ export const api = {
 			fetchApi<void>(`/api/settings/prompts/${mode}/${field}`, {
 				method: "DELETE",
 			}),
+		getMonetizationPrompts: () =>
+			fetchApi<{ prompts: Record<string, GlobalPromptEntry> }>(
+				"/api/settings/monetization-prompts",
+			).then((r) => r.prompts),
+		getMonetizationPromptDefaults: () =>
+			fetchApi<{ defaults: Record<string, string> }>(
+				"/api/settings/monetization-prompts/defaults",
+			).then((r) => r.defaults),
+		setMonetizationPrompt: (field: string, prompt: string) =>
+			fetchApi<void>(`/api/settings/monetization-prompts/${field}`, {
+				body: JSON.stringify({ prompt }),
+				method: "PUT",
+			}),
+		deleteMonetizationPrompt: (field: string) =>
+			fetchApi<void>(`/api/settings/monetization-prompts/${field}`, {
+				method: "DELETE",
+			}),
+		getPurchasePrompts: () =>
+			fetchApi<{ prompts: Record<string, GlobalPromptEntry> }>(
+				"/api/settings/purchase-prompts",
+			).then((r) => r.prompts),
+		getPurchasePromptDefaults: () =>
+			fetchApi<{ defaults: Record<string, string> }>(
+				"/api/settings/purchase-prompts/defaults",
+			).then((r) => r.defaults),
+		setPurchasePrompt: (mode: string, field: string, prompt: string) =>
+			fetchApi<void>(`/api/settings/purchase-prompts/${mode}/${field}`, {
+				body: JSON.stringify({ prompt }),
+				method: "PUT",
+			}),
+		deletePurchasePrompt: (mode: string, field: string) =>
+			fetchApi<void>(`/api/settings/purchase-prompts/${mode}/${field}`, {
+				method: "DELETE",
+			}),
+		getMonetizationGuide: () =>
+			fetchApi<{ sections: Array<{ id: string; title: string; content: string }> }>(
+				"/api/settings/monetization-guide",
+			).then((r) => r.sections),
 	},
 
 	appAiPrompts: {

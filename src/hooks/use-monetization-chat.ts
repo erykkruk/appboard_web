@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 import type { MonetizationPlan } from "@/lib/types";
+
+import { useChatHistory } from "./use-chat-history";
 
 export type { MonetizationPlan };
 
@@ -12,6 +14,8 @@ interface ChatMessage {
 	content: string;
 	role: "assistant" | "user";
 }
+
+const MAX_MESSAGES = 10;
 
 export function extractPlan(content: string): MonetizationPlan | null {
 	const match = content.match(
@@ -30,17 +34,46 @@ export function useMonetizationChat(
 	appId: string,
 	territories?: string[],
 ) {
+	const {
+		addMessage: persistMessage,
+		clearHistory,
+		isLoading: isLoadingHistory,
+		messages: persistedMessages,
+	} = useChatHistory(appId, "monetization");
+
 	const [messages, setMessages] = useState<ChatMessage[]>([]);
 	const [isStreaming, setIsStreaming] = useState(false);
 	const abortRef = useRef<AbortController | null>(null);
 	const queryClient = useQueryClient();
+	const initializedRef = useRef(false);
+
+	// Initialize messages from persisted history
+	useEffect(() => {
+		if (!isLoadingHistory && persistedMessages.length > 0 && !initializedRef.current) {
+			initializedRef.current = true;
+			setMessages(
+				persistedMessages.map((m) => ({
+					content: m.content,
+					role: m.role,
+				})),
+			);
+		}
+		if (!isLoadingHistory && persistedMessages.length === 0 && !initializedRef.current) {
+			initializedRef.current = true;
+		}
+	}, [isLoadingHistory, persistedMessages]);
 
 	const sendMessage = useCallback(
 		async (content: string) => {
+			if (messages.length >= MAX_MESSAGES) return;
+
 			const userMessage: ChatMessage = { content, role: "user" };
 			const updatedMessages = [...messages, userMessage];
 			setMessages(updatedMessages);
 			setIsStreaming(true);
+
+			// Persist user message
+			persistMessage.mutate({ content, role: "user" });
 
 			const controller = new AbortController();
 			abortRef.current = controller;
@@ -63,10 +96,12 @@ export function useMonetizationChat(
 					}));
 					const info =
 						error.data?.info ?? `Error: ${response.status}`;
+					const errorContent = `Error: ${info}`;
 					setMessages((prev) => [
 						...prev,
-						{ content: `Error: ${info}`, role: "assistant" },
+						{ content: errorContent, role: "assistant" },
 					]);
+					persistMessage.mutate({ content: errorContent, role: "assistant" });
 					setIsStreaming(false);
 					return;
 				}
@@ -121,22 +156,26 @@ export function useMonetizationChat(
 						}
 					}
 				}
+
+				// Persist assistant message after stream completes
+				if (assistantContent) {
+					persistMessage.mutate({ content: assistantContent, role: "assistant" });
+				}
 			} catch (err) {
 				if ((err as Error).name !== "AbortError") {
+					const errorContent = "Connection error. Please try again.";
 					setMessages((prev) => [
 						...prev.filter((m) => m.content !== ""),
-						{
-							content: "Connection error. Please try again.",
-							role: "assistant",
-						},
+						{ content: errorContent, role: "assistant" },
 					]);
+					persistMessage.mutate({ content: errorContent, role: "assistant" });
 				}
 			} finally {
 				setIsStreaming(false);
 				abortRef.current = null;
 			}
 		},
-		[appId, messages, territories],
+		[appId, messages, territories, persistMessage],
 	);
 
 	const executePlan = useMutation({
@@ -145,17 +184,25 @@ export function useMonetizationChat(
 		onError: (error) => {
 			const message =
 				error instanceof Error ? error.message : "Unknown error";
+			const errorContent = `Failed to execute plan: ${message}`;
 			setMessages((prev) => [
 				...prev,
-				{
-					content: `Failed to execute plan: ${message}`,
-					role: "assistant",
-				},
+				{ content: errorContent, role: "assistant" },
 			]);
+			persistMessage.mutate({ content: errorContent, role: "assistant" });
 		},
 		onSuccess: (results) => {
 			queryClient.invalidateQueries({
 				queryKey: ["purchases", appId],
+			});
+			queryClient.invalidateQueries({
+				queryKey: ["group-localizations"],
+			});
+			queryClient.invalidateQueries({
+				queryKey: ["group-availability"],
+			});
+			queryClient.invalidateQueries({
+				queryKey: ["group-review-info"],
 			});
 
 			const parts: string[] = [];
@@ -170,17 +217,22 @@ export function useMonetizationChat(
 
 			const summary = parts.length > 0 ? parts.join(", ") : "No changes";
 
+			const hasFailures = results.failed.length > 0;
+			const prefix = hasFailures
+				? "Plan executed with errors"
+				: "Plan executed";
+
+			const resultContent = `${prefix}: ${summary}.${
+				hasFailures
+					? `\n\nFailed items:\n${results.failed.map((f) => `- ${f.item}: ${f.error}`).join("\n")}`
+					: ""
+			}`;
+
 			setMessages((prev) => [
 				...prev,
-				{
-					content: `Plan executed: ${summary}.${
-						results.failed.length > 0
-							? `\n\nFailed items:\n${results.failed.map((f) => `- ${f.item}: ${f.error}`).join("\n")}`
-							: ""
-					}`,
-					role: "assistant",
-				},
+				{ content: resultContent, role: "assistant" },
 			]);
+			persistMessage.mutate({ content: resultContent, role: "assistant" });
 		},
 	});
 
@@ -190,12 +242,16 @@ export function useMonetizationChat(
 
 	const clearMessages = useCallback(() => {
 		setMessages([]);
-	}, []);
+		initializedRef.current = true;
+		clearHistory.mutate();
+	}, [clearHistory]);
 
 	return {
 		clearMessages,
 		executePlan,
+		isLoadingHistory,
 		isStreaming,
+		maxMessages: MAX_MESSAGES,
 		messages,
 		sendMessage,
 		stopStreaming,

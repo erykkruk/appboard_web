@@ -13,12 +13,11 @@ import {
 	Plus,
 	RefreshCw,
 	Repeat,
-	Sparkles,
 	Trash2,
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { MonetizationChat } from "@/components/monetization-planner/monetization-chat";
+import { MonetizationChatPopup } from "@/components/monetization-planner/monetization-chat-popup";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import {
 	AlertDialog,
@@ -710,7 +709,6 @@ export default function PurchasesPage() {
 	const syncPurchases = useSyncPurchases(appId);
 	const capabilities = usePurchasesCapabilities(appId);
 
-	const [showMonetizationChat, setShowMonetizationChat] = useState(false);
 	const [showCreatePurchase, setShowCreatePurchase] = useState(false);
 	const [showCreateGroup, setShowCreateGroup] = useState(false);
 	const [deletingPurchase, setDeletingPurchase] =
@@ -778,14 +776,6 @@ export default function PurchasesPage() {
 					</p>
 				</div>
 				<div className="flex items-center gap-2">
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setShowMonetizationChat(true)}
-					>
-						<Sparkles className="mr-2 h-4 w-4" />
-						Plan Monetization
-					</Button>
 					<Button
 						variant="outline"
 						size="sm"
@@ -975,11 +965,7 @@ export default function PurchasesPage() {
 				onOpenChange={setShowCreateGroup}
 				appId={appId}
 			/>
-			<MonetizationChat
-				appId={appId}
-				open={showMonetizationChat}
-				onOpenChange={setShowMonetizationChat}
-			/>
+			<MonetizationChatPopup appId={appId} />
 		</div>
 	);
 }

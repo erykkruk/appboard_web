@@ -3,10 +3,10 @@
 import { useCallback, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { ChevronRight, Globe, Loader2, MessageSquare, Plus, Save, Trash2 } from "lucide-react";
+import { ChevronRight, Globe, Loader2, Plus, Save, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-import { MonetizationChat } from "@/components/monetization-planner/monetization-chat";
+import { MonetizationChatPopup } from "@/components/monetization-planner/monetization-chat-popup";
 import { AiFieldAction } from "@/components/purchases/ai-field-action";
 import { PurchaseQuickAction } from "@/components/purchases/purchase-quick-action";
 import { InheritToggle } from "@/components/purchases/inherit-toggle";
@@ -89,7 +89,6 @@ export default function PurchaseDetailPage() {
 	const deletePurchase = useDeletePurchase(appId);
 
 	const appName = app?.name ?? "";
-	const [showChat, setShowChat] = useState(false);
 	const [showDeleteDialog, setShowDeleteDialog] = useState(false);
 
 	const [name, setName] = useState("");
@@ -320,14 +319,6 @@ export default function PurchaseDetailPage() {
 				</div>
 				<div className="flex items-center gap-2">
 					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setShowChat(true)}
-					>
-						<MessageSquare className="mr-1.5 h-3.5 w-3.5" />
-						AI Chat
-					</Button>
-					<Button
 						variant="ghost"
 						size="icon"
 						className="h-8 w-8 text-destructive hover:text-destructive"
@@ -395,11 +386,7 @@ export default function PurchaseDetailPage() {
 				}}
 			/>
 
-			<MonetizationChat
-				appId={appId}
-				open={showChat}
-				onOpenChange={setShowChat}
-			/>
+			<MonetizationChatPopup appId={appId} />
 
 			{/* Metadata */}
 			<Card>

@@ -709,6 +709,18 @@ export interface CreateSubscriptionInput {
 	prices?: { territory: string; currency: string; price: string }[];
 }
 
+export interface AiChatMessage {
+	appId: string;
+	chatType: string;
+	content: string;
+	createdAt: string;
+	id: string;
+	role: "assistant" | "user";
+	sortOrder: number;
+	updatedAt: string;
+	workspaceId: string;
+}
+
 // AI Quick Action
 export interface MonetizationPlan {
 	deletes?: string[];
