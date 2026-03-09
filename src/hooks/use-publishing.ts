@@ -25,6 +25,15 @@ export function useUpdatePublishSettings(appId: string) {
 	});
 }
 
+export function usePushPreview(appId: string, enabled: boolean) {
+	return useQuery({
+		enabled: !!appId && enabled,
+		queryFn: () => api.publishing.pushPreview(appId),
+		queryKey: ["publishing", appId, "push-preview"],
+		staleTime: 0,
+	});
+}
+
 export function usePublishingOverview(appId: string) {
 	return useQuery({
 		enabled: !!appId,

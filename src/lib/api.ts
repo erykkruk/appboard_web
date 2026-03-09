@@ -41,6 +41,8 @@ import type {
 	PublishingOverview,
 	PublishLocalizationsResult,
 	PublishResult,
+	PushPreview,
+	PurchasePublishResult,
 	PurchaseSyncResult,
 	Review,
 	ReviewInfo,
@@ -396,6 +398,11 @@ export const api = {
 				`/api/apps/${appId}/purchases/sync`,
 				{ method: "POST" },
 			),
+		publish: (appId: string) =>
+			fetchApi<PurchasePublishResult>(
+				`/api/apps/${appId}/purchases/publish`,
+				{ method: "POST" },
+			),
 		subscriptionGroups: (appId: string) =>
 			fetchApi<{ groups: SubscriptionGroup[] }>(
 				`/api/apps/${appId}/subscription-groups`,
@@ -484,6 +491,17 @@ export const api = {
 				`/api/apps/${appId}/purchases/${purchaseId}/review-info`,
 				{ body: JSON.stringify(data), method: "PUT" },
 			).then((r) => r.reviewInfo),
+
+		// Effective localizations
+		effectiveLocalizations: (appId: string, purchaseId: string) =>
+			fetchApi<{ localizations: GroupLocalization[]; source: string; useGroupLocalizations: boolean }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/effective-localizations`,
+			),
+		updateUseGroupLocalizations: (appId: string, purchaseId: string, useGroupLocalizations: boolean) =>
+			fetchApi<{ localizations: GroupLocalization[]; source: string; useGroupLocalizations: boolean }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/use-group-localizations`,
+				{ body: JSON.stringify({ useGroupLocalizations }), method: "PUT" },
+			),
 
 		// Family sharing
 		updateFamilySharing: (appId: string, purchaseId: string, familySharable: boolean) =>
@@ -669,6 +687,8 @@ export const api = {
 			),
 		overview: (appId: string) =>
 			fetchApi<PublishingOverview>(`/api/apps/${appId}/publishing/overview`),
+		pushPreview: (appId: string) =>
+			fetchApi<PushPreview>(`/api/apps/${appId}/publishing/push-preview`),
 		previewScreenshot: (
 			appId: string,
 			displayType: string,
@@ -1058,6 +1078,15 @@ export const api = {
 	},
 
 	ageRating: {
+		generate: (appId: string) =>
+			fetchApi<{
+				appleQuestionnaire: Record<string, string>;
+				appleRating: string;
+				googleQuestionnaire: Record<string, string | boolean>;
+				model: string;
+				presetId: string;
+				reasoning: string;
+			}>(`/api/apps/${appId}/age-rating/generate`, { method: "POST" }),
 		get: (appId: string) =>
 			fetchApi<{ ageRating: AgeRating | null }>(
 				`/api/apps/${appId}/age-rating`,

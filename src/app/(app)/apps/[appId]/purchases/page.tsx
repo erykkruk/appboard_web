@@ -14,6 +14,7 @@ import {
 	RefreshCw,
 	Repeat,
 	Trash2,
+	Upload,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -59,6 +60,7 @@ import {
 	useCreateGroup,
 	useCreatePurchase,
 	useDeletePurchase,
+	usePublishPurchases,
 	usePurchases,
 	usePurchasesCapabilities,
 	useSubscriptionGroups,
@@ -707,6 +709,7 @@ export default function PurchasesPage() {
 	const purchases = usePurchases(appId);
 	const subscriptionGroups = useSubscriptionGroups(appId);
 	const syncPurchases = useSyncPurchases(appId);
+	const publishPurchases = usePublishPurchases(appId);
 	const capabilities = usePurchasesCapabilities(appId);
 
 	const [showCreatePurchase, setShowCreatePurchase] = useState(false);
@@ -731,6 +734,35 @@ export default function PurchasesPage() {
 			);
 		} catch {
 			toast.error("Failed to sync purchases");
+		}
+	};
+
+	const handlePublish = async () => {
+		try {
+			const result = await publishPurchases.mutateAsync();
+			const parts = [];
+			if (result.publishedPrices > 0)
+				parts.push(`${result.publishedPrices} prices`);
+			if (result.publishedLocalizations > 0)
+				parts.push(`${result.publishedLocalizations} localizations`);
+			if (result.publishedGroupLocalizations > 0)
+				parts.push(`${result.publishedGroupLocalizations} group localizations`);
+			if (result.publishedAvailability > 0)
+				parts.push(`${result.publishedAvailability} availability`);
+
+			if (result.errors.length > 0) {
+				toast.warning(
+					`Published: ${parts.join(", ")}. ${result.errors.length} error(s) occurred.`,
+				);
+			} else {
+				toast.success(
+					parts.length > 0
+						? `Published: ${parts.join(", ")}`
+						: "Nothing to publish",
+				);
+			}
+		} catch {
+			toast.error("Failed to publish purchases to store");
 		}
 	};
 
@@ -788,6 +820,19 @@ export default function PurchasesPage() {
 							<RefreshCw className="mr-2 h-4 w-4" />
 						)}
 						Sync
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={handlePublish}
+						disabled={publishPurchases.isPending}
+					>
+						{publishPurchases.isPending ? (
+							<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+						) : (
+							<Upload className="mr-2 h-4 w-4" />
+						)}
+						Publish to Store
 					</Button>
 					<Button
 						size="sm"

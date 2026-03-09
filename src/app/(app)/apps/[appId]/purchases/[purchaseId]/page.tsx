@@ -41,6 +41,7 @@ import { useApp } from "@/hooks/use-apps";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import {
 	useDeletePurchase,
+	useEffectiveLocalizations,
 	usePurchase,
 	usePurchaseAvailability,
 	usePurchaseReviewInfo,
@@ -48,6 +49,7 @@ import {
 	useUpdatePurchase,
 	useUpdatePurchaseAvailability,
 	useUpdatePurchaseReviewInfo,
+	useUpdateUseGroupLocalizations,
 } from "@/hooks/use-purchases";
 import { cn } from "@/lib/utils";
 
@@ -418,146 +420,155 @@ export default function PurchaseDetailPage() {
 			</Card>
 
 			{/* Localizations */}
-			<Card>
-				<CardHeader>
-					<div className="flex items-center justify-between">
-						<CardTitle className="text-sm">Localizations</CardTitle>
-						<Button
-							variant="ghost"
-							size="sm"
-							className="h-7 text-xs"
-							onClick={addLanguage}
-						>
-							<Plus className="mr-1 h-3 w-3" />
-							Add Language
-						</Button>
-					</div>
-				</CardHeader>
-				<CardContent>
-					{localeKeys.length === 0 ? (
-						<p className="py-4 text-center text-sm text-muted-foreground">
-							No localizations. Click &ldquo;Add Language&rdquo; to get started.
-						</p>
-					) : (
-						<Tabs
-							value={activeLocale}
-							onValueChange={setActiveLocale}
-						>
-							<div className="flex items-center gap-2">
-								<TabsList className="flex-wrap">
-									{localeKeys.map((lang) => (
-										<TabsTrigger
-											key={lang}
-											value={lang}
-											className="gap-1 uppercase"
-										>
-											<Globe className="h-3 w-3" />
-											{lang}
-										</TabsTrigger>
-									))}
-								</TabsList>
-							</div>
-							{localeKeys.map((lang) => (
-								<TabsContent
-									key={lang}
-									value={lang}
-									className="mt-4 space-y-4"
-								>
-									<div className="space-y-2">
-										<div className="flex items-center gap-1">
-											<label className="text-xs font-medium text-muted-foreground">
-												Display Name
-											</label>
-											<AiFieldAction
-												appId={appId}
-												field="purchaseName"
-												context={aiContext}
-												currentValue={localizations[lang]?.name ?? ""}
-												language={lang}
-												onResult={(v) => updateLocField(lang, "name", v)}
-												showTranslate
-												otherLocales={localeKeys.filter((l) => l !== lang)}
-												onTranslateResults={(translations) => {
-													for (const [locale, value] of Object.entries(translations)) {
-														if (localizations[locale]) {
-															updateLocField(locale, "name", value);
+			{isSubscription && purchase.groupId ? (
+				<PurchaseLocalizationsSection
+					appId={appId}
+					purchaseId={purchaseId}
+					groupId={purchase.groupId}
+					aiContext={aiContext}
+				/>
+			) : (
+				<Card>
+					<CardHeader>
+						<div className="flex items-center justify-between">
+							<CardTitle className="text-sm">Localizations</CardTitle>
+							<Button
+								variant="ghost"
+								size="sm"
+								className="h-7 text-xs"
+								onClick={addLanguage}
+							>
+								<Plus className="mr-1 h-3 w-3" />
+								Add Language
+							</Button>
+						</div>
+					</CardHeader>
+					<CardContent>
+						{localeKeys.length === 0 ? (
+							<p className="py-4 text-center text-sm text-muted-foreground">
+								No localizations. Click &ldquo;Add Language&rdquo; to get started.
+							</p>
+						) : (
+							<Tabs
+								value={activeLocale}
+								onValueChange={setActiveLocale}
+							>
+								<div className="flex items-center gap-2">
+									<TabsList className="flex-wrap">
+										{localeKeys.map((lang) => (
+											<TabsTrigger
+												key={lang}
+												value={lang}
+												className="gap-1 uppercase"
+											>
+												<Globe className="h-3 w-3" />
+												{lang}
+											</TabsTrigger>
+										))}
+									</TabsList>
+								</div>
+								{localeKeys.map((lang) => (
+									<TabsContent
+										key={lang}
+										value={lang}
+										className="mt-4 space-y-4"
+									>
+										<div className="space-y-2">
+											<div className="flex items-center gap-1">
+												<label className="text-xs font-medium text-muted-foreground">
+													Display Name
+												</label>
+												<AiFieldAction
+													appId={appId}
+													field="purchaseName"
+													context={aiContext}
+													currentValue={localizations[lang]?.name ?? ""}
+													language={lang}
+													onResult={(v) => updateLocField(lang, "name", v)}
+													showTranslate
+													otherLocales={localeKeys.filter((l) => l !== lang)}
+													onTranslateResults={(translations) => {
+														for (const [locale, value] of Object.entries(translations)) {
+															if (localizations[locale]) {
+																updateLocField(locale, "name", value);
+															}
 														}
-													}
-												}}
+													}}
+												/>
+											</div>
+											<Input
+												value={
+													localizations[lang]?.name ?? ""
+												}
+												onChange={(e) =>
+													updateLocField(
+														lang,
+														"name",
+														e.target.value,
+													)
+												}
+												placeholder="Display name for this language"
 											/>
 										</div>
-										<Input
-											value={
-												localizations[lang]?.name ?? ""
-											}
-											onChange={(e) =>
-												updateLocField(
-													lang,
-													"name",
-													e.target.value,
-												)
-											}
-											placeholder="Display name for this language"
-										/>
-									</div>
-									<div className="space-y-2">
-										<div className="flex items-center gap-1">
-											<label className="text-xs font-medium text-muted-foreground">
-												Description
-											</label>
-											<AiFieldAction
-												appId={appId}
-												field="purchaseDescription"
-												context={aiContext}
-												currentValue={localizations[lang]?.description ?? ""}
-												language={lang}
-												onResult={(v) => updateLocField(lang, "description", v)}
-												showTranslate
-												otherLocales={localeKeys.filter((l) => l !== lang)}
-												onTranslateResults={(translations) => {
-													for (const [locale, value] of Object.entries(translations)) {
-														if (localizations[locale]) {
-															updateLocField(locale, "description", value);
+										<div className="space-y-2">
+											<div className="flex items-center gap-1">
+												<label className="text-xs font-medium text-muted-foreground">
+													Description
+												</label>
+												<AiFieldAction
+													appId={appId}
+													field="purchaseDescription"
+													context={aiContext}
+													currentValue={localizations[lang]?.description ?? ""}
+													language={lang}
+													onResult={(v) => updateLocField(lang, "description", v)}
+													showTranslate
+													otherLocales={localeKeys.filter((l) => l !== lang)}
+													onTranslateResults={(translations) => {
+														for (const [locale, value] of Object.entries(translations)) {
+															if (localizations[locale]) {
+																updateLocField(locale, "description", value);
+															}
 														}
-													}
-												}}
+													}}
+												/>
+											</div>
+											<Textarea
+												value={
+													localizations[lang]
+														?.description ?? ""
+												}
+												onChange={(e) =>
+													updateLocField(
+														lang,
+														"description",
+														e.target.value,
+													)
+												}
+												placeholder="Description for this language"
+												rows={3}
 											/>
 										</div>
-										<Textarea
-											value={
-												localizations[lang]
-													?.description ?? ""
-											}
-											onChange={(e) =>
-												updateLocField(
-													lang,
-													"description",
-													e.target.value,
-												)
-											}
-											placeholder="Description for this language"
-											rows={3}
-										/>
-									</div>
-									<div className="flex justify-end">
-										<Button
-											variant="ghost"
-											size="sm"
-											className="h-7 text-xs text-destructive hover:text-destructive"
-											onClick={() =>
-												removeLanguage(lang)
-											}
-										>
-											<Trash2 className="mr-1 h-3 w-3" />
-											Remove {lang}
-										</Button>
-									</div>
-								</TabsContent>
-							))}
-						</Tabs>
-					)}
-				</CardContent>
-			</Card>
+										<div className="flex justify-end">
+											<Button
+												variant="ghost"
+												size="sm"
+												className="h-7 text-xs text-destructive hover:text-destructive"
+												onClick={() =>
+													removeLanguage(lang)
+												}
+											>
+												<Trash2 className="mr-1 h-3 w-3" />
+												Remove {lang}
+											</Button>
+										</div>
+									</TabsContent>
+								))}
+							</Tabs>
+						)}
+					</CardContent>
+				</Card>
+			)}
 
 			{/* Prices */}
 			<Card>
@@ -825,6 +836,285 @@ function PurchaseReviewInfoSection({
 							</p>
 						</div>
 					</>
+				)}
+			</CardContent>
+		</Card>
+	);
+}
+
+// --- Purchase Localizations Section (with group inheritance) ---
+function PurchaseLocalizationsSection({
+	appId,
+	purchaseId,
+	groupId,
+	aiContext,
+}: {
+	appId: string;
+	purchaseId: string;
+	groupId: string;
+	aiContext: {
+		appName: string;
+		productType?: string;
+		productName?: string;
+		groupName?: string;
+		duration?: string;
+	};
+}) {
+	const { data: effective, isLoading } = useEffectiveLocalizations(appId, purchaseId);
+	const updateUseGroup = useUpdateUseGroupLocalizations(appId, purchaseId);
+	const updatePurchase = useUpdatePurchase(appId);
+
+	const [useGroupLocs, setUseGroupLocs] = useState(true);
+	const [localizations, setLocalizations] = useState<
+		Record<string, { name: string; description: string }>
+	>({});
+	const [initialized, setInitialized] = useState(false);
+	const [activeLocale, setActiveLocale] = useState("");
+
+	if (effective && !initialized) {
+		setUseGroupLocs(effective.useGroupLocalizations);
+		const locs: Record<string, { name: string; description: string }> = {};
+		for (const l of effective.localizations) {
+			locs[l.language] = {
+				name: l.name ?? "",
+				description: l.description ?? "",
+			};
+		}
+		setLocalizations(locs);
+		if (effective.localizations.length > 0) {
+			setActiveLocale(effective.localizations[0].language);
+		}
+		setInitialized(true);
+	}
+
+	const handleToggleInherit = async (inherit: boolean) => {
+		setUseGroupLocs(inherit);
+		try {
+			const result = await updateUseGroup.mutateAsync(inherit);
+			const locs: Record<string, { name: string; description: string }> = {};
+			for (const l of result.localizations) {
+				locs[l.language] = {
+					name: l.name ?? "",
+					description: l.description ?? "",
+				};
+			}
+			setLocalizations(locs);
+			const keys = Object.keys(locs);
+			if (keys.length > 0 && !keys.includes(activeLocale)) {
+				setActiveLocale(keys[0]);
+			}
+			toast.success(
+				inherit ? "Using group localizations" : "Using own localizations",
+			);
+		} catch {
+			toast.error("Failed to update localization preference");
+			setUseGroupLocs(!inherit);
+		}
+	};
+
+	const updateLocField = (
+		lang: string,
+		field: "name" | "description",
+		value: string,
+	) => {
+		setLocalizations((prev) => ({
+			...prev,
+			[lang]: { ...prev[lang], [field]: value },
+		}));
+	};
+
+	const addLanguage = () => {
+		const lang = prompt("Enter language code (e.g. en-US, pl, de):");
+		if (!lang || localizations[lang]) return;
+		setLocalizations((prev) => ({
+			...prev,
+			[lang]: { name: "", description: "" },
+		}));
+		setActiveLocale(lang);
+	};
+
+	const removeLanguage = (lang: string) => {
+		setLocalizations((prev) => {
+			const next = { ...prev };
+			delete next[lang];
+			return next;
+		});
+		const remaining = Object.keys(localizations).filter((l) => l !== lang);
+		setActiveLocale(remaining[0] ?? "");
+	};
+
+	const handleSaveLocs = useCallback(
+		async (data: Record<string, { name: string; description: string }>) => {
+			if (useGroupLocs) return;
+			const locsArray = Object.entries(data).map(([language, loc]) => ({
+				language,
+				name: loc.name || undefined,
+				description: loc.description || undefined,
+			}));
+			await updatePurchase.mutateAsync({
+				purchaseId,
+				data: { localizations: locsArray },
+			});
+		},
+		[purchaseId, updatePurchase, useGroupLocs],
+	);
+
+	useAutoSave({
+		data: localizations,
+		onSave: handleSaveLocs,
+		enabled: initialized && !useGroupLocs,
+	});
+
+	const localeKeys = useMemo(
+		() => Object.keys(localizations),
+		[localizations],
+	);
+
+	if (isLoading) {
+		return <Skeleton className="h-40 rounded-xl" />;
+	}
+
+	return (
+		<Card>
+			<CardHeader>
+				<div className="flex items-center justify-between">
+					<CardTitle className="text-sm">Localizations</CardTitle>
+					{!useGroupLocs && (
+						<Button
+							variant="ghost"
+							size="sm"
+							className="h-7 text-xs"
+							onClick={addLanguage}
+						>
+							<Plus className="mr-1 h-3 w-3" />
+							Add Language
+						</Button>
+					)}
+				</div>
+			</CardHeader>
+			<CardContent className="space-y-4">
+				<InheritToggle
+					useDefault={useGroupLocs}
+					onChange={handleToggleInherit}
+					label="Use group localizations"
+					description="When enabled, this subscription uses the localizations from its subscription group."
+					groupHref={`/apps/${appId}/subscription-groups/${groupId}?tab=localizations`}
+				/>
+				{localeKeys.length === 0 ? (
+					<p className="py-4 text-center text-sm text-muted-foreground">
+						No localizations.{" "}
+						{!useGroupLocs && "Click \"Add Language\" to get started."}
+					</p>
+				) : (
+					<Tabs
+						value={activeLocale}
+						onValueChange={setActiveLocale}
+					>
+						<div className="flex items-center gap-2">
+							<TabsList className="flex-wrap">
+								{localeKeys.map((lang) => (
+									<TabsTrigger
+										key={lang}
+										value={lang}
+										className="gap-1 uppercase"
+									>
+										<Globe className="h-3 w-3" />
+										{lang}
+									</TabsTrigger>
+								))}
+							</TabsList>
+						</div>
+						{localeKeys.map((lang) => (
+							<TabsContent
+								key={lang}
+								value={lang}
+								className="mt-4 space-y-4"
+							>
+								<div className="space-y-2">
+									<div className="flex items-center gap-1">
+										<label className="text-xs font-medium text-muted-foreground">
+											Display Name
+										</label>
+										{!useGroupLocs && (
+											<AiFieldAction
+												appId={appId}
+												field="purchaseName"
+												context={aiContext}
+												currentValue={localizations[lang]?.name ?? ""}
+												language={lang}
+												onResult={(v) => updateLocField(lang, "name", v)}
+												showTranslate
+												otherLocales={localeKeys.filter((l) => l !== lang)}
+												onTranslateResults={(translations) => {
+													for (const [locale, value] of Object.entries(translations)) {
+														if (localizations[locale]) {
+															updateLocField(locale, "name", value);
+														}
+													}
+												}}
+											/>
+										)}
+									</div>
+									<Input
+										value={localizations[lang]?.name ?? ""}
+										onChange={(e) =>
+											updateLocField(lang, "name", e.target.value)
+										}
+										placeholder="Display name for this language"
+										disabled={useGroupLocs}
+									/>
+								</div>
+								<div className="space-y-2">
+									<div className="flex items-center gap-1">
+										<label className="text-xs font-medium text-muted-foreground">
+											Description
+										</label>
+										{!useGroupLocs && (
+											<AiFieldAction
+												appId={appId}
+												field="purchaseDescription"
+												context={aiContext}
+												currentValue={localizations[lang]?.description ?? ""}
+												language={lang}
+												onResult={(v) => updateLocField(lang, "description", v)}
+												showTranslate
+												otherLocales={localeKeys.filter((l) => l !== lang)}
+												onTranslateResults={(translations) => {
+													for (const [locale, value] of Object.entries(translations)) {
+														if (localizations[locale]) {
+															updateLocField(locale, "description", value);
+														}
+													}
+												}}
+											/>
+										)}
+									</div>
+									<Textarea
+										value={localizations[lang]?.description ?? ""}
+										onChange={(e) =>
+											updateLocField(lang, "description", e.target.value)
+										}
+										placeholder="Description for this language"
+										rows={3}
+										disabled={useGroupLocs}
+									/>
+								</div>
+								{!useGroupLocs && (
+									<div className="flex justify-end">
+										<Button
+											variant="ghost"
+											size="sm"
+											className="h-7 text-xs text-destructive hover:text-destructive"
+											onClick={() => removeLanguage(lang)}
+										>
+											<Trash2 className="mr-1 h-3 w-3" />
+											Remove {lang}
+										</Button>
+									</div>
+								)}
+							</TabsContent>
+						))}
+					</Tabs>
 				)}
 			</CardContent>
 		</Card>

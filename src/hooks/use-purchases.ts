@@ -61,6 +61,16 @@ export function useSyncPurchases(appId: string) {
 	});
 }
 
+export function usePublishPurchases(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: () => api.purchases.publish(appId),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
+		},
+	});
+}
+
 export function useCreatePurchase(appId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({
@@ -265,6 +275,28 @@ export function useUpdatePurchaseReviewInfo(appId: string, purchaseId: string) {
 			api.purchases.updatePurchaseReviewInfo(appId, purchaseId, data),
 		onSuccess: () => {
 			qc.invalidateQueries({ queryKey: ["purchase-review-info", appId, purchaseId] });
+			qc.invalidateQueries({ queryKey: ["purchases", appId] });
+		},
+	});
+}
+
+// Effective localizations (inheritance)
+export function useEffectiveLocalizations(appId: string, purchaseId: string) {
+	return useQuery({
+		enabled: !!appId && !!purchaseId,
+		queryFn: () => api.purchases.effectiveLocalizations(appId, purchaseId),
+		queryKey: ["effective-localizations", appId, purchaseId],
+	});
+}
+
+export function useUpdateUseGroupLocalizations(appId: string, purchaseId: string) {
+	const qc = useQueryClient();
+	return useMutation({
+		mutationFn: (useGroupLocalizations: boolean) =>
+			api.purchases.updateUseGroupLocalizations(appId, purchaseId, useGroupLocalizations),
+		onSuccess: () => {
+			qc.invalidateQueries({ queryKey: ["effective-localizations", appId, purchaseId] });
+			qc.invalidateQueries({ queryKey: ["purchases", appId, purchaseId] });
 			qc.invalidateQueries({ queryKey: ["purchases", appId] });
 		},
 	});

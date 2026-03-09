@@ -290,6 +290,47 @@ export interface PublishingOverview {
 	} | null;
 }
 
+export interface PushPreview {
+	ageRating: {
+		appleRating?: string | null;
+		configured: boolean;
+		googleRating?: string | null;
+		presetId?: string;
+	};
+	assets: {
+		added: number;
+		count: number;
+		removed: number;
+	};
+	categories: {
+		primaryCategory: string | null;
+		secondaryCategory: string | null;
+	} | null;
+	isIos: boolean;
+	listings: {
+		changes: { language: string; fields: string[] }[];
+		count: number;
+	};
+	privacy: {
+		configured: boolean;
+		dataCollectionCount?: number;
+		templateId?: string;
+		trackingEnabled?: boolean;
+	};
+	purchases: {
+		groupCount: number;
+		localizationCount: number;
+		priceCount: number;
+		purchaseCount: number;
+	};
+	version: {
+		isEditable: boolean;
+		state: string;
+		suggestedVersion: string | null;
+		versionString: string;
+	} | null;
+}
+
 export interface PublishResult {
 	listings: { published: number };
 	assets: { published: number };
@@ -681,6 +722,14 @@ export interface PurchaseSyncResult {
 	syncedGroups: number;
 	syncedSubscriptions: number;
 	syncedIaps: number;
+}
+
+export interface PurchasePublishResult {
+	publishedLocalizations: number;
+	publishedPrices: number;
+	publishedGroupLocalizations: number;
+	publishedAvailability: number;
+	errors: Array<{ item: string; error: string }>;
 }
 
 export interface CreatePurchaseInput {

@@ -35,6 +35,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { PushPreviewDialog } from "@/components/push-preview-dialog";
 import { useApp } from "@/hooks/use-apps";
 import { api } from "@/lib/api";
 import { useCreateVersion, useVersions } from "@/hooks/use-publishing";
@@ -83,7 +84,7 @@ export default function AppLayout({
   const [newVersion, setNewVersion] = useState("");
   const [showNewVersion, setShowNewVersion] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isPushing, setIsPushing] = useState(false);
+  const [showPushPreview, setShowPushPreview] = useState(false);
   const queryClient = useQueryClient();
 
   const basePath = `/apps/${appId}`;
@@ -174,39 +175,6 @@ export default function AppLayout({
       toast.error("Sync failed");
     } finally {
       setIsSyncing(false);
-    }
-  }, [appId, isIos, queryClient]);
-
-  const handlePushToStore = useCallback(async () => {
-    setIsPushing(true);
-    try {
-      const pushTasks: Promise<unknown>[] = [api.listings.publish(appId)];
-
-      if (isIos) {
-        pushTasks.push(
-          api.listings.publishCategories(appId),
-          api.ageRating.publish(appId),
-          api.privacyDeclaration.publish(appId),
-        );
-      }
-
-      const results = await Promise.allSettled(pushTasks);
-      const errors = results
-        .filter((r): r is PromiseRejectedResult => r.status === "rejected")
-        .map((r) => (r.reason as Error)?.message ?? String(r.reason));
-
-      if (errors.length > 0) {
-        for (const msg of errors) {
-          toast.error(msg);
-        }
-      } else {
-        toast.success("Pushed to store");
-      }
-    } catch {
-      toast.error("Push failed");
-    } finally {
-      setIsPushing(false);
-      queryClient.invalidateQueries({ queryKey: ["apps"] });
     }
   }, [appId, isIos, queryClient]);
 
@@ -445,16 +413,24 @@ export default function AppLayout({
             variant="outline"
             size="sm"
             className="w-full justify-center gap-2 text-muted-foreground"
-            onClick={handlePushToStore}
-            disabled={isPushing || isGpDraftApp}
+            onClick={() => setShowPushPreview(true)}
+            disabled={isGpDraftApp}
           >
-            {isPushing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Upload className="h-3.5 w-3.5" />
-            )}
-            {isPushing ? "Pushing..." : isIos ? "Push to App Store" : "Push as Draft"}
+            <Upload className="h-3.5 w-3.5" />
+            {isIos ? "Push to App Store" : "Push as Draft"}
           </Button>
+          <PushPreviewDialog
+            appId={appId}
+            isIos={isIos}
+            open={showPushPreview}
+            onOpenChange={setShowPushPreview}
+            onComplete={() => {
+              queryClient.invalidateQueries({ queryKey: ["apps"] });
+              queryClient.invalidateQueries({ queryKey: ["listings", appId] });
+              queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
+              queryClient.invalidateQueries({ queryKey: ["publishing", appId] });
+            }}
+          />
           <Button
             variant="outline"
             size="sm"

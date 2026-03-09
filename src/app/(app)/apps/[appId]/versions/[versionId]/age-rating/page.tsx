@@ -1,8 +1,9 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
+import { AlertTriangle, ExternalLink, Loader2, Sparkles } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -19,6 +20,7 @@ import { useApp } from "@/hooks/use-apps";
 import {
   useAgeRating,
   useAgeRatingPresets,
+  useGenerateAgeRating,
   useUpdateAgeRating,
 } from "@/hooks/use-age-rating";
 import { useAutoSave } from "@/hooks/use-auto-save";
@@ -38,6 +40,16 @@ const QUESTION_LABELS: Record<string, string> = {
   GRAPHIC_SEXUAL_CONTENT_NUDITY: "Graphic Sexual Content and Nudity",
   UNRESTRICTED_WEB_ACCESS: "Unrestricted Web Access",
   GAMBLING_CONTESTS: "Gambling and Contests",
+  LOOT_BOX: "Loot Boxes",
+  CONTESTS: "Contests",
+  HEALTH_OR_WELLNESS_TOPICS: "Health or Wellness Topics",
+  GUNS_OR_OTHER_WEAPONS: "Guns or Other Weapons",
+  USER_GENERATED_CONTENT: "User Generated Content",
+  PARENTAL_CONTROLS: "Parental Controls",
+  GAMBLING: "Gambling",
+  ADVERTISING: "Advertising",
+  AGE_ASSURANCE: "Age Assurance",
+  MESSAGING_AND_CHAT: "Messaging and Chat",
 };
 
 const ANSWER_LABELS: Record<string, string> = {
@@ -62,6 +74,7 @@ export default function AgeRatingPage() {
   const rating = useAgeRating(params.appId);
   const presets = useAgeRatingPresets();
   const updateRating = useUpdateAgeRating(params.appId);
+  const generateRating = useGenerateAgeRating(params.appId);
 
   const [presetId, setPresetId] = useState("everyone");
   const [customApple, setCustomApple] = useState<Record<string, string>>({});
@@ -114,6 +127,22 @@ export default function AgeRatingPage() {
     setCustomApple((prev) => ({ ...prev, [question]: value }));
   };
 
+  const handleGenerate = async () => {
+    try {
+      const result = await generateRating.mutateAsync();
+      setPresetId("custom");
+      setCustomApple(result.appleQuestionnaire);
+      toast.success("Age rating generated", {
+        description: result.reasoning,
+        duration: 8000,
+      });
+    } catch (err) {
+      toast.error("Failed to generate age rating", {
+        description: err instanceof Error ? err.message : "Unknown error",
+      });
+    }
+  };
+
   if (rating.isLoading || presets.isLoading) {
     return (
       <div className="flex items-center justify-center py-20">
@@ -130,6 +159,19 @@ export default function AgeRatingPage() {
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Age Rating</h1>
         <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={handleGenerate}
+            disabled={generateRating.isPending}
+          >
+            {generateRating.isPending ? (
+              <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+            ) : (
+              <Sparkles className="mr-1.5 h-4 w-4" />
+            )}
+            Generate with AI
+          </Button>
           {isIos && externalId && (
             <Button variant="outline" size="sm" asChild>
               <a
