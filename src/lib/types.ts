@@ -334,6 +334,7 @@ export interface PushPreview {
 export interface PublishResult {
 	listings: { published: number };
 	assets: { published: number };
+	versionLocalizations?: { published: number; errors?: string[] };
 }
 
 export interface VersionInfo {
@@ -722,14 +723,6 @@ export interface PurchaseSyncResult {
 	syncedGroups: number;
 	syncedSubscriptions: number;
 	syncedIaps: number;
-}
-
-export interface PurchasePublishResult {
-	publishedLocalizations: number;
-	publishedPrices: number;
-	publishedGroupLocalizations: number;
-	publishedAvailability: number;
-	errors: Array<{ item: string; error: string }>;
 }
 
 export interface CreatePurchaseInput {

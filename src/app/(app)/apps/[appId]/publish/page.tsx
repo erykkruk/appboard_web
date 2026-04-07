@@ -93,8 +93,15 @@ export default function PublishPage() {
     try {
       const result = await publish.mutateAsync(false);
       const total =
-        (result.listings?.published ?? 0) + (result.assets?.published ?? 0);
+        (result.listings?.published ?? 0) +
+        (result.assets?.published ?? 0) +
+        (result.versionLocalizations?.published ?? 0);
       toast.success(`Published ${total} change(s) to the store`);
+      if (result.versionLocalizations?.errors?.length) {
+        for (const err of result.versionLocalizations.errors) {
+          toast.error(err);
+        }
+      }
     } catch {
       toast.error("Failed to publish changes");
     }

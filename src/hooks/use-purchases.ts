@@ -61,16 +61,6 @@ export function useSyncPurchases(appId: string) {
 	});
 }
 
-export function usePublishPurchases(appId: string) {
-	const queryClient = useQueryClient();
-	return useMutation({
-		mutationFn: () => api.purchases.publish(appId),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
-		},
-	});
-}
-
 export function useCreatePurchase(appId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({

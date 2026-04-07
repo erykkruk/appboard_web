@@ -42,7 +42,6 @@ import type {
 	PublishLocalizationsResult,
 	PublishResult,
 	PushPreview,
-	PurchasePublishResult,
 	PurchaseSyncResult,
 	Review,
 	ReviewInfo,
@@ -396,11 +395,6 @@ export const api = {
 		sync: (appId: string) =>
 			fetchApi<PurchaseSyncResult>(
 				`/api/apps/${appId}/purchases/sync`,
-				{ method: "POST" },
-			),
-		publish: (appId: string) =>
-			fetchApi<PurchasePublishResult>(
-				`/api/apps/${appId}/purchases/publish`,
 				{ method: "POST" },
 			),
 		subscriptionGroups: (appId: string) =>
