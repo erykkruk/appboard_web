@@ -72,7 +72,18 @@ export default function DashboardPage() {
   const hasStores = (stores.data ?? []).length > 0;
   const appsList = apps.data ?? [];
 
-  if (stores.isLoading) return null;
+  if (stores.isLoading) {
+    return (
+      <div className="space-y-4 p-6">
+        <Skeleton className="h-8 w-48" />
+        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 3 }).map((_, i) => (
+            <Skeleton key={i} className="h-24 rounded-xl" />
+          ))}
+        </div>
+      </div>
+    );
+  }
 
   if (!hasStores) {
     return (

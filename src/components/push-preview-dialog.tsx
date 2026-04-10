@@ -1,9 +1,11 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import {
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   CreditCard,
   FileText,
   Globe,
@@ -15,8 +17,14 @@ import {
   Upload,
 } from "lucide-react";
 
+import { InlineDiff } from "@/components/diff";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Dialog,
   DialogContent,
@@ -25,20 +33,11 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useListingDiffs } from "@/hooks/use-listing-diffs";
 import { usePushPreview } from "@/hooks/use-publishing";
 import { api } from "@/lib/api";
-
-const FIELD_LABELS: Record<string, string> = {
-  fullDesc: "Full Description",
-  keywords: "Keywords",
-  marketingUrl: "Marketing URL",
-  privacyUrl: "Privacy URL",
-  promoText: "Promotional Text",
-  shortDesc: "Short Description",
-  supportUrl: "Support URL",
-  title: "Title",
-  whatsNew: "What's New",
-};
+import { computeDiff } from "@/lib/diff";
+import { getListingFieldLabel } from "@/lib/field-labels";
 
 type SectionStatus = "idle" | "pushing" | "done" | "error";
 
@@ -73,6 +72,8 @@ export function PushPreviewDialog({
     privacy: "idle",
   });
   const [isPushingAll, setIsPushingAll] = useState(false);
+  const [showDiffDetails, setShowDiffDetails] = useState(false);
+  const diffsQuery = useListingDiffs(appId, open && showDiffDetails);
 
   const hasListingChanges = (data?.listings.count ?? 0) > 0;
   const hasAssetChanges = (data?.assets.count ?? 0) > 0;
@@ -192,19 +193,73 @@ export function PushPreviewDialog({
               canPush={sectionHasData.listings && statuses.listings === "idle" && !isPushingAll}
             >
               {hasListingChanges && (
-                <ul className="space-y-1">
-                  {data!.listings.changes.map((change) => (
-                    <li key={change.language} className="text-xs text-muted-foreground">
-                      <span className="font-medium text-foreground">
-                        {change.language}
-                      </span>
-                      {" — "}
-                      {change.fields
-                        .map((f) => FIELD_LABELS[f] ?? f)
-                        .join(", ")}
-                    </li>
-                  ))}
-                </ul>
+                <div className="space-y-2">
+                  <ul className="space-y-1">
+                    {data!.listings.changes.map((change) => (
+                      <li key={change.language} className="text-xs text-muted-foreground">
+                        <span className="font-medium text-foreground">
+                          {change.language}
+                        </span>
+                        {" — "}
+                        {change.fields.map(getListingFieldLabel).join(", ")}
+                      </li>
+                    ))}
+                  </ul>
+                  <button
+                    type="button"
+                    onClick={() => setShowDiffDetails((prev) => !prev)}
+                    className="inline-flex items-center gap-1 text-[11px] font-medium text-primary hover:underline"
+                  >
+                    {showDiffDetails ? (
+                      <ChevronDown className="h-3 w-3" />
+                    ) : (
+                      <ChevronRight className="h-3 w-3" />
+                    )}
+                    {showDiffDetails ? "Hide details" : "Show details"}
+                  </button>
+
+                  {showDiffDetails && (
+                    <div className="mt-2 space-y-2">
+                      {diffsQuery.isLoading && (
+                        <div className="space-y-2">
+                          <Skeleton className="h-16 w-full" />
+                          <Skeleton className="h-16 w-full" />
+                        </div>
+                      )}
+                      {diffsQuery.data && diffsQuery.data.length === 0 && (
+                        <p className="text-xs text-muted-foreground">
+                          No field diffs available.
+                        </p>
+                      )}
+                      {diffsQuery.data?.map((langDiff) => (
+                        <Collapsible
+                          key={langDiff.language}
+                          className="rounded-md border border-border bg-card"
+                          defaultOpen
+                        >
+                          <CollapsibleTrigger className="group/trigger flex w-full items-center gap-1 px-3 py-2 text-left text-xs font-medium text-foreground">
+                            <ChevronDown className="h-3 w-3 shrink-0 transition-transform group-data-[state=closed]/trigger:-rotate-90" />
+                            <span>{langDiff.language}</span>
+                            <span className="ml-auto text-[10px] text-muted-foreground">
+                              {langDiff.fields.length}{" "}
+                              {langDiff.fields.length === 1 ? "field" : "fields"}
+                            </span>
+                          </CollapsibleTrigger>
+                          <CollapsibleContent className="space-y-2 border-t border-border px-3 py-2">
+                            {langDiff.fields.map((field) => (
+                              <DiffFieldRow
+                                key={field.field}
+                                field={field.field}
+                                oldValue={field.oldValue}
+                                newValue={field.newValue}
+                              />
+                            ))}
+                          </CollapsibleContent>
+                        </Collapsible>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
             </Section>
 
@@ -413,3 +468,32 @@ function Section({
     </div>
   );
 }
+
+interface DiffFieldRowProps {
+  field: string;
+  oldValue: string | null | undefined;
+  newValue: string | null | undefined;
+}
+
+const DiffFieldRow = memo(function DiffFieldRow({
+  field,
+  oldValue,
+  newValue,
+}: DiffFieldRowProps) {
+  const { segments, mode } = useMemo(
+    () => computeDiff(oldValue ?? "", newValue ?? ""),
+    [oldValue, newValue],
+  );
+
+  return (
+    <div className="space-y-1">
+      <div className="text-[11px] font-medium text-muted-foreground">
+        {getListingFieldLabel(field)}
+      </div>
+      <InlineDiff
+        segments={segments}
+        mode={mode === "line" ? "line-by-line" : "inline"}
+      />
+    </div>
+  );
+});

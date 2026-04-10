@@ -20,6 +20,7 @@ import type {
 	CreatePurchaseInput,
 	CreateSubscriptionInput,
 	DraftReplyRequest,
+	FeaturesResponse,
 	GenerateDescriptionRequest,
 	GenerateListingFieldRequest,
 	GeneratePurchaseFieldRequest,
@@ -34,6 +35,7 @@ import type {
 	HistoryEntry,
 	InAppPurchase,
 	Listing,
+	ListingDiff,
 	PlatformCapabilities,
 	PrivacyDeclaration,
 	PrivacyDeclarationInput,
@@ -554,6 +556,15 @@ export const api = {
 			}).then((r) => r.asset),
 	},
 
+	features: {
+		get: () => fetchApi<FeaturesResponse>("/api/features"),
+		update: (data: Record<string, boolean>) =>
+			fetchApi<{ features: Record<string, boolean> }>("/api/features", {
+				body: JSON.stringify(data),
+				method: "PATCH",
+			}).then((r) => r.features),
+	},
+
 	history: {
 		list: (appId: string, params?: { language?: string; field?: string }) =>
 			fetchApi<{ history: HistoryEntry[] }>(
@@ -570,6 +581,10 @@ export const api = {
 			fetchApi<CategoriesData>(
 				`/api/apps/${appId}/listings/categories`,
 			),
+		diffs: (appId: string) =>
+			fetchApi<{ diffs: ListingDiff[] }>(
+				`/api/apps/${appId}/listings/diffs`,
+			).then((r) => r.diffs),
 		get: (appId: string, language: string) =>
 			fetchApi<{ draft: Listing | null; remote: Listing | null }>(
 				`/api/apps/${appId}/listings/${language}`,

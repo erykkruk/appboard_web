@@ -46,12 +46,12 @@ describe("PricesTable", () => {
 		expect(screen.getByText("0.79")).toBeInTheDocument();
 	});
 
-	test("sorts prices by territory alphabetically", () => {
+	test("sorts prices by currency priority then territory", () => {
 		render(<PricesTable prices={MOCK_PRICES} />);
 
 		const rows = screen.getAllByRole("row");
-		// First row is header, then data rows sorted: DEU, GBR, USA
+		// Priority currencies first (USD, EUR), then rest alphabetically by territory
 		const cells = rows.slice(1).map((row) => row.children[0].textContent);
-		expect(cells).toEqual(["DEU", "GBR", "USA"]);
+		expect(cells).toEqual(["USA", "DEU", "GBR"]);
 	});
 });

@@ -759,6 +759,7 @@ export default function PurchasesPage() {
 	}, [subscriptionGroups.data]);
 
 	const isLoading = purchases.isLoading || subscriptionGroups.isLoading;
+	const isError = purchases.isError || subscriptionGroups.isError;
 	const hasNoContent =
 		iaps.length === 0 &&
 		(subscriptionGroups.data?.length ?? 0) === 0 &&
@@ -818,7 +819,13 @@ export default function PurchasesPage() {
 				</div>
 			)}
 
-			{!isLoading && (
+			{!isLoading && isError && (
+				<div className="flex flex-1 items-center justify-center p-6">
+					<p className="text-sm text-destructive">Failed to load data. Please try again.</p>
+				</div>
+			)}
+
+			{!isLoading && !isError && (
 				<Tabs defaultValue="all">
 					<TabsList>
 						<TabsTrigger value="all">

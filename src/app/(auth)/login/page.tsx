@@ -30,8 +30,7 @@ export default function LoginPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, name: email.split("@")[0], password: crypto.randomUUID() }),
       });
-      const signUpBody = await signUpRes.json().catch(() => null);
-      console.log("Sign-up response:", signUpRes.status, signUpBody);
+      await signUpRes.json().catch(() => null);
 
       // Send OTP
       const otpRes = await fetch("/api/auth/email-otp/send-verification-otp", {
@@ -40,7 +39,6 @@ export default function LoginPage() {
         body: JSON.stringify({ email, type: "sign-in" }),
       });
       const otpBody = await otpRes.json().catch(() => null);
-      console.log("OTP response:", otpRes.status, otpBody);
 
       if (!otpRes.ok) {
         setError(otpBody?.message ?? otpBody?.error?.message ?? `Server error: ${otpRes.status}`);
@@ -48,8 +46,7 @@ export default function LoginPage() {
       }
       setStep("otp");
       setTimeout(() => inputRefs.current[0]?.focus(), 100);
-    } catch (err) {
-      console.error("Login flow error:", err);
+    } catch {
       setError("Failed to send code");
     } finally {
       setLoading(false);

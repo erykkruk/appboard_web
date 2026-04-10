@@ -103,6 +103,44 @@ export interface HistoryEntry {
 	createdAt: string;
 }
 
+export type FeatureKey =
+	| "LISTINGS"
+	| "SCREENSHOTS"
+	| "PUBLISHING"
+	| "REVIEWS"
+	| "AI"
+	| "PURCHASES"
+	| "ASO_PROFILE"
+	| "AGE_RATING"
+	| "PRIVACY"
+	| "HISTORY"
+	| "GROUPS"
+	| "MONETIZATION_CHAT";
+
+export interface FeatureDefinition {
+	key: FeatureKey;
+	name: string;
+	description: string;
+	defaultEnabled: boolean;
+	dependsOn?: FeatureKey[];
+}
+
+export interface FeaturesResponse {
+	definitions: FeatureDefinition[];
+	features: Record<FeatureKey, boolean>;
+}
+
+export interface ListingDiffField {
+	field: string;
+	oldValue: string | null;
+	newValue: string | null;
+}
+
+export interface ListingDiff {
+	language: string;
+	fields: ListingDiffField[];
+}
+
 export interface AsoProfile {
 	id: string;
 	appId: string;

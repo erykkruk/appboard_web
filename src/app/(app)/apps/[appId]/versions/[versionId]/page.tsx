@@ -2,6 +2,7 @@
 
 import {
 	AlertCircle,
+	Clock,
 	Download,
 	Globe,
 	Info,
@@ -45,12 +46,23 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { ActionsMenu } from "@/components/actions-menu";
 import type { ActionsMenuAction } from "@/components/actions-menu";
+import { DiffBadge, FieldDiffPanel } from "@/components/diff";
+import { HistoryTimeline } from "@/components/history/history-timeline";
 import { useApp } from "@/hooks/use-apps";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { useCapabilities } from "@/hooks/use-capabilities";
+import { useHistory, useRollback } from "@/hooks/use-history";
+import { useListingDiffs } from "@/hooks/use-listing-diffs";
 import {
 	useSyncVersions,
 	useUpdateCopyright,
@@ -313,6 +325,57 @@ export default function VersionDetailPage() {
 	const [categoriesData, setCategoriesData] = useState<{
 		availableCategories: { id: string; name: string }[];
 	} | null>(null);
+
+	// Diff + history state
+	const [expandedDiffs, setExpandedDiffs] = useState<Set<string>>(new Set());
+	const [historyOpen, setHistoryOpen] = useState(false);
+	const diffsQuery = useListingDiffs(params.appId);
+	const historyQuery = useHistory(params.appId, { enabled: historyOpen });
+	const rollbackMutation = useRollback(params.appId);
+
+	const getDiffForField = useCallback(
+		(
+			language: string,
+			field: string,
+		): { oldValue: string | null; newValue: string | null } | null => {
+			const diffs = diffsQuery.data ?? [];
+			const languageDiff = diffs.find((d) => d.language === language);
+			if (!languageDiff) return null;
+			const fieldDiff = languageDiff.fields.find((f) => f.field === field);
+			if (!fieldDiff) return null;
+			return { oldValue: fieldDiff.oldValue, newValue: fieldDiff.newValue };
+		},
+		[diffsQuery.data],
+	);
+
+	const toggleDiff = useCallback((language: string, field: string) => {
+		const key = `${language}:${field}`;
+		setExpandedDiffs((prev) => {
+			const next = new Set(prev);
+			if (next.has(key)) {
+				next.delete(key);
+			} else {
+				next.add(key);
+			}
+			return next;
+		});
+	}, []);
+
+	const handleHistoryRollback = useCallback(
+		async (entryId: string) => {
+			try {
+				await rollbackMutation.mutateAsync(entryId);
+				toast.success("Rollback applied");
+			} catch {
+				toast.error("Failed to rollback change");
+			}
+		},
+		[rollbackMutation],
+	);
+
+	const rollbackPendingId = rollbackMutation.isPending
+		? (rollbackMutation.variables ?? null)
+		: null;
 
 
 	const localizations = detail.data?.localizations ?? [];
@@ -1189,6 +1252,17 @@ export default function VersionDetailPage() {
 						</Select>
 					)}
 
+					{/* History button */}
+					<Button
+						className="h-9 gap-2"
+						onClick={() => setHistoryOpen(true)}
+						size="sm"
+						variant="outline"
+					>
+						<Clock className="h-3.5 w-3.5" />
+						History
+					</Button>
+
 						{/* Three-dot menu */}
 					<ActionsMenu
 						actions={listingsMenuActions}
@@ -1445,6 +1519,12 @@ export default function VersionDetailPage() {
 						);
 						const isFieldGenerating =
 							generatingField === field.key;
+						const fieldDiff = getDiffForField(
+							activeLang,
+							field.key,
+						);
+						const diffKey = `${activeLang}:${field.key}`;
+						const isDiffExpanded = expandedDiffs.has(diffKey);
 
 						return (
 							<div
@@ -1544,6 +1624,17 @@ export default function VersionDetailPage() {
 										>
 											{field.label}
 										</Label>
+										{fieldDiff && (
+											<DiffBadge
+												originalValue={fieldDiff.oldValue}
+												onClick={() =>
+													toggleDiff(
+														activeLang,
+														field.key,
+													)
+												}
+											/>
+										)}
 										{/* Per-field language chips */}
 										{localizations.length > 1 && (
 											<div className="flex gap-1 overflow-x-auto scrollbar-thin">
@@ -1668,6 +1759,14 @@ export default function VersionDetailPage() {
 											{field.hint}
 										</p>
 									)}
+
+								{/* Diff panel */}
+								{fieldDiff && isDiffExpanded && (
+									<FieldDiffPanel
+										oldValue={fieldDiff.oldValue}
+										newValue={fieldDiff.newValue}
+									/>
+								)}
 							</div>
 						);
 					})}
@@ -1721,6 +1820,26 @@ export default function VersionDetailPage() {
 					</AlertDialog>
 				</div>
 			)}
+
+			{/* History sheet */}
+			<Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+				<SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+					<SheetHeader className="border-b border-border">
+						<SheetTitle>Change History</SheetTitle>
+						<SheetDescription>
+							Review and rollback previous listing changes.
+						</SheetDescription>
+					</SheetHeader>
+					<div className="min-h-0 flex-1">
+						<HistoryTimeline
+							entries={historyQuery.data ?? []}
+							isLoading={historyQuery.isLoading}
+							onRollback={handleHistoryRollback}
+							rollbackPendingId={rollbackPendingId}
+						/>
+					</div>
+				</SheetContent>
+			</Sheet>
 		</div>
 	);
 }

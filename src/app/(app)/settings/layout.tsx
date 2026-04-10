@@ -2,13 +2,21 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CreditCard, Lock, LogOut, MessageSquareText, Settings } from "lucide-react";
+import {
+  CreditCard,
+  Lock,
+  LogOut,
+  MessageSquareText,
+  Settings,
+  ToggleLeft,
+} from "lucide-react";
 
 import { signOut } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { label: "General", icon: Settings, href: "/settings" },
+  { label: "Features", icon: ToggleLeft, href: "/settings/features" },
   { label: "Prompts", icon: MessageSquareText, href: "/settings/prompts" },
   { label: "Monetization", icon: CreditCard, href: "/settings/monetization" },
   { label: "Privacy Templates", icon: Lock, href: "/settings/templates" },

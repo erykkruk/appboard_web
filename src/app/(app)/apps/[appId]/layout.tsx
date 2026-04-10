@@ -5,6 +5,7 @@ import { usePathname, useParams, useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ChevronDown,
+  Clock,
   CreditCard,
   FileText,
   Globe,
@@ -13,6 +14,7 @@ import {
   Info,
   LayoutDashboard,
   Loader2,
+  type LucideIcon,
   Plus,
   RefreshCw,
   Rocket,
@@ -37,27 +39,38 @@ import {
 import { Input } from "@/components/ui/input";
 import { PushPreviewDialog } from "@/components/push-preview-dialog";
 import { useApp } from "@/hooks/use-apps";
+import { useFeatures } from "@/hooks/use-features";
 import { api } from "@/lib/api";
 import { useCreateVersion, useVersions } from "@/hooks/use-publishing";
+import type { FeatureKey } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS = [
+type NavItem = {
+  label: string;
+  icon: LucideIcon;
+  suffix: string;
+  iosOnly?: boolean;
+  featureKey?: FeatureKey;
+};
+
+const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, suffix: "/dashboard" },
   { label: "Information", icon: Info, suffix: "/information" },
-  { label: "Publish", icon: Rocket, suffix: "/publish" },
-  { label: "Purchases", icon: CreditCard, suffix: "/purchases" },
-  { label: "Reviews", icon: Star, suffix: "/reviews" },
+  { label: "Publish", icon: Rocket, suffix: "/publish", featureKey: "PUBLISHING" },
+  { label: "Purchases", icon: CreditCard, suffix: "/purchases", featureKey: "PURCHASES" },
+  { label: "Reviews", icon: Star, suffix: "/reviews", featureKey: "REVIEWS" },
+  { label: "History", icon: Clock, suffix: "/history", featureKey: "HISTORY" },
   { label: "Settings", icon: Settings, suffix: "/settings" },
-] as const;
+];
 
-const VERSION_NAV_ITEMS = [
+const VERSION_NAV_ITEMS: NavItem[] = [
   { label: "Languages", icon: Globe, suffix: "/languages" },
-  { label: "Listings", icon: FileText, suffix: "" },
-  { label: "Previews & Screenshots", icon: Image, suffix: "/screenshots" },
-  { label: "Store Graphics", icon: ImagePlus, suffix: "/graphics" },
+  { label: "Listings", icon: FileText, suffix: "", featureKey: "LISTINGS" },
+  { label: "Previews & Screenshots", icon: Image, suffix: "/screenshots", featureKey: "SCREENSHOTS" },
+  { label: "Store Graphics", icon: ImagePlus, suffix: "/graphics", featureKey: "SCREENSHOTS" },
   { label: "App Review", icon: ShieldCheck, suffix: "/review", iosOnly: true },
-  { label: "Age Rating", icon: ShieldAlert, suffix: "/age-rating", iosOnly: true },
-] as const;
+  { label: "Age Rating", icon: ShieldAlert, suffix: "/age-rating", iosOnly: true, featureKey: "AGE_RATING" },
+];
 
 const STATE_BAR_COLORS: Record<string, string> = {
   PREPARE_FOR_SUBMISSION: "bg-yellow-400",
@@ -79,7 +92,15 @@ export default function AppLayout({
   const currentPath = usePathname();
   const router = useRouter();
   const app = useApp(appId);
+  const { data: featuresData } = useFeatures();
+  const features = featuresData?.features;
   const versions = useVersions(appId);
+
+  const isFeatureAllowed = (featureKey?: FeatureKey) => {
+    if (!featureKey) return true;
+    if (!features) return true;
+    return features[featureKey] ?? true;
+  };
   const createVersion = useCreateVersion(appId);
   const [newVersion, setNewVersion] = useState("");
   const [showNewVersion, setShowNewVersion] = useState(false);
@@ -192,7 +213,10 @@ export default function AppLayout({
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
           <div className="space-y-0.5">
-            {NAV_ITEMS.filter((item) => !("iosOnly" in item && item.iosOnly) || isIos).map((item) => {
+            {NAV_ITEMS
+              .filter((item) => !item.iosOnly || isIos)
+              .filter((item) => isFeatureAllowed(item.featureKey))
+              .map((item) => {
               const href = `${basePath}${item.suffix}`;
               const isActive =
                 currentPath.startsWith(href) && !isVersionPage;
@@ -330,7 +354,9 @@ export default function AppLayout({
                 {/* Version sub-navigation */}
                 {selectedVersionId && (
                   <div className="mt-1 space-y-0.5">
-                    {VERSION_NAV_ITEMS.map((item) => {
+                    {VERSION_NAV_ITEMS
+                      .filter((item) => isFeatureAllowed(item.featureKey))
+                      .map((item) => {
                       const href = `${basePath}/versions/${selectedVersionId}${item.suffix}`;
                       const isActive =
                         item.suffix === ""
@@ -364,7 +390,8 @@ export default function AppLayout({
               <div className="mx-3 my-3 h-px bg-border" />
               <div className="space-y-0.5">
                 {VERSION_NAV_ITEMS
-                  .filter((item) => !("iosOnly" in item && item.iosOnly))
+                  .filter((item) => !item.iosOnly)
+                  .filter((item) => isFeatureAllowed(item.featureKey))
                   .map((item) => {
                     const href = `${basePath}/versions/${selectedVersionId}${item.suffix}`;
                     const isActive =

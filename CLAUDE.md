@@ -1,8 +1,8 @@
-# AppBoard Web
+# AppBoard Admin Panel
 
 ## Overview
 
-Panel webowy AppBoard — narzędzie ASO (App Store Optimization) do zarządzania aplikacjami, listingami, screenshotami i metadanymi w App Store i Google Play.
+Panel administracyjny AppBoard — narzędzie ASO (App Store Optimization) do zarządzania aplikacjami, listingami, screenshotami i metadanymi w App Store i Google Play. Użytkownicy trafiają tu z publicznej strony marketingowej (appboard_website).
 
 ---
 
@@ -140,6 +140,45 @@ Components            TanStack Query
 - **Components = prezentacja** — nie wywołują API bezpośrednio, używają hooków
 - **Pages = kompozycja** — składają hooks + components w stronę
 - **API client** (`lib/api.ts`) — centralny fetch wrapper, proxy przez Next.js rewrites do backendu
+
+---
+
+## Feature Flags System
+
+Workspace-scoped toggles dla 12 modułów. Nawigacja sidebar jest filtrowana po flagach, a endpointy są gatowane po stronie backendu (403 gdy flag wyłączony).
+
+- **Hook**: `src/hooks/use-features.ts` — `useFeatures()`, `useUpdateFeatures()`, `useIsFeatureEnabled(key)` (defaultuje `true` podczas loading)
+- **Settings page**: `src/app/(app)/settings/features/page.tsx` — toggle switche per flag z auto-save
+- **Nav filtering**: `src/app/(app)/apps/[appId]/layout.tsx` oraz `src/components/app-sidebar.tsx` filtrują nav items po `featureKey`
+- **Types**: `FeatureDefinition`, `FeaturesResponse` w `src/lib/types.ts`
+- **API**: `api.features.get()`, `api.features.update()` w `src/lib/api.ts`
+
+---
+
+## Diff System
+
+GitHub-style wizualny diff dla pól listingów (word/line-level LCS).
+
+- **Algorithm**: `src/lib/diff.ts` — `computeDiff()` wybiera tryb inline/line-by-line po długości, `MAX_DIFF_TOKENS = 5000` guard, memoizacja
+- **Komponenty** (`src/components/diff/`):
+  - `DiffBadge` — amber dot przy zmienionym polu z tooltipem original value
+  - `InlineDiff` — renderuje `DiffSegment[]` z kolorami added/removed
+  - `FieldDiffPanel` — collapsible panel pod polem z pełnym diffem
+  - `index.ts` — barrel export
+- **Field labels**: `src/lib/field-labels.ts` — wspólne mapowanie kluczy pól na human-readable nazwy (używane przez diff i history)
+- **Hook**: `src/hooks/use-listing-diffs.ts` — fetch `/api/apps/:id/listings/diffs`
+- **Integracja**: Version detail page (`apps/[appId]/versions/[versionId]/page.tsx`) + Push preview dialog (`components/push-preview-dialog.tsx`)
+
+---
+
+## History System
+
+Historia zmian listingów z rollbackiem — git-log style.
+
+- **Hook**: `src/hooks/use-history.ts` — `useHistory(appId, { language?, field?, enabled? })` + `useRollback(appId)` z invalidation listings/diffs queries
+- **Timeline component**: `src/components/history/history-timeline.tsx` — Sheet z grupowaniem po `publishedAt` i rollback per entry
+- **History page**: `src/app/(app)/apps/[appId]/history/page.tsx` — pełna strona z filtrami language/field, expandable entries z `InlineDiff`, `allEntries` obliczone przez `useMemo`
+- **Nav item**: `History` (`Clock` icon) w `NAV_ITEMS` z `featureKey: "HISTORY"`
 
 ---
 
