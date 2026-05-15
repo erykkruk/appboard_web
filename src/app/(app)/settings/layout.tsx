@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  CloudCog,
   CreditCard,
   Lock,
   LogOut,
@@ -20,6 +21,7 @@ const NAV_ITEMS = [
   { label: "Prompts", icon: MessageSquareText, href: "/settings/prompts" },
   { label: "Monetization", icon: CreditCard, href: "/settings/monetization" },
   { label: "Privacy Templates", icon: Lock, href: "/settings/templates" },
+  { label: "Google Play Setup", icon: CloudCog, href: "/settings/google-play-setup" },
 ] as const;
 
 export default function SettingsLayout({

@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -164,15 +165,14 @@ function GooglePlayCredentials({
             <li>Generate a JSON key for the Service Account</li>
             <li>Grant the Service Account access in Google Play Console</li>
           </ol>
-          <a
-            href="https://developers.google.com/android-publisher/getting_started#using_a_service_account"
+          <Link
+            href="/settings/google-play-setup/guide"
             target="_blank"
-            rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-sm text-primary underline underline-offset-4"
           >
             Full setup guide
             <ExternalLink className="h-3 w-3" />
-          </a>
+          </Link>
         </CardContent>
       </Card>
 
