@@ -58,6 +58,10 @@ import { ActionsMenu } from "@/components/actions-menu";
 import type { ActionsMenuAction } from "@/components/actions-menu";
 import { DiffBadge, FieldDiffPanel } from "@/components/diff";
 import { HistoryTimeline } from "@/components/history/history-timeline";
+import {
+	type TranslatableField,
+	TranslationSettings,
+} from "@/components/listings/translation-settings";
 import { useApp } from "@/hooks/use-apps";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { useCapabilities } from "@/hooks/use-capabilities";
@@ -396,6 +400,16 @@ export default function VersionDetailPage() {
 	const visibleAiFields = useMemo(
 		() => AI_FIELDS.filter((f) => isFieldEnabled(f)),
 		[isFieldEnabled],
+	);
+
+	// AI fields (with labels) eligible for the per-language "Do Not Translate" toggles.
+	const translatableFields = useMemo<TranslatableField[]>(
+		() =>
+			visibleAiFields.map((key) => ({
+				key,
+				label: FIELDS.find((f) => f.key === key)?.label ?? key,
+			})),
+		[visibleAiFields],
 	);
 
 	// Sync copyright from server data
@@ -1770,6 +1784,18 @@ export default function VersionDetailPage() {
 							</div>
 						);
 					})}
+
+					{/* Per-language translation settings (DNT toggles + instructions) */}
+					{localizations.length > 1 &&
+						translatableFields.length > 0 && (
+							<TranslationSettings
+								appId={params.appId}
+								disabled={!isEditable}
+								fields={translatableFields}
+								key={selectedLanguage}
+								language={selectedLanguage}
+							/>
+						)}
 
 					{/* AI confirmation dialog */}
 					<AlertDialog

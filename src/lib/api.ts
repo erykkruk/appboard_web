@@ -68,6 +68,7 @@ import type {
 	VersionInfo,
 	VersionScreenshot,
 } from "./types";
+import type { VaultParams, VaultSetupPayload } from "./vault-crypto";
 
 const API_URL = "";
 
@@ -100,6 +101,10 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 			await fetch("/api/auth/sign-out", { method: "POST" }).catch(() => {});
 			window.location.href = "/login";
 			throw new ApiError(401, "UNAUTHORIZED");
+		}
+		if (res.status === 423 && typeof window !== "undefined") {
+			// Vault locked — let the VaultProvider prompt for the passphrase.
+			window.dispatchEvent(new CustomEvent("vault-locked"));
 		}
 		const error = await res.json().catch(() => ({ code: "UNKNOWN" }));
 		throw new ApiError(res.status, error.code, error.data);
@@ -601,7 +606,14 @@ export const api = {
 			fetchApi<{ synced: number }>(`/api/apps/${appId}/listings/sync`, {
 				method: "POST",
 			}),
-		update: (appId: string, language: string, data: Partial<Listing>) =>
+		update: (
+			appId: string,
+			language: string,
+			data: Partial<Listing> & {
+				doNotTranslateFields?: string[];
+				translationInstructions?: string;
+			},
+		) =>
 			fetchApi<{ listing: Listing }>(
 				`/api/apps/${appId}/listings/${language}`,
 				{
@@ -1133,6 +1145,30 @@ export const api = {
 			fetchApi<{ stores: Store[] }>("/api/stores").then((r) => r.stores),
 		sync: (id: string) =>
 			fetchApi<{ synced: number }>(`/api/stores/${id}/sync`, {
+				method: "POST",
+			}),
+	},
+	vault: {
+		changePassphrase: (body: VaultParams) =>
+			fetchApi<{ changed: boolean }>("/api/vault/change-passphrase", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}),
+		lock: () =>
+			fetchApi<{ locked: boolean }>("/api/vault/lock", { method: "POST" }),
+		params: () => fetchApi<VaultParams>("/api/vault/params"),
+		reset: () =>
+			fetchApi<{ reset: boolean }>("/api/vault/reset", { method: "POST" }),
+		setup: (body: VaultSetupPayload) =>
+			fetchApi<{ migrated: number }>("/api/vault/setup", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}),
+		status: () =>
+			fetchApi<{ exists: boolean; unlocked: boolean }>("/api/vault/status"),
+		unlock: (dek: string) =>
+			fetchApi<{ unlocked: boolean }>("/api/vault/unlock", {
+				body: JSON.stringify({ dek }),
 				method: "POST",
 			}),
 	},

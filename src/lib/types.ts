@@ -49,7 +49,9 @@ export interface Listing {
 	videoUrl: string;
 	source: string;
 	isDirty: boolean;
-	[key: string]: string | boolean;
+	doNotTranslateFields: string[] | null;
+	translationInstructions: string | null;
+	[key: string]: string | string[] | boolean | null;
 }
 
 export interface Asset {
@@ -225,8 +227,7 @@ export interface SettingRow {
 
 export interface TranslateRequest {
 	text: string;
-	sourceLang: string;
-	targetLangs: string[];
+	targetLanguages: string[];
 }
 
 export interface TranslateLocalizationRequest {
