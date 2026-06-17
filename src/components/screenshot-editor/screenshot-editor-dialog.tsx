@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Save, Upload } from "lucide-react";
+import { Languages, Loader2, Save, Upload } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -33,6 +33,7 @@ import type {
 import { LayersPanel, PropertiesPanel } from "./editor-panels";
 import type { RenderImages } from "./render-scene";
 import { SceneCanvas, type SceneCanvasHandle } from "./scene-canvas";
+import { SceneLocalizationDialog } from "./scene-localization-dialog";
 import { useSceneImages } from "./use-scene-images";
 
 interface ScreenshotEditorDialogProps {
@@ -85,6 +86,7 @@ export function ScreenshotEditorDialog({
 	const [screenshotSrc, setScreenshotSrc] = useState<string | undefined>(
 		editingScene?.scene.screenshot?.url,
 	);
+	const [localizeOpen, setLocalizeOpen] = useState(false);
 
 	const canvasRef = useRef<SceneCanvasHandle>(null);
 	const bgFileRef = useRef<HTMLInputElement>(null);
@@ -275,6 +277,14 @@ export function ScreenshotEditorDialog({
 					<div className="flex items-center gap-2">
 						<Button
 							variant="outline"
+							onClick={() => setLocalizeOpen(true)}
+							disabled={scene.textLayers.length === 0}
+						>
+							<Languages className="h-4 w-4" />
+							Warianty językowe
+						</Button>
+						<Button
+							variant="outline"
 							onClick={handleSave}
 							disabled={isSaving}
 						>
@@ -343,6 +353,19 @@ export function ScreenshotEditorDialog({
 					className="hidden"
 					onChange={handleScreenshotFile}
 				/>
+
+				{localizeOpen && (
+					<SceneLocalizationDialog
+						open={localizeOpen}
+						onOpenChange={setLocalizeOpen}
+						appId={appId}
+						versionId={versionId}
+						sourceScene={scene}
+						sourceName={sceneName}
+						sourceLanguage={language}
+						displayType={displayType}
+					/>
+				)}
 			</DialogContent>
 		</Dialog>
 	);

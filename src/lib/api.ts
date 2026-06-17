@@ -167,7 +167,10 @@ export const api = {
 				method: "POST",
 			}),
 		translate: (data: TranslateRequest) =>
-			fetchApi<AiResponse>("/api/ai/translate", {
+			fetchApi<{
+				model: string;
+				translations: Record<string, string>;
+			}>("/api/ai/translate", {
 				body: JSON.stringify(data),
 				method: "POST",
 			}),

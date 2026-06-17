@@ -4,7 +4,7 @@ import userEvent from "@testing-library/user-event";
 
 import type { SceneData } from "@/lib/types";
 
-import { LayersPanel } from "./editor-panels";
+import { LayersPanel, PropertiesPanel } from "./editor-panels";
 
 afterEach(cleanup);
 
@@ -100,5 +100,28 @@ describe("LayersPanel", () => {
 		);
 		await userEvent.click(screen.getByLabelText("Usuń napis"));
 		expect(onDeleteText).toHaveBeenCalledWith("t0");
+	});
+});
+
+describe("PropertiesPanel — Do Not Translate toggle", () => {
+	test("toggling 'Nie tłumacz' patches doNotTranslate on the selected layer", async () => {
+		const onPatchTextLayer = mock(
+			(id: string, patch: Record<string, unknown>) => ({ id, patch }),
+		);
+		render(
+			<PropertiesPanel
+				scene={buildScene(1)}
+				selectedLayerId="t0"
+				onPatchScene={mock(() => {})}
+				onPatchTextLayer={onPatchTextLayer}
+				onPickBackgroundImage={mock(() => {})}
+				onPickScreenshot={mock(() => {})}
+			/>,
+		);
+
+		await userEvent.click(screen.getByLabelText("Nie tłumacz"));
+		expect(onPatchTextLayer).toHaveBeenCalledWith("t0", {
+			doNotTranslate: true,
+		});
 	});
 });

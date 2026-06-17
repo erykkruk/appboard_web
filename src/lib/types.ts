@@ -534,6 +534,12 @@ export interface SceneTextLayer {
 	color: string;
 	align: SceneTextAlign;
 	weight?: number;
+	/**
+	 * When true, this layer's text is kept verbatim across language variants
+	 * (e.g. brand names, prices). Persisted inside the opaque `jsonb` scene, so
+	 * no backend migration is needed.
+	 */
+	doNotTranslate?: boolean;
 }
 
 export interface SceneAnnotation {

@@ -3,6 +3,7 @@
 import { Image as ImageIcon, Plus, Smartphone, Trash2, Type } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -489,6 +490,28 @@ function TextProperties({
 							{align === "left" ? "Lewo" : align === "center" ? "Środek" : "Prawo"}
 						</Button>
 					))}
+				</div>
+			</div>
+
+			<div className="flex items-start gap-2 rounded-md border border-border/60 p-2.5">
+				<Checkbox
+					id={`dnt-${layer.id}`}
+					checked={layer.doNotTranslate ?? false}
+					onCheckedChange={(checked) =>
+						onPatch({ doNotTranslate: checked === true })
+					}
+				/>
+				<div className="flex flex-col gap-0.5">
+					<Label
+						htmlFor={`dnt-${layer.id}`}
+						className="cursor-pointer text-xs font-medium"
+					>
+						Nie tłumacz
+					</Label>
+					<p className="text-[11px] text-muted-foreground">
+						Ten napis zostanie dosłownie skopiowany przy generowaniu wariantów
+						językowych (np. nazwa marki, cena).
+					</p>
 				</div>
 			</div>
 		</div>
