@@ -9,12 +9,20 @@ import type {
   GeneratePurchaseFieldRequest,
   GenerateReleaseNotesRequest,
   SuggestKeywordsRequest,
+  TranslateLocalizationRequest,
   TranslateRequest,
 } from "@/lib/types";
 
 export function useTranslate() {
   return useMutation({
     mutationFn: (data: TranslateRequest) => api.ai.translate(data),
+  });
+}
+
+export function useTranslateLocalization() {
+  return useMutation({
+    mutationFn: (data: TranslateLocalizationRequest) =>
+      api.ai.translateLocalization(data),
   });
 }
 

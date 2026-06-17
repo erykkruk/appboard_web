@@ -59,6 +59,10 @@ import type { ActionsMenuAction } from "@/components/actions-menu";
 import { DiffBadge, FieldDiffPanel } from "@/components/diff";
 import { HistoryTimeline } from "@/components/history/history-timeline";
 import {
+	LocalizationPipelineDialog,
+	type PipelineLanguage,
+} from "@/components/listings/localization-pipeline-dialog";
+import {
 	type TranslatableField,
 	TranslationSettings,
 } from "@/components/listings/translation-settings";
@@ -315,6 +319,7 @@ export default function VersionDetailPage() {
 	const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
 	const [saveAttempted, setSaveAttempted] = useState(false);
 	const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+	const [localizationDialogOpen, setLocalizationDialogOpen] = useState(false);
 	const [generateScope, setGenerateScope] = useState<
 		"current" | "all"
 	>("current");
@@ -410,6 +415,19 @@ export default function VersionDetailPage() {
 				label: FIELDS.find((f) => f.key === key)?.label ?? key,
 			})),
 		[visibleAiFields],
+	);
+
+	// Languages offered by the localization pipeline panel, with persistence ids.
+	const pipelineLanguages = useMemo<PipelineLanguage[]>(
+		() =>
+			localizations
+				.map((loc) => ({
+					label: getLanguageLabel(loc.language),
+					language: loc.language,
+					localizationId: loc.localizationId,
+				}))
+				.sort((a, b) => a.language.localeCompare(b.language)),
+		[localizations],
 	);
 
 	// Sync copyright from server data
@@ -917,6 +935,58 @@ export default function VersionDetailPage() {
 		[allFormData, appData.data, localizations, params.appId],
 	);
 
+	// --- Localization pipeline wiring ---
+
+	// Snapshot of the AI-translatable field values for a given language, used as
+	// the pipeline source. Empty fields are dropped so the AI only translates
+	// content that actually exists.
+	const getPipelineSourceFields = useCallback(
+		(language: string): Record<string, string> => {
+			const data = allFormData[language] ?? {};
+			const fields: Record<string, string> = {};
+			for (const f of visibleAiFields) {
+				const value = data[f];
+				if (value?.trim()) {
+					fields[f] = value;
+				}
+			}
+			return fields;
+		},
+		[allFormData, visibleAiFields],
+	);
+
+	// Persist a reviewed pipeline result into a target language draft and mirror
+	// it back into the editor state so the saved values are visible immediately.
+	const handleSavePipelineLanguage = useCallback(
+		async (localizationId: string, resultFields: Record<string, string>) => {
+			const loc = localizations.find(
+				(l) => l.localizationId === localizationId,
+			);
+			if (!loc) return;
+
+			const data: Record<string, string> = {};
+			for (const [key, value] of Object.entries(resultFields)) {
+				if (key === "whatsNew" && !isWhatsNewEditable) continue;
+				if (value?.trim()) {
+					data[key] = value;
+				}
+			}
+			if (Object.keys(data).length === 0) return;
+
+			await updateLoc.mutateAsync({ data, localizationId });
+
+			setAllFormData((prev) => ({
+				...prev,
+				[loc.language]: { ...prev[loc.language], ...data },
+			}));
+			setAllOriginalData((prev) => ({
+				...prev,
+				[loc.language]: { ...prev[loc.language], ...data },
+			}));
+		},
+		[isWhatsNewEditable, localizations, updateLoc],
+	);
+
 	// Auto-save all changed localizations
 	const autoSaveListings = useCallback(async () => {
 		if (!hasAnyChanges) return;
@@ -1149,6 +1219,17 @@ export default function VersionDetailPage() {
 						icon: "languages" as const,
 						disabled: isTranslatingAll || isGeneratingAll || !!generatingField,
 						onSelect: handleTranslateAllFromLanguage,
+					},
+				]
+			: []),
+		...(isEditable && localizations.length > 1
+			? [
+					{
+						key: "localization-pipeline",
+						label: "Lokalizacja (pipeline)",
+						icon: "languages" as const,
+						disabled: isTranslatingAll || isGeneratingAll || !!generatingField,
+						onSelect: () => setLocalizationDialogOpen(true),
 					},
 				]
 			: []),
@@ -1845,6 +1926,21 @@ export default function VersionDetailPage() {
 						</AlertDialogContent>
 					</AlertDialog>
 				</div>
+			)}
+
+			{/* Localization pipeline panel */}
+			{localizations.length > 1 && translatableFields.length > 0 && (
+				<LocalizationPipelineDialog
+					appId={params.appId}
+					appName={appData.data?.name ?? "App"}
+					fields={translatableFields}
+					getSourceFields={getPipelineSourceFields}
+					languages={pipelineLanguages}
+					onOpenChange={setLocalizationDialogOpen}
+					onSaveLanguage={handleSavePipelineLanguage}
+					open={localizationDialogOpen}
+					platform={appData.data?.platform ?? "ios"}
+				/>
 			)}
 
 			{/* History sheet */}
