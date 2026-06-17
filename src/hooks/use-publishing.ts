@@ -436,10 +436,12 @@ export function useCopyScreenshots(appId: string, versionId: string) {
 			sourceLanguage,
 			targetLanguage,
 			displayType,
+			copyLocalizations,
 		}: {
 			sourceLanguage: string;
 			targetLanguage: string;
 			displayType?: string;
+			copyLocalizations?: boolean;
 		}) =>
 			api.publishing.copyScreenshots(
 				appId,
@@ -447,10 +449,16 @@ export function useCopyScreenshots(appId: string, versionId: string) {
 				sourceLanguage,
 				targetLanguage,
 				displayType,
+				copyLocalizations,
 			),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: ["publishing", appId, "versions", versionId, "screenshots"],
+			});
+			// Copying text localizations updates the target language draft, so the
+			// version detail (titles/descriptions/keywords) must refetch too.
+			queryClient.invalidateQueries({
+				queryKey: ["publishing", appId, "versions", versionId],
 			});
 		},
 	});

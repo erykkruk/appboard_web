@@ -848,6 +848,7 @@ export const api = {
 			sourceLanguage: string,
 			targetLanguage: string,
 			displayType?: string,
+			copyLocalizations?: boolean,
 		) =>
 			fetchApi<{ copied: number }>(
 				`/api/apps/${appId}/publishing/screenshots/copy`,
@@ -857,6 +858,7 @@ export const api = {
 						targetLanguage,
 						versionId,
 						...(displayType ? { displayType } : {}),
+						...(copyLocalizations ? { copyLocalizations: true } : {}),
 					}),
 					method: "POST",
 				},

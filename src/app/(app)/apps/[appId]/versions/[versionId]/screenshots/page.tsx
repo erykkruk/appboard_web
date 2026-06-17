@@ -19,6 +19,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Copy, Image as ImageIcon, Info, Loader2, Smartphone, Tablet, Trash2, Upload } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { useApp } from "@/hooks/use-apps";
 import {
@@ -33,6 +34,7 @@ import {
 import { cn } from "@/lib/utils";
 import { APP_STORE_LANGUAGES, type VersionScreenshot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScreenshotCropDialog } from "@/components/screenshot-crop-dialog";
 import { ScreenshotSplitDialog } from "@/components/screenshot-split-dialog";
 import { useAssets, useUploadAsset, useDeleteAsset } from "@/hooks/use-assets";
@@ -206,6 +208,7 @@ export default function VersionScreenshotsPage() {
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [fileQueue, setFileQueue] = useState<File[]>([]);
   const [uploadsInProgress, setUploadsInProgress] = useState(0);
+  const [copyTextToo, setCopyTextToo] = useState(false);
   const uploadDisplayTypeRef = useRef(defaultDevice.key);
 
   const currentDeviceKey = activeDeviceKey || defaultDevice.key;
@@ -397,10 +400,26 @@ export default function VersionScreenshotsPage() {
 
   const handleCopyFrom = (sourceLang: string) => {
     if (!activeLang) return;
-    copyScreenshots.mutate({
-      sourceLanguage: sourceLang,
-      targetLanguage: activeLang,
-    });
+    const withText = copyTextToo;
+    copyScreenshots.mutate(
+      {
+        sourceLanguage: sourceLang,
+        targetLanguage: activeLang,
+        copyLocalizations: withText,
+      },
+      {
+        onSuccess: ({ copied }) => {
+          toast.success(
+            withText
+              ? `Copied ${copied} screenshot(s) and the text metadata from ${sourceLang}`
+              : `Copied ${copied} screenshot(s) from ${sourceLang}`,
+          );
+        },
+        onError: () => {
+          toast.error(`Failed to copy from ${sourceLang}`);
+        },
+      },
+    );
   };
 
   const notLocalizedLanguages = useMemo(
@@ -627,21 +646,32 @@ export default function VersionScreenshotsPage() {
                         ({device.sizeHint})
                       </p>
                       {languagesWithScreenshots.length > 0 && hasLanguage && (
-                        <div className="mt-4 flex items-center gap-2">
-                          <Copy className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-xs">Copy from:</span>
-                          <Select onValueChange={handleCopyFrom}>
-                            <SelectTrigger className="h-8 w-[160px] text-xs">
-                              <SelectValue placeholder="Select language" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {languagesWithScreenshots.map((lang) => (
-                                <SelectItem key={lang} value={lang}>
-                                  {lang}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="mt-4 flex flex-col items-center gap-2">
+                          <div className="flex items-center gap-2">
+                            <Copy className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs">Copy from:</span>
+                            <Select onValueChange={handleCopyFrom}>
+                              <SelectTrigger className="h-8 w-[160px] text-xs">
+                                <SelectValue placeholder="Select language" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {languagesWithScreenshots.map((lang) => (
+                                  <SelectItem key={lang} value={lang}>
+                                    {lang}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                            <Checkbox
+                              checked={copyTextToo}
+                              onCheckedChange={(v) =>
+                                setCopyTextToo(v === true)
+                              }
+                            />
+                            Skopiuj też teksty (tytuł, opis, słowa kluczowe…)
+                          </label>
                         </div>
                       )}
                     </div>
@@ -761,7 +791,7 @@ export default function VersionScreenshotsPage() {
                               {copyScreenshots.isPending ? "Copying..." : "Copy from Language"}
                             </button>
                           </PopoverTrigger>
-                          <PopoverContent side="top" align="start" className="w-48 p-2">
+                          <PopoverContent side="top" align="start" className="w-64 p-2">
                             <p className="mb-2 text-xs font-medium text-muted-foreground">Copy screenshots from:</p>
                             {languagesWithScreenshots.map((lang) => (
                               <button
@@ -773,6 +803,14 @@ export default function VersionScreenshotsPage() {
                                 {lang}
                               </button>
                             ))}
+                            <label className="mt-2 flex cursor-pointer items-start gap-2 border-t px-2 pt-2 text-xs text-muted-foreground">
+                              <Checkbox
+                                checked={copyTextToo}
+                                onCheckedChange={(v) => setCopyTextToo(v === true)}
+                                className="mt-0.5"
+                              />
+                              Skopiuj też teksty (tytuł, opis, słowa kluczowe…)
+                            </label>
                           </PopoverContent>
                         </Popover>
                       </>

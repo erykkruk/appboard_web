@@ -370,10 +370,18 @@ export interface PushPreview {
 	} | null;
 }
 
+export interface PublishReportItem {
+	kind: "asset" | "listing" | "localization";
+	ref: string;
+	status: "published" | "failed";
+	error?: string;
+}
+
 export interface PublishResult {
 	listings: { published: number };
 	assets: { published: number };
 	versionLocalizations?: { published: number; errors?: string[] };
+	report?: PublishReportItem[];
 }
 
 export interface VersionInfo {
