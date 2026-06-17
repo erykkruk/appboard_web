@@ -28,9 +28,15 @@ import {
   useDeleteScreenshot,
   useReorderScreenshots,
   useUploadScreenshot,
+  useValidateScreenshot,
   useVersionDetail,
   useVersionScreenshots,
 } from "@/hooks/use-publishing";
+import { getScreenshotDimensionError } from "@/lib/api";
+import {
+  buildDimensionMessage,
+  buildValidationWarning,
+} from "@/lib/screenshot-validation";
 import { cn } from "@/lib/utils";
 import { APP_STORE_LANGUAGES, type VersionScreenshot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
@@ -195,6 +201,7 @@ export default function VersionScreenshotsPage() {
   );
   const deleteAll = useDeleteAllScreenshots(params.appId, params.versionId);
   const uploadScreenshot = useUploadScreenshot(params.appId, params.versionId);
+  const validateScreenshot = useValidateScreenshot(params.appId);
   const copyScreenshots = useCopyScreenshots(params.appId, params.versionId);
 
   // Icon assets
@@ -206,6 +213,7 @@ export default function VersionScreenshotsPage() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>("");
   const [activeDeviceKey, setActiveDeviceKey] = useState<string>("");
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dimensionWarning, setDimensionWarning] = useState<string | null>(null);
   const [fileQueue, setFileQueue] = useState<File[]>([]);
   const [uploadsInProgress, setUploadsInProgress] = useState(0);
   const [copyTextToo, setCopyTextToo] = useState(false);
@@ -325,6 +333,7 @@ export default function VersionScreenshotsPage() {
   const handleChooseFile = (displayType: string) => {
     if (!activeLang) return;
     setUploadError(null);
+    setDimensionWarning(null);
     uploadDisplayTypeRef.current = displayType;
     fileInputRef.current?.click();
   };
@@ -337,7 +346,21 @@ export default function VersionScreenshotsPage() {
     e.target.value = "";
 
     setUploadError(null);
+    setDimensionWarning(null);
     setFileQueue((prev) => [...prev, ...selected]);
+
+    // Pre-validate the first selected file (non-blocking): warn the user about
+    // expected dimensions before they crop/upload. Cropping can still fix a
+    // mismatch, so this is advisory only and never blocks the queue.
+    const displayType = uploadDisplayTypeRef.current;
+    validateScreenshot
+      .mutateAsync({ displayType, file: selected[0] })
+      .then((result) => {
+        setDimensionWarning(buildValidationWarning(result));
+      })
+      .catch(() => {
+        // Validation is best-effort; ignore failures and let upload proceed.
+      });
   };
 
   const advanceQueue = () => {
@@ -349,6 +372,7 @@ export default function VersionScreenshotsPage() {
     crop: { x: number; y: number; width: number; height: number },
   ) => {
     const displayType = uploadDisplayTypeRef.current;
+    setDimensionWarning(null);
     advanceQueue();
 
     // Upload immediately to ASC — use mutateAsync so .finally() fires per-call
@@ -361,15 +385,21 @@ export default function VersionScreenshotsPage() {
         crop,
       })
       .catch((err) => {
-        setUploadError(
-          err instanceof Error ? err.message : "Upload failed",
-        );
+        const dimensionError = getScreenshotDimensionError(err);
+        const message = dimensionError
+          ? `${buildDimensionMessage(dimensionError)} ${dimensionError.suggestion}`
+          : err instanceof Error
+            ? err.message
+            : "Upload failed";
+        setUploadError(message);
+        if (dimensionError) toast.error(message);
       })
       .finally(() => setUploadsInProgress((n) => n - 1));
   };
 
   const handleCropCancel = () => {
     // Skip this file, move to next
+    setDimensionWarning(null);
     advanceQueue();
   };
 
@@ -829,6 +859,11 @@ export default function VersionScreenshotsPage() {
                       </>
                     )}
                   </div>
+                  {dimensionWarning && !uploadError && (
+                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-500">
+                      {dimensionWarning} Możesz to skorygować podczas kadrowania.
+                    </p>
+                  )}
                   {uploadError && (
                     <p className="mt-2 text-xs text-destructive">{uploadError}</p>
                   )}

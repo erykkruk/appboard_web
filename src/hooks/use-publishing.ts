@@ -128,6 +128,13 @@ export function useUploadScreenshot(appId: string, versionId: string) {
 	});
 }
 
+export function useValidateScreenshot(appId: string) {
+	return useMutation({
+		mutationFn: ({ displayType, file }: { displayType: string; file: File }) =>
+			api.publishing.validateScreenshot(appId, displayType, file),
+	});
+}
+
 export function useDeleteScreenshot(appId: string, versionId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({

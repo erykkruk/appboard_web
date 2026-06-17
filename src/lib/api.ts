@@ -48,6 +48,8 @@ import type {
 	Review,
 	ReviewInfo,
 	ReviewStats,
+	ScreenshotDimensionErrorData,
+	ScreenshotValidationResult,
 	SettingRow,
 	Settings,
 	SplitPreviewResult,
@@ -710,6 +712,15 @@ export const api = {
 			fetchApi<PublishingOverview>(`/api/apps/${appId}/publishing/overview`),
 		pushPreview: (appId: string) =>
 			fetchApi<PushPreview>(`/api/apps/${appId}/publishing/push-preview`),
+		validateScreenshot: (appId: string, displayType: string, file: File) => {
+			const formData = new FormData();
+			formData.append("file", file);
+			formData.append("displayType", displayType);
+			return fetchApi<ScreenshotValidationResult>(
+				`/api/apps/${appId}/publishing/screenshots/validate`,
+				{ body: formData, headers: {}, method: "POST" },
+			);
+		},
 		previewScreenshot: (
 			appId: string,
 			displayType: string,
@@ -1176,4 +1187,26 @@ export const api = {
 	},
 };
 
-export { ApiError };
+/**
+ * Narrow a caught error to the structured dimension-validation payload the
+ * backend sends with code "INVALID_SCREENSHOT_DIMENSIONS" (HTTP 422). Returns
+ * the typed `data` so callers can build an actionable message, or `null` for
+ * any other error.
+ */
+function getScreenshotDimensionError(
+	err: unknown,
+): ScreenshotDimensionErrorData | null {
+	if (
+		err instanceof ApiError &&
+		err.code === "INVALID_SCREENSHOT_DIMENSIONS" &&
+		err.data &&
+		typeof err.data === "object" &&
+		"providedDimensions" in err.data &&
+		"supportedDimensions" in err.data
+	) {
+		return err.data as ScreenshotDimensionErrorData;
+	}
+	return null;
+}
+
+export { ApiError, getScreenshotDimensionError };

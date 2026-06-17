@@ -475,6 +475,27 @@ export interface VersionScreenshot {
 	height: number | null;
 }
 
+// Screenshot dimension validation (pre-upload /validate endpoint response)
+export interface ScreenshotValidationResult {
+	displayType: string;
+	displayTypeName: string;
+	providedDimensions: [number, number];
+	supportedDimensions: [number, number][];
+	suggestion: string;
+	valid: boolean;
+}
+
+// Shape of `ApiError.data` when an upload fails with code
+// "INVALID_SCREENSHOT_DIMENSIONS" (HTTP 422). Mirrors the backend error payload.
+export interface ScreenshotDimensionErrorData {
+	displayType: string;
+	displayTypeName: string;
+	info: string;
+	providedDimensions: [number, number];
+	suggestion: string;
+	supportedDimensions: [number, number][];
+}
+
 // Privacy Declaration
 export interface DataCollectionItem {
 	category: string;
