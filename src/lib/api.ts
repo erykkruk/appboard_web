@@ -49,7 +49,9 @@ import type {
 	ReviewInfo,
 	ReviewStats,
 	ScreenshotDimensionErrorData,
+	ScreenshotScene,
 	ScreenshotValidationResult,
+	SceneData,
 	SettingRow,
 	Settings,
 	SplitPreviewResult,
@@ -985,6 +987,50 @@ export const api = {
 			fetchApi<{ synced: number }>(`/api/apps/${appId}/reviews/sync`, {
 				method: "POST",
 			}),
+	},
+
+	screenshotScenes: {
+		list: (appId: string) =>
+			fetchApi<{ scenes: ScreenshotScene[] }>(
+				`/api/apps/${appId}/screenshot-scenes`,
+			).then((r) => r.scenes),
+		get: (appId: string, sceneId: string) =>
+			fetchApi<{ scene: ScreenshotScene }>(
+				`/api/apps/${appId}/screenshot-scenes/${sceneId}`,
+			).then((r) => r.scene),
+		create: (
+			appId: string,
+			data: {
+				language: string;
+				displayType: string;
+				name: string;
+				scene: SceneData;
+				sortOrder?: number;
+			},
+		) =>
+			fetchApi<{ scene: ScreenshotScene }>(
+				`/api/apps/${appId}/screenshot-scenes`,
+				{ body: JSON.stringify(data), method: "POST" },
+			).then((r) => r.scene),
+		update: (
+			appId: string,
+			sceneId: string,
+			data: Partial<{
+				name: string;
+				scene: SceneData;
+				sortOrder: number;
+				assetId: string | null;
+			}>,
+		) =>
+			fetchApi<{ scene: ScreenshotScene }>(
+				`/api/apps/${appId}/screenshot-scenes/${sceneId}`,
+				{ body: JSON.stringify(data), method: "PUT" },
+			).then((r) => r.scene),
+		delete: (appId: string, sceneId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/screenshot-scenes/${sceneId}`,
+				{ method: "DELETE" },
+			),
 	},
 
 	settings: {

@@ -42,6 +42,7 @@ import { APP_STORE_LANGUAGES, type VersionScreenshot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { ScreenshotCropDialog } from "@/components/screenshot-crop-dialog";
+import { ScreenshotEditorEntry } from "@/components/screenshot-editor";
 import { ScreenshotSplitDialog } from "@/components/screenshot-split-dialog";
 import { useAssets, useUploadAsset, useDeleteAsset } from "@/hooks/use-assets";
 import {
@@ -866,6 +867,18 @@ export default function VersionScreenshotsPage() {
                   )}
                   {uploadError && (
                     <p className="mt-2 text-xs text-destructive">{uploadError}</p>
+                  )}
+
+                  {/* Browser screenshot editor (canvas MVP) */}
+                  {hasLanguage && (
+                    <div className="mt-5">
+                      <ScreenshotEditorEntry
+                        appId={params.appId}
+                        versionId={params.versionId}
+                        language={activeLang}
+                        displayType={device.key}
+                      />
+                    </div>
                   )}
                 </>
               ) : (

@@ -496,6 +496,77 @@ export interface ScreenshotDimensionErrorData {
 	supportedDimensions: [number, number][];
 }
 
+// Screenshot editor scene (browser-based canvas editor).
+// `SceneData` mirrors the backend `jsonb` shape stored per scene — the frontend
+// owns rendering/export, the backend persists this object intact.
+export type SceneBackgroundType = "color" | "gradient" | "image";
+export type SceneTextAlign = "left" | "center" | "right";
+export type SceneScreenshotFit = "cover" | "contain";
+export type SceneDeviceFrame = "iphone" | "android" | "none";
+
+export interface SceneBackground {
+	type: SceneBackgroundType;
+	value: string;
+	gradient?: { from: string; to: string; angle: number };
+}
+
+export interface SceneDevice {
+	frame: SceneDeviceFrame;
+	scale: number;
+	offsetX: number;
+	offsetY: number;
+	rotation?: number;
+}
+
+export interface SceneScreenshot {
+	assetId?: string;
+	url?: string;
+	fit?: SceneScreenshotFit;
+}
+
+export interface SceneTextLayer {
+	id: string;
+	text: string;
+	x: number;
+	y: number;
+	fontFamily: string;
+	fontSize: number;
+	color: string;
+	align: SceneTextAlign;
+	weight?: number;
+}
+
+export interface SceneAnnotation {
+	id: string;
+	type: string;
+	x: number;
+	y: number;
+	[key: string]: unknown;
+}
+
+export interface SceneData {
+	width: number;
+	height: number;
+	background: SceneBackground;
+	device?: SceneDevice;
+	screenshot?: SceneScreenshot;
+	textLayers: SceneTextLayer[];
+	annotations?: SceneAnnotation[];
+}
+
+export interface ScreenshotScene {
+	id: string;
+	appId: string;
+	assetId: string | null;
+	displayType: string;
+	language: string;
+	name: string;
+	scene: SceneData;
+	sortOrder: number;
+	createdAt: string;
+	updatedAt: string;
+}
+
 // Privacy Declaration
 export interface DataCollectionItem {
 	category: string;

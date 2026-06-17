@@ -1,0 +1,104 @@
+import { afterEach, describe, expect, mock, test } from "bun:test";
+import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+
+import type { SceneData } from "@/lib/types";
+
+import { LayersPanel } from "./editor-panels";
+
+afterEach(cleanup);
+
+function buildScene(textCount: number): SceneData {
+	return {
+		width: 1290,
+		height: 2796,
+		background: { type: "color", value: "#000" },
+		device: { frame: "iphone", scale: 0.72, offsetX: 0, offsetY: 0.12 },
+		textLayers: Array.from({ length: textCount }, (_, i) => ({
+			id: `t${i}`,
+			text: `Layer ${i}`,
+			x: 0.5,
+			y: 0.2,
+			fontFamily: "sans",
+			fontSize: 80,
+			color: "#fff",
+			align: "center" as const,
+		})),
+	};
+}
+
+describe("LayersPanel", () => {
+	test("renders background, device and each text layer", () => {
+		render(
+			<LayersPanel
+				scene={buildScene(2)}
+				selectedLayerId={null}
+				onSelectLayer={mock(() => {})}
+				onAddText={mock(() => {})}
+				onDeleteText={mock(() => {})}
+			/>,
+		);
+		expect(screen.getByText("Tło")).toBeInTheDocument();
+		expect(screen.getByText("Urządzenie + screenshot")).toBeInTheDocument();
+		expect(screen.getByText("Layer 0")).toBeInTheDocument();
+		expect(screen.getByText("Layer 1")).toBeInTheDocument();
+	});
+
+	test("shows an empty hint when there are no text layers", () => {
+		render(
+			<LayersPanel
+				scene={buildScene(0)}
+				selectedLayerId={null}
+				onSelectLayer={mock(() => {})}
+				onAddText={mock(() => {})}
+				onDeleteText={mock(() => {})}
+			/>,
+		);
+		expect(screen.getByText("Brak napisów.")).toBeInTheDocument();
+	});
+
+	test("fires onSelectLayer with the layer id when clicked", async () => {
+		const onSelectLayer = mock((id: string | null) => id);
+		render(
+			<LayersPanel
+				scene={buildScene(1)}
+				selectedLayerId={null}
+				onSelectLayer={onSelectLayer}
+				onAddText={mock(() => {})}
+				onDeleteText={mock(() => {})}
+			/>,
+		);
+		await userEvent.click(screen.getByText("Layer 0"));
+		expect(onSelectLayer).toHaveBeenCalledWith("t0");
+	});
+
+	test("fires onAddText when the Tekst button is clicked", async () => {
+		const onAddText = mock(() => {});
+		render(
+			<LayersPanel
+				scene={buildScene(0)}
+				selectedLayerId={null}
+				onSelectLayer={mock(() => {})}
+				onAddText={onAddText}
+				onDeleteText={mock(() => {})}
+			/>,
+		);
+		await userEvent.click(screen.getByText("Tekst"));
+		expect(onAddText).toHaveBeenCalled();
+	});
+
+	test("fires onDeleteText with the layer id from the trash button", async () => {
+		const onDeleteText = mock((id: string) => id);
+		render(
+			<LayersPanel
+				scene={buildScene(1)}
+				selectedLayerId="t0"
+				onSelectLayer={mock(() => {})}
+				onAddText={mock(() => {})}
+				onDeleteText={onDeleteText}
+			/>,
+		);
+		await userEvent.click(screen.getByLabelText("Usuń napis"));
+		expect(onDeleteText).toHaveBeenCalledWith("t0");
+	});
+});
