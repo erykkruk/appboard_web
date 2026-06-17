@@ -4,14 +4,18 @@ import {
 	computeDeviceRect,
 	computeDisplayScale,
 	computeImageFit,
+	createDefaultAnnotation,
 	createDefaultScene,
 	defaultFrameForDisplayType,
 	getDisplayTypeLabel,
 	getTargetDimensions,
+	hitTestAnnotation,
+	hitTestCalloutTarget,
 	hitTestTextLayer,
+	measureAnnotationBox,
 	resolveTextPosition,
 } from "./screenshot-editor";
-import type { SceneData } from "./types";
+import type { SceneAnnotation, SceneData } from "./types";
 
 describe("getTargetDimensions", () => {
 	test("returns the exact backend portrait size for a known display type", () => {
@@ -180,5 +184,155 @@ describe("computeDisplayScale", () => {
 
 	test("guards against a zero-sized target", () => {
 		expect(computeDisplayScale([0, 0], { width: 500, height: 500 })).toBe(1);
+	});
+});
+
+describe("createDefaultAnnotation", () => {
+	const scene = { height: 2000 };
+
+	test("builds a callout with a tail target and a deterministic id", () => {
+		const ann = createDefaultAnnotation("callout", scene, "a1");
+		expect(ann.type).toBe("callout");
+		expect(ann.id).toBe("a1");
+		if (ann.type === "callout") {
+			expect(typeof ann.targetX).toBe("number");
+			expect(typeof ann.targetY).toBe("number");
+		}
+		expect(ann.fontSize).toBeGreaterThan(0);
+	});
+
+	test("builds a badge with a bold weight and a fill", () => {
+		const ann = createDefaultAnnotation("badge", scene, "b1");
+		expect(ann.type).toBe("badge");
+		expect(ann.weight).toBe(700);
+		expect(ann.bg).toBeTruthy();
+	});
+
+	test("builds a label with a visible background by default", () => {
+		const ann = createDefaultAnnotation("label", scene, "l1");
+		expect(ann.type).toBe("label");
+		if (ann.type === "label") {
+			expect(ann.showBackground).toBe(true);
+		}
+	});
+});
+
+describe("measureAnnotationBox", () => {
+	const scene = { width: 1000, height: 2000 };
+
+	function badge(text: string, fontSize: number): SceneAnnotation {
+		return {
+			id: "x",
+			type: "badge",
+			text,
+			x: 0.5,
+			y: 0.5,
+			fontSize,
+			color: "#fff",
+			bg: "#000",
+		};
+	}
+
+	test("centers the box on the normalized anchor", () => {
+		const box = measureAnnotationBox(badge("Hi", 50), scene);
+		expect(box.x + box.width / 2).toBeCloseTo(500);
+		expect(box.y + box.height / 2).toBeCloseTo(1000);
+	});
+
+	test("a longer text yields a wider box", () => {
+		const narrow = measureAnnotationBox(badge("Hi", 50), scene);
+		const wide = measureAnnotationBox(badge("Much longer text", 50), scene);
+		expect(wide.width).toBeGreaterThan(narrow.width);
+	});
+
+	test("multi-line text increases the box height", () => {
+		const oneLine = measureAnnotationBox(badge("One", 50), scene);
+		const twoLines = measureAnnotationBox(badge("One\nTwo", 50), scene);
+		expect(twoLines.height).toBeGreaterThan(oneLine.height);
+	});
+});
+
+describe("hitTestAnnotation", () => {
+	const scene: SceneData = {
+		width: 1000,
+		height: 2000,
+		background: { type: "color", value: "#000" },
+		textLayers: [],
+		annotations: [
+			{
+				id: "badge",
+				type: "badge",
+				text: "NEW",
+				x: 0.5,
+				y: 0.5,
+				fontSize: 60,
+				color: "#fff",
+				bg: "#f00",
+			},
+		],
+	};
+
+	test("returns the annotation id when the point is over its box", () => {
+		expect(hitTestAnnotation(scene, 500, 1000)).toBe("badge");
+	});
+
+	test("returns null when the point misses every annotation", () => {
+		expect(hitTestAnnotation(scene, 10, 50)).toBeNull();
+	});
+
+	test("returns null when the scene has no annotations", () => {
+		expect(
+			hitTestAnnotation({ ...scene, annotations: undefined }, 500, 1000),
+		).toBeNull();
+	});
+
+	test("prefers the topmost (last) annotation on overlap", () => {
+		const overlap: SceneData = {
+			...scene,
+			annotations: [
+				{ ...(scene.annotations?.[0] as SceneAnnotation), id: "bottom" },
+				{ ...(scene.annotations?.[0] as SceneAnnotation), id: "top" },
+			],
+		};
+		expect(hitTestAnnotation(overlap, 500, 1000)).toBe("top");
+	});
+});
+
+describe("hitTestCalloutTarget", () => {
+	const scene = { width: 1000, height: 2000 };
+	const callout: SceneAnnotation = {
+		id: "c",
+		type: "callout",
+		text: "Hi",
+		x: 0.5,
+		y: 0.3,
+		fontSize: 50,
+		color: "#fff",
+		bg: "#000",
+		targetX: 0.5,
+		targetY: 0.6,
+	};
+
+	test("is true near the tail target point", () => {
+		// targetX 0.5 → 500, targetY 0.6 → 1200
+		expect(hitTestCalloutTarget(callout, scene, 500, 1200)).toBe(true);
+	});
+
+	test("is false far from the tail target point", () => {
+		expect(hitTestCalloutTarget(callout, scene, 100, 100)).toBe(false);
+	});
+
+	test("is always false for non-callout annotations", () => {
+		const badge: SceneAnnotation = {
+			id: "b",
+			type: "badge",
+			text: "X",
+			x: 0.5,
+			y: 0.6,
+			fontSize: 50,
+			color: "#fff",
+			bg: "#000",
+		};
+		expect(hitTestCalloutTarget(badge, scene, 500, 1200)).toBe(false);
 	});
 });

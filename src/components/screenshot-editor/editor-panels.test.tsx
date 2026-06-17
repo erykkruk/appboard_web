@@ -27,6 +27,39 @@ function buildScene(textCount: number): SceneData {
 	};
 }
 
+const noopLayerProps = {
+	onAddText: mock(() => {}),
+	onDeleteText: mock(() => {}),
+	onAddAnnotation: mock(() => {}),
+	onDeleteAnnotation: mock(() => {}),
+};
+
+const noopPropertiesProps = {
+	onPatchScene: mock(() => {}),
+	onPatchTextLayer: mock(() => {}),
+	onPatchAnnotation: mock(() => {}),
+	onPickBackgroundImage: mock(() => {}),
+	onPickScreenshot: mock(() => {}),
+};
+
+function sceneWithBadge(): SceneData {
+	return {
+		...buildScene(0),
+		annotations: [
+			{
+				id: "a0",
+				type: "badge",
+				text: "NOWOŚĆ",
+				x: 0.5,
+				y: 0.5,
+				fontSize: 60,
+				color: "#fff",
+				bg: "#f00",
+			},
+		],
+	};
+}
+
 describe("LayersPanel", () => {
 	test("renders background, device and each text layer", () => {
 		render(
@@ -34,8 +67,7 @@ describe("LayersPanel", () => {
 				scene={buildScene(2)}
 				selectedLayerId={null}
 				onSelectLayer={mock(() => {})}
-				onAddText={mock(() => {})}
-				onDeleteText={mock(() => {})}
+				{...noopLayerProps}
 			/>,
 		);
 		expect(screen.getByText("Tło")).toBeInTheDocument();
@@ -50,8 +82,7 @@ describe("LayersPanel", () => {
 				scene={buildScene(0)}
 				selectedLayerId={null}
 				onSelectLayer={mock(() => {})}
-				onAddText={mock(() => {})}
-				onDeleteText={mock(() => {})}
+				{...noopLayerProps}
 			/>,
 		);
 		expect(screen.getByText("Brak napisów.")).toBeInTheDocument();
@@ -64,8 +95,7 @@ describe("LayersPanel", () => {
 				scene={buildScene(1)}
 				selectedLayerId={null}
 				onSelectLayer={onSelectLayer}
-				onAddText={mock(() => {})}
-				onDeleteText={mock(() => {})}
+				{...noopLayerProps}
 			/>,
 		);
 		await userEvent.click(screen.getByText("Layer 0"));
@@ -79,8 +109,8 @@ describe("LayersPanel", () => {
 				scene={buildScene(0)}
 				selectedLayerId={null}
 				onSelectLayer={mock(() => {})}
+				{...noopLayerProps}
 				onAddText={onAddText}
-				onDeleteText={mock(() => {})}
 			/>,
 		);
 		await userEvent.click(screen.getByText("Tekst"));
@@ -94,12 +124,49 @@ describe("LayersPanel", () => {
 				scene={buildScene(1)}
 				selectedLayerId="t0"
 				onSelectLayer={mock(() => {})}
-				onAddText={mock(() => {})}
+				{...noopLayerProps}
 				onDeleteText={onDeleteText}
 			/>,
 		);
 		await userEvent.click(screen.getByLabelText("Usuń napis"));
 		expect(onDeleteText).toHaveBeenCalledWith("t0");
+	});
+
+	test("lists annotations and shows an empty hint when there are none", () => {
+		const { rerender } = render(
+			<LayersPanel
+				scene={buildScene(0)}
+				selectedLayerId={null}
+				onSelectLayer={mock(() => {})}
+				{...noopLayerProps}
+			/>,
+		);
+		expect(screen.getByText("Brak adnotacji.")).toBeInTheDocument();
+
+		rerender(
+			<LayersPanel
+				scene={sceneWithBadge()}
+				selectedLayerId={null}
+				onSelectLayer={mock(() => {})}
+				{...noopLayerProps}
+			/>,
+		);
+		expect(screen.getByText("NOWOŚĆ")).toBeInTheDocument();
+	});
+
+	test("fires onDeleteAnnotation from the annotation trash button", async () => {
+		const onDeleteAnnotation = mock((id: string) => id);
+		render(
+			<LayersPanel
+				scene={sceneWithBadge()}
+				selectedLayerId="a0"
+				onSelectLayer={mock(() => {})}
+				{...noopLayerProps}
+				onDeleteAnnotation={onDeleteAnnotation}
+			/>,
+		);
+		await userEvent.click(screen.getByLabelText("Usuń adnotację"));
+		expect(onDeleteAnnotation).toHaveBeenCalledWith("a0");
 	});
 });
 
@@ -112,10 +179,8 @@ describe("PropertiesPanel — Do Not Translate toggle", () => {
 			<PropertiesPanel
 				scene={buildScene(1)}
 				selectedLayerId="t0"
-				onPatchScene={mock(() => {})}
+				{...noopPropertiesProps}
 				onPatchTextLayer={onPatchTextLayer}
-				onPickBackgroundImage={mock(() => {})}
-				onPickScreenshot={mock(() => {})}
 			/>,
 		);
 
@@ -123,5 +188,26 @@ describe("PropertiesPanel — Do Not Translate toggle", () => {
 		expect(onPatchTextLayer).toHaveBeenCalledWith("t0", {
 			doNotTranslate: true,
 		});
+	});
+});
+
+describe("PropertiesPanel — annotation editing", () => {
+	test("editing the annotation text patches the selected annotation", async () => {
+		const onPatchAnnotation = mock(
+			(id: string, patch: Record<string, unknown>) => ({ id, patch }),
+		);
+		render(
+			<PropertiesPanel
+				scene={sceneWithBadge()}
+				selectedLayerId="a0"
+				{...noopPropertiesProps}
+				onPatchAnnotation={onPatchAnnotation}
+			/>,
+		);
+
+		const textarea = screen.getByDisplayValue("NOWOŚĆ");
+		await userEvent.type(textarea, "!");
+		expect(onPatchAnnotation).toHaveBeenCalled();
+		expect(onPatchAnnotation.mock.calls[0][0]).toBe("a0");
 	});
 });

@@ -542,13 +542,60 @@ export interface SceneTextLayer {
 	doNotTranslate?: boolean;
 }
 
-export interface SceneAnnotation {
+export type SceneAnnotationType = "callout" | "badge" | "label";
+
+/**
+ * Properties shared by every annotation variant. Positions (`x`/`y`) are
+ * normalized (0..1) fractions of the scene, mirroring {@link SceneTextLayer},
+ * so annotations survive a change of target dimensions. Color/font props are
+ * named consistently with text layers (`color` = text color, `fontSize`,
+ * `weight`) for a uniform properties panel.
+ */
+interface SceneAnnotationBase {
 	id: string;
-	type: string;
+	text: string;
+	/** Normalized (0..1) anchor position of the annotation box. */
 	x: number;
 	y: number;
-	[key: string]: unknown;
+	fontSize: number;
+	/** Text color. */
+	color: string;
+	/** Background fill color of the pill/bubble/label. */
+	bg: string;
+	weight?: number;
+	fontFamily?: string;
+	/**
+	 * When true, the text is kept verbatim across language variants (e.g. a "NEW"
+	 * badge or a brand name). Persisted in the opaque `jsonb` scene — no backend
+	 * migration needed. Mirrors {@link SceneTextLayer.doNotTranslate}.
+	 */
+	doNotTranslate?: boolean;
 }
+
+/** A text bubble with a pointer/tail aimed at a target point on the scene. */
+export interface SceneCalloutAnnotation extends SceneAnnotationBase {
+	type: "callout";
+	/** Normalized (0..1) point the tail points toward. */
+	targetX: number;
+	targetY: number;
+}
+
+/** A pill-shaped badge with text. */
+export interface SceneBadgeAnnotation extends SceneAnnotationBase {
+	type: "badge";
+}
+
+/** A simple text label with an optional background. */
+export interface SceneLabelAnnotation extends SceneAnnotationBase {
+	type: "label";
+	/** When false, the label is drawn without a background fill. */
+	showBackground?: boolean;
+}
+
+export type SceneAnnotation =
+	| SceneCalloutAnnotation
+	| SceneBadgeAnnotation
+	| SceneLabelAnnotation;
 
 export interface SceneData {
 	width: number;

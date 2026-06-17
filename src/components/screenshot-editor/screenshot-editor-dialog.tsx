@@ -19,12 +19,15 @@ import {
 import { useUploadScreenshot } from "@/hooks/use-publishing";
 import { getScreenshotDimensionError } from "@/lib/api";
 import {
+	createDefaultAnnotation,
 	createDefaultScene,
 	getDisplayTypeLabel,
 	getTargetDimensions,
 } from "@/lib/screenshot-editor";
 import { buildDimensionMessage } from "@/lib/screenshot-validation";
 import type {
+	SceneAnnotation,
+	SceneAnnotationType,
 	SceneData,
 	SceneTextLayer,
 	ScreenshotScene,
@@ -60,6 +63,12 @@ let textLayerSeq = 0;
 function nextTextLayerId(): string {
 	textLayerSeq += 1;
 	return `text-${Date.now()}-${textLayerSeq}`;
+}
+
+let annotationSeq = 0;
+function nextAnnotationId(): string {
+	annotationSeq += 1;
+	return `ann-${Date.now()}-${annotationSeq}`;
 }
 
 export function ScreenshotEditorDialog({
@@ -175,6 +184,64 @@ export function ScreenshotEditorDialog({
 			setScene((prev) => ({
 				...prev,
 				textLayers: prev.textLayers.filter((l) => l.id !== id),
+			}));
+			if (selectedLayerId === id) setSelectedLayerId(null);
+		},
+		[selectedLayerId],
+	);
+
+	const patchAnnotation = useCallback(
+		(id: string, patch: Partial<SceneAnnotation>) => {
+			setScene((prev) => ({
+				...prev,
+				annotations: (prev.annotations ?? []).map((a) =>
+					a.id === id ? ({ ...a, ...patch } as SceneAnnotation) : a,
+				),
+			}));
+		},
+		[],
+	);
+
+	const moveAnnotation = useCallback((id: string, x: number, y: number) => {
+		setScene((prev) => ({
+			...prev,
+			annotations: (prev.annotations ?? []).map((a) =>
+				a.id === id ? { ...a, x, y } : a,
+			),
+		}));
+	}, []);
+
+	const moveCalloutTarget = useCallback(
+		(id: string, targetX: number, targetY: number) => {
+			setScene((prev) => ({
+				...prev,
+				annotations: (prev.annotations ?? []).map((a) =>
+					a.id === id && a.type === "callout"
+						? { ...a, targetX, targetY }
+						: a,
+				),
+			}));
+		},
+		[],
+	);
+
+	const addAnnotation = useCallback((type: SceneAnnotationType) => {
+		const id = nextAnnotationId();
+		setScene((prev) => ({
+			...prev,
+			annotations: [
+				...(prev.annotations ?? []),
+				createDefaultAnnotation(type, prev, id),
+			],
+		}));
+		setSelectedLayerId(id);
+	}, []);
+
+	const deleteAnnotation = useCallback(
+		(id: string) => {
+			setScene((prev) => ({
+				...prev,
+				annotations: (prev.annotations ?? []).filter((a) => a.id !== id),
 			}));
 			if (selectedLayerId === id) setSelectedLayerId(null);
 		},
@@ -316,6 +383,8 @@ export function ScreenshotEditorDialog({
 						onSelectLayer={setSelectedLayerId}
 						onAddText={addTextLayer}
 						onDeleteText={deleteTextLayer}
+						onAddAnnotation={addAnnotation}
+						onDeleteAnnotation={deleteAnnotation}
 					/>
 
 					<div className="flex min-w-0 flex-1 items-center justify-center bg-muted/30 p-6">
@@ -326,6 +395,8 @@ export function ScreenshotEditorDialog({
 							selectedLayerId={selectedLayerId}
 							onSelectLayer={setSelectedLayerId}
 							onMoveLayer={moveTextLayer}
+							onMoveAnnotation={moveAnnotation}
+							onMoveCalloutTarget={moveCalloutTarget}
 						/>
 					</div>
 
@@ -334,6 +405,7 @@ export function ScreenshotEditorDialog({
 						selectedLayerId={selectedLayerId}
 						onPatchScene={patchScene}
 						onPatchTextLayer={patchTextLayer}
+						onPatchAnnotation={patchAnnotation}
 						onPickBackgroundImage={() => bgFileRef.current?.click()}
 						onPickScreenshot={() => screenshotFileRef.current?.click()}
 					/>

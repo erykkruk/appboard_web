@@ -9,7 +9,12 @@ import {
 	useState,
 } from "react";
 
-import { computeDisplayScale, hitTestTextLayer } from "@/lib/screenshot-editor";
+import {
+	computeDisplayScale,
+	hitTestAnnotation,
+	hitTestCalloutTarget,
+	hitTestTextLayer,
+} from "@/lib/screenshot-editor";
 import type { SceneData } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -21,24 +26,42 @@ export interface SceneCanvasHandle {
 	exportPng: () => Promise<Blob | null>;
 }
 
+// What the active pointer drag is moving. Text layers and annotation boxes are
+// dragged by their anchor; a callout's tail tip is dragged independently.
+type DragTarget =
+	| { kind: "text"; id: string }
+	| { kind: "annotation"; id: string }
+	| { kind: "callout-target"; id: string };
+
 interface SceneCanvasProps {
 	scene: SceneData;
 	images: RenderImages;
 	selectedLayerId: string | null;
 	onSelectLayer: (id: string | null) => void;
 	onMoveLayer: (id: string, x: number, y: number) => void;
+	onMoveAnnotation: (id: string, x: number, y: number) => void;
+	onMoveCalloutTarget: (id: string, targetX: number, targetY: number) => void;
 	className?: string;
 }
 
 export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 	function SceneCanvas(
-		{ scene, images, selectedLayerId, onSelectLayer, onMoveLayer, className },
+		{
+			scene,
+			images,
+			selectedLayerId,
+			onSelectLayer,
+			onMoveLayer,
+			onMoveAnnotation,
+			onMoveCalloutTarget,
+			className,
+		},
 		ref,
 	) {
 		const canvasRef = useRef<HTMLCanvasElement>(null);
 		const containerRef = useRef<HTMLDivElement>(null);
 		const [displayScale, setDisplayScale] = useState(1);
-		const draggingRef = useRef<string | null>(null);
+		const draggingRef = useRef<DragTarget | null>(null);
 
 		// Fit the canvas into the available container box while keeping the
 		// backing store at true device pixels (scene.width × scene.height).
@@ -113,27 +136,59 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 			(e: React.PointerEvent<HTMLCanvasElement>) => {
 				const point = toScenePoint(e.clientX, e.clientY);
 				if (!point) return;
-				const hit = hitTestTextLayer(scene, point.x, point.y);
-				onSelectLayer(hit);
-				if (hit) {
-					draggingRef.current = hit;
+
+				// When a callout is already selected, its tail-target handle wins so
+				// the user can re-aim the pointer without first moving the bubble.
+				const selectedAnn = (scene.annotations ?? []).find(
+					(a) => a.id === selectedLayerId,
+				);
+				if (
+					selectedAnn &&
+					hitTestCalloutTarget(selectedAnn, scene, point.x, point.y)
+				) {
+					draggingRef.current = { kind: "callout-target", id: selectedAnn.id };
+					e.currentTarget.setPointerCapture(e.pointerId);
+					return;
+				}
+
+				const annHit = hitTestAnnotation(scene, point.x, point.y);
+				if (annHit) {
+					onSelectLayer(annHit);
+					draggingRef.current = { kind: "annotation", id: annHit };
+					e.currentTarget.setPointerCapture(e.pointerId);
+					return;
+				}
+
+				const textHit = hitTestTextLayer(scene, point.x, point.y);
+				onSelectLayer(textHit);
+				if (textHit) {
+					draggingRef.current = { kind: "text", id: textHit };
 					e.currentTarget.setPointerCapture(e.pointerId);
 				}
 			},
-			[scene, toScenePoint, onSelectLayer],
+			[scene, selectedLayerId, toScenePoint, onSelectLayer],
 		);
 
 		const handlePointerMove = useCallback(
 			(e: React.PointerEvent<HTMLCanvasElement>) => {
-				const id = draggingRef.current;
-				if (!id) return;
+				const drag = draggingRef.current;
+				if (!drag) return;
 				const point = toScenePoint(e.clientX, e.clientY);
 				if (!point) return;
 				const nx = Math.min(Math.max(point.x / scene.width, 0), 1);
 				const ny = Math.min(Math.max(point.y / scene.height, 0), 1);
-				onMoveLayer(id, nx, ny);
+				if (drag.kind === "text") onMoveLayer(drag.id, nx, ny);
+				else if (drag.kind === "annotation") onMoveAnnotation(drag.id, nx, ny);
+				else onMoveCalloutTarget(drag.id, nx, ny);
 			},
-			[scene.width, scene.height, toScenePoint, onMoveLayer],
+			[
+				scene.width,
+				scene.height,
+				toScenePoint,
+				onMoveLayer,
+				onMoveAnnotation,
+				onMoveCalloutTarget,
+			],
 		);
 
 		const handlePointerUp = useCallback(

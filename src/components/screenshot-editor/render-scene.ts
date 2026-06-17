@@ -2,10 +2,11 @@ import {
 	buildFontString,
 	computeDeviceRect,
 	computeImageFit,
+	measureAnnotationBox,
 	resolveTextPosition,
 	type Rect,
 } from "@/lib/screenshot-editor";
-import type { SceneData } from "@/lib/types";
+import type { SceneAnnotation, SceneData } from "@/lib/types";
 
 // A decoded image plus its natural pixel dimensions. The element is passed to
 // drawImage; the dims drive the fit math (the element's own width/height can be
@@ -222,6 +223,127 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 	}
 }
 
+/** Draw the multi-line text of an annotation centered inside `box`. */
+function drawAnnotationText(
+	ctx: CanvasRenderingContext2D,
+	annotation: SceneAnnotation,
+	box: Rect,
+): void {
+	ctx.font = buildFontString({
+		fontFamily: annotation.fontFamily ?? "Inter, system-ui, sans-serif",
+		fontSize: annotation.fontSize,
+		weight: annotation.weight,
+	});
+	ctx.fillStyle = annotation.color;
+	ctx.textAlign = "center";
+	ctx.textBaseline = "middle";
+	const lines = annotation.text.split("\n");
+	const lineHeight = annotation.fontSize * 1.2;
+	const cx = box.x + box.width / 2;
+	const cy = box.y + box.height / 2;
+	const totalHeight = lineHeight * (lines.length - 1);
+	lines.forEach((line, i) => {
+		ctx.fillText(line, cx, cy - totalHeight / 2 + i * lineHeight);
+	});
+}
+
+/**
+ * Draw a callout: a rounded bubble plus a triangular tail pointing from the
+ * bubble edge toward the target point. The tail base sits on the bubble side
+ * nearest the target so the pointer always reads as attached.
+ */
+function drawCallout(
+	ctx: CanvasRenderingContext2D,
+	annotation: SceneAnnotation & { type: "callout" },
+	scene: SceneData,
+): void {
+	const box = measureAnnotationBox(annotation, scene);
+	const cx = box.x + box.width / 2;
+	const cy = box.y + box.height / 2;
+	const tx = annotation.targetX * scene.width;
+	const ty = annotation.targetY * scene.height;
+
+	// Tail base width scales with font size; anchored at the bubble center and
+	// pointing toward the target, clamped to the bubble edge.
+	const tailBase = Math.max(annotation.fontSize * 0.5, 12);
+	const dx = tx - cx;
+	const dy = ty - cy;
+	const len = Math.hypot(dx, dy) || 1;
+	const nx = dx / len;
+	const ny = dy / len;
+	// Perpendicular for the tail base spread.
+	const px = -ny;
+	const py = nx;
+	// Base point on the bubble edge (project center toward target by half-extent).
+	const baseDist = Math.min(box.width, box.height) / 2;
+	const baseX = cx + nx * baseDist;
+	const baseY = cy + ny * baseDist;
+
+	ctx.save();
+	ctx.shadowColor = "rgba(0,0,0,0.3)";
+	ctx.shadowBlur = annotation.fontSize * 0.4;
+	ctx.shadowOffsetY = annotation.fontSize * 0.12;
+	ctx.fillStyle = annotation.bg;
+
+	// Tail triangle (drawn first, shares the bubble fill/shadow).
+	ctx.beginPath();
+	ctx.moveTo(baseX + px * tailBase, baseY + py * tailBase);
+	ctx.lineTo(tx, ty);
+	ctx.lineTo(baseX - px * tailBase, baseY - py * tailBase);
+	ctx.closePath();
+	ctx.fill();
+
+	// Bubble.
+	roundedRectPath(ctx, box, Math.min(box.height / 2, annotation.fontSize));
+	ctx.fill();
+	ctx.restore();
+
+	drawAnnotationText(ctx, annotation, box);
+}
+
+/** Draw a pill-shaped badge: a fully-rounded rect with centered text. */
+function drawBadge(
+	ctx: CanvasRenderingContext2D,
+	annotation: SceneAnnotation & { type: "badge" },
+	scene: SceneData,
+): void {
+	const box = measureAnnotationBox(annotation, scene);
+	ctx.save();
+	ctx.shadowColor = "rgba(0,0,0,0.25)";
+	ctx.shadowBlur = annotation.fontSize * 0.3;
+	ctx.shadowOffsetY = annotation.fontSize * 0.1;
+	ctx.fillStyle = annotation.bg;
+	roundedRectPath(ctx, box, box.height / 2);
+	ctx.fill();
+	ctx.restore();
+	drawAnnotationText(ctx, annotation, box);
+}
+
+/** Draw a label: centered text with an optional rounded background panel. */
+function drawLabel(
+	ctx: CanvasRenderingContext2D,
+	annotation: SceneAnnotation & { type: "label" },
+	scene: SceneData,
+): void {
+	const box = measureAnnotationBox(annotation, scene);
+	if (annotation.showBackground !== false) {
+		ctx.save();
+		ctx.fillStyle = annotation.bg;
+		roundedRectPath(ctx, box, annotation.fontSize * 0.25);
+		ctx.fill();
+		ctx.restore();
+	}
+	drawAnnotationText(ctx, annotation, box);
+}
+
+function drawAnnotations(ctx: CanvasRenderingContext2D, scene: SceneData): void {
+	for (const annotation of scene.annotations ?? []) {
+		if (annotation.type === "callout") drawCallout(ctx, annotation, scene);
+		else if (annotation.type === "badge") drawBadge(ctx, annotation, scene);
+		else drawLabel(ctx, annotation, scene);
+	}
+}
+
 /**
  * Render a full scene onto a 2D context. The context's canvas MUST already be
  * sized to `scene.width`×`scene.height` (true device pixels). Synchronous: all
@@ -237,4 +359,5 @@ export function renderScene(
 	drawBackground(ctx, scene, images);
 	drawDeviceFrame(ctx, scene, images);
 	drawTextLayers(ctx, scene);
+	drawAnnotations(ctx, scene);
 }

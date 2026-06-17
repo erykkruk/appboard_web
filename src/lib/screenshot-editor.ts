@@ -1,4 +1,6 @@
 import type {
+	SceneAnnotation,
+	SceneAnnotationType,
 	SceneData,
 	SceneDeviceFrame,
 	SceneScreenshotFit,
@@ -226,6 +228,144 @@ export function buildFontString(layer: {
 	weight?: number;
 }): string {
 	return `${layer.weight ?? 400} ${layer.fontSize}px ${layer.fontFamily}`;
+}
+
+// ---------------------------------------------------------------------------
+// Annotations (callouts / badges / labels)
+// ---------------------------------------------------------------------------
+
+const DEFAULT_ANNOTATION_FONT = "Inter, system-ui, sans-serif";
+
+/** Default text for each annotation variant. */
+const ANNOTATION_DEFAULT_TEXT: Record<SceneAnnotationType, string> = {
+	badge: "NOWOŚĆ",
+	callout: "Twój opis",
+	label: "Etykieta",
+};
+
+/**
+ * Build a fresh annotation of `type` for `scene`, sized relative to the scene
+ * height so it reads at any target resolution. Pure — drives both the "add
+ * annotation" action and tests. `id` is injected by the caller so the factory
+ * stays deterministic and testable.
+ */
+export function createDefaultAnnotation(
+	type: SceneAnnotationType,
+	scene: Pick<SceneData, "height">,
+	id: string,
+): SceneAnnotation {
+	const base = {
+		id,
+		text: ANNOTATION_DEFAULT_TEXT[type],
+		x: 0.5,
+		y: 0.5,
+		color: "#ffffff",
+		fontFamily: DEFAULT_ANNOTATION_FONT,
+		weight: type === "badge" ? 700 : 600,
+	};
+	if (type === "callout") {
+		return {
+			...base,
+			type: "callout",
+			bg: "#111827",
+			fontSize: Math.round(scene.height * 0.028),
+			targetX: 0.5,
+			targetY: 0.62,
+		};
+	}
+	if (type === "badge") {
+		return {
+			...base,
+			type: "badge",
+			bg: "#ef4444",
+			fontSize: Math.round(scene.height * 0.026),
+		};
+	}
+	return {
+		...base,
+		type: "label",
+		bg: "#000000",
+		color: "#ffffff",
+		fontSize: Math.round(scene.height * 0.03),
+		showBackground: true,
+	};
+}
+
+/** Horizontal/vertical padding (as a multiple of fontSize) around annotation text. */
+const ANNOTATION_PADDING_X = 0.7;
+const ANNOTATION_PADDING_Y = 0.45;
+/** Approx. average glyph width as a fraction of fontSize (canvas text has no DOM box). */
+const ANNOTATION_GLYPH_RATIO = 0.58;
+
+/**
+ * Approximate the on-canvas pixel rect of an annotation's pill/bubble box,
+ * centered on its anchor point. The width is estimated from the longest text
+ * line; height accounts for line count. Used for both rendering and hit-testing
+ * so the visible box and the clickable box stay in sync. Pure.
+ */
+export function measureAnnotationBox(
+	annotation: SceneAnnotation,
+	scene: Pick<SceneData, "width" | "height">,
+): Rect {
+	const cx = annotation.x * scene.width;
+	const cy = annotation.y * scene.height;
+	const lines = annotation.text.split("\n");
+	const longest = lines.reduce((max, l) => Math.max(max, l.length), 1);
+	const padX = annotation.fontSize * ANNOTATION_PADDING_X;
+	const padY = annotation.fontSize * ANNOTATION_PADDING_Y;
+	const textWidth = longest * annotation.fontSize * ANNOTATION_GLYPH_RATIO;
+	const textHeight = lines.length * annotation.fontSize * 1.2;
+	const width = textWidth + padX * 2;
+	const height = textHeight + padY * 2;
+	return { x: cx - width / 2, y: cy - height / 2, width, height };
+}
+
+/**
+ * Find the topmost annotation whose box contains the given canvas point.
+ * Annotations are tested last-to-first so the visually-topmost wins. Returns
+ * the annotation id or null. Pure.
+ */
+export function hitTestAnnotation(
+	scene: SceneData,
+	px: number,
+	py: number,
+): string | null {
+	const annotations = scene.annotations ?? [];
+	for (let i = annotations.length - 1; i >= 0; i--) {
+		const box = measureAnnotationBox(annotations[i], scene);
+		if (
+			px >= box.x &&
+			px <= box.x + box.width &&
+			py >= box.y &&
+			py <= box.y + box.height
+		) {
+			return annotations[i].id;
+		}
+	}
+	return null;
+}
+
+/** Radius (px) of the draggable target handle at a callout's tail tip. */
+const CALLOUT_TARGET_HANDLE_RADIUS = 28;
+
+/**
+ * Hit-test the draggable tail-target handle of a single callout annotation.
+ * Returns true when the point is within the handle radius of the target point.
+ * Used so the callout's bubble and its tail tip can be dragged independently.
+ */
+export function hitTestCalloutTarget(
+	annotation: SceneAnnotation,
+	scene: Pick<SceneData, "width" | "height">,
+	px: number,
+	py: number,
+): boolean {
+	if (annotation.type !== "callout") return false;
+	const tx = annotation.targetX * scene.width;
+	const ty = annotation.targetY * scene.height;
+	const dx = px - tx;
+	const dy = py - ty;
+	const handle = Math.max(CALLOUT_TARGET_HANDLE_RADIUS, annotation.fontSize);
+	return dx * dx + dy * dy <= handle * handle;
 }
 
 /**
