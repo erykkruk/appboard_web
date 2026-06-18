@@ -19,6 +19,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 import { Copy, Image as ImageIcon, Info, Loader2, Smartphone, Tablet, Trash2, Upload } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import { useApp } from "@/hooks/use-apps";
 import {
@@ -27,13 +28,21 @@ import {
   useDeleteScreenshot,
   useReorderScreenshots,
   useUploadScreenshot,
+  useValidateScreenshot,
   useVersionDetail,
   useVersionScreenshots,
 } from "@/hooks/use-publishing";
+import { getScreenshotDimensionError } from "@/lib/api";
+import {
+  buildDimensionMessage,
+  buildValidationWarning,
+} from "@/lib/screenshot-validation";
 import { cn } from "@/lib/utils";
 import { APP_STORE_LANGUAGES, type VersionScreenshot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScreenshotCropDialog } from "@/components/screenshot-crop-dialog";
+import { ScreenshotEditorEntry } from "@/components/screenshot-editor";
 import { ScreenshotSplitDialog } from "@/components/screenshot-split-dialog";
 import { useAssets, useUploadAsset, useDeleteAsset } from "@/hooks/use-assets";
 import {
@@ -193,6 +202,7 @@ export default function VersionScreenshotsPage() {
   );
   const deleteAll = useDeleteAllScreenshots(params.appId, params.versionId);
   const uploadScreenshot = useUploadScreenshot(params.appId, params.versionId);
+  const validateScreenshot = useValidateScreenshot(params.appId);
   const copyScreenshots = useCopyScreenshots(params.appId, params.versionId);
 
   // Icon assets
@@ -204,8 +214,10 @@ export default function VersionScreenshotsPage() {
   const [selectedLanguage, setSelectedLanguage] = useState<string>("");
   const [activeDeviceKey, setActiveDeviceKey] = useState<string>("");
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dimensionWarning, setDimensionWarning] = useState<string | null>(null);
   const [fileQueue, setFileQueue] = useState<File[]>([]);
   const [uploadsInProgress, setUploadsInProgress] = useState(0);
+  const [copyTextToo, setCopyTextToo] = useState(false);
   const uploadDisplayTypeRef = useRef(defaultDevice.key);
 
   const currentDeviceKey = activeDeviceKey || defaultDevice.key;
@@ -322,6 +334,7 @@ export default function VersionScreenshotsPage() {
   const handleChooseFile = (displayType: string) => {
     if (!activeLang) return;
     setUploadError(null);
+    setDimensionWarning(null);
     uploadDisplayTypeRef.current = displayType;
     fileInputRef.current?.click();
   };
@@ -334,7 +347,21 @@ export default function VersionScreenshotsPage() {
     e.target.value = "";
 
     setUploadError(null);
+    setDimensionWarning(null);
     setFileQueue((prev) => [...prev, ...selected]);
+
+    // Pre-validate the first selected file (non-blocking): warn the user about
+    // expected dimensions before they crop/upload. Cropping can still fix a
+    // mismatch, so this is advisory only and never blocks the queue.
+    const displayType = uploadDisplayTypeRef.current;
+    validateScreenshot
+      .mutateAsync({ displayType, file: selected[0] })
+      .then((result) => {
+        setDimensionWarning(buildValidationWarning(result));
+      })
+      .catch(() => {
+        // Validation is best-effort; ignore failures and let upload proceed.
+      });
   };
 
   const advanceQueue = () => {
@@ -346,6 +373,7 @@ export default function VersionScreenshotsPage() {
     crop: { x: number; y: number; width: number; height: number },
   ) => {
     const displayType = uploadDisplayTypeRef.current;
+    setDimensionWarning(null);
     advanceQueue();
 
     // Upload immediately to ASC — use mutateAsync so .finally() fires per-call
@@ -358,15 +386,21 @@ export default function VersionScreenshotsPage() {
         crop,
       })
       .catch((err) => {
-        setUploadError(
-          err instanceof Error ? err.message : "Upload failed",
-        );
+        const dimensionError = getScreenshotDimensionError(err);
+        const message = dimensionError
+          ? `${buildDimensionMessage(dimensionError)} ${dimensionError.suggestion}`
+          : err instanceof Error
+            ? err.message
+            : "Upload failed";
+        setUploadError(message);
+        if (dimensionError) toast.error(message);
       })
       .finally(() => setUploadsInProgress((n) => n - 1));
   };
 
   const handleCropCancel = () => {
     // Skip this file, move to next
+    setDimensionWarning(null);
     advanceQueue();
   };
 
@@ -397,10 +431,26 @@ export default function VersionScreenshotsPage() {
 
   const handleCopyFrom = (sourceLang: string) => {
     if (!activeLang) return;
-    copyScreenshots.mutate({
-      sourceLanguage: sourceLang,
-      targetLanguage: activeLang,
-    });
+    const withText = copyTextToo;
+    copyScreenshots.mutate(
+      {
+        sourceLanguage: sourceLang,
+        targetLanguage: activeLang,
+        copyLocalizations: withText,
+      },
+      {
+        onSuccess: ({ copied }) => {
+          toast.success(
+            withText
+              ? `Copied ${copied} screenshot(s) and the text metadata from ${sourceLang}`
+              : `Copied ${copied} screenshot(s) from ${sourceLang}`,
+          );
+        },
+        onError: () => {
+          toast.error(`Failed to copy from ${sourceLang}`);
+        },
+      },
+    );
   };
 
   const notLocalizedLanguages = useMemo(
@@ -627,21 +677,32 @@ export default function VersionScreenshotsPage() {
                         ({device.sizeHint})
                       </p>
                       {languagesWithScreenshots.length > 0 && hasLanguage && (
-                        <div className="mt-4 flex items-center gap-2">
-                          <Copy className="h-4 w-4 text-muted-foreground" />
-                          <span className="text-xs">Copy from:</span>
-                          <Select onValueChange={handleCopyFrom}>
-                            <SelectTrigger className="h-8 w-[160px] text-xs">
-                              <SelectValue placeholder="Select language" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {languagesWithScreenshots.map((lang) => (
-                                <SelectItem key={lang} value={lang}>
-                                  {lang}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                        <div className="mt-4 flex flex-col items-center gap-2">
+                          <div className="flex items-center gap-2">
+                            <Copy className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs">Copy from:</span>
+                            <Select onValueChange={handleCopyFrom}>
+                              <SelectTrigger className="h-8 w-[160px] text-xs">
+                                <SelectValue placeholder="Select language" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {languagesWithScreenshots.map((lang) => (
+                                  <SelectItem key={lang} value={lang}>
+                                    {lang}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                            <Checkbox
+                              checked={copyTextToo}
+                              onCheckedChange={(v) =>
+                                setCopyTextToo(v === true)
+                              }
+                            />
+                            Skopiuj też teksty (tytuł, opis, słowa kluczowe…)
+                          </label>
                         </div>
                       )}
                     </div>
@@ -761,7 +822,7 @@ export default function VersionScreenshotsPage() {
                               {copyScreenshots.isPending ? "Copying..." : "Copy from Language"}
                             </button>
                           </PopoverTrigger>
-                          <PopoverContent side="top" align="start" className="w-48 p-2">
+                          <PopoverContent side="top" align="start" className="w-64 p-2">
                             <p className="mb-2 text-xs font-medium text-muted-foreground">Copy screenshots from:</p>
                             {languagesWithScreenshots.map((lang) => (
                               <button
@@ -773,6 +834,14 @@ export default function VersionScreenshotsPage() {
                                 {lang}
                               </button>
                             ))}
+                            <label className="mt-2 flex cursor-pointer items-start gap-2 border-t px-2 pt-2 text-xs text-muted-foreground">
+                              <Checkbox
+                                checked={copyTextToo}
+                                onCheckedChange={(v) => setCopyTextToo(v === true)}
+                                className="mt-0.5"
+                              />
+                              Skopiuj też teksty (tytuł, opis, słowa kluczowe…)
+                            </label>
                           </PopoverContent>
                         </Popover>
                       </>
@@ -791,8 +860,25 @@ export default function VersionScreenshotsPage() {
                       </>
                     )}
                   </div>
+                  {dimensionWarning && !uploadError && (
+                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-500">
+                      {dimensionWarning} Możesz to skorygować podczas kadrowania.
+                    </p>
+                  )}
                   {uploadError && (
                     <p className="mt-2 text-xs text-destructive">{uploadError}</p>
+                  )}
+
+                  {/* Browser screenshot editor (canvas MVP) */}
+                  {hasLanguage && (
+                    <div className="mt-5">
+                      <ScreenshotEditorEntry
+                        appId={params.appId}
+                        versionId={params.versionId}
+                        language={activeLang}
+                        displayType={device.key}
+                      />
+                    </div>
                   )}
                 </>
               ) : (

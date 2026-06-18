@@ -128,6 +128,13 @@ export function useUploadScreenshot(appId: string, versionId: string) {
 	});
 }
 
+export function useValidateScreenshot(appId: string) {
+	return useMutation({
+		mutationFn: ({ displayType, file }: { displayType: string; file: File }) =>
+			api.publishing.validateScreenshot(appId, displayType, file),
+	});
+}
+
 export function useDeleteScreenshot(appId: string, versionId: string) {
 	const queryClient = useQueryClient();
 	return useMutation({
@@ -436,10 +443,12 @@ export function useCopyScreenshots(appId: string, versionId: string) {
 			sourceLanguage,
 			targetLanguage,
 			displayType,
+			copyLocalizations,
 		}: {
 			sourceLanguage: string;
 			targetLanguage: string;
 			displayType?: string;
+			copyLocalizations?: boolean;
 		}) =>
 			api.publishing.copyScreenshots(
 				appId,
@@ -447,10 +456,16 @@ export function useCopyScreenshots(appId: string, versionId: string) {
 				sourceLanguage,
 				targetLanguage,
 				displayType,
+				copyLocalizations,
 			),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: ["publishing", appId, "versions", versionId, "screenshots"],
+			});
+			// Copying text localizations updates the target language draft, so the
+			// version detail (titles/descriptions/keywords) must refetch too.
+			queryClient.invalidateQueries({
+				queryKey: ["publishing", appId, "versions", versionId],
 			});
 		},
 	});

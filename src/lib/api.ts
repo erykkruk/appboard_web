@@ -48,6 +48,10 @@ import type {
 	Review,
 	ReviewInfo,
 	ReviewStats,
+	ScreenshotDimensionErrorData,
+	ScreenshotScene,
+	ScreenshotValidationResult,
+	SceneData,
 	SettingRow,
 	Settings,
 	SplitPreviewResult,
@@ -158,7 +162,10 @@ export const api = {
 				method: "POST",
 			}),
 		translate: (data: TranslateRequest) =>
-			fetchApi<AiResponse>("/api/ai/translate", {
+			fetchApi<{
+				model: string;
+				translations: Record<string, string>;
+			}>("/api/ai/translate", {
 				body: JSON.stringify(data),
 				method: "POST",
 			}),
@@ -601,7 +608,14 @@ export const api = {
 			fetchApi<{ synced: number }>(`/api/apps/${appId}/listings/sync`, {
 				method: "POST",
 			}),
-		update: (appId: string, language: string, data: Partial<Listing>) =>
+		update: (
+			appId: string,
+			language: string,
+			data: Partial<Listing> & {
+				doNotTranslateFields?: string[];
+				translationInstructions?: string;
+			},
+		) =>
 			fetchApi<{ listing: Listing }>(
 				`/api/apps/${appId}/listings/${language}`,
 				{
@@ -698,6 +712,15 @@ export const api = {
 			fetchApi<PublishingOverview>(`/api/apps/${appId}/publishing/overview`),
 		pushPreview: (appId: string) =>
 			fetchApi<PushPreview>(`/api/apps/${appId}/publishing/push-preview`),
+		validateScreenshot: (appId: string, displayType: string, file: File) => {
+			const formData = new FormData();
+			formData.append("file", file);
+			formData.append("displayType", displayType);
+			return fetchApi<ScreenshotValidationResult>(
+				`/api/apps/${appId}/publishing/screenshots/validate`,
+				{ body: formData, headers: {}, method: "POST" },
+			);
+		},
 		previewScreenshot: (
 			appId: string,
 			displayType: string,
@@ -836,6 +859,7 @@ export const api = {
 			sourceLanguage: string,
 			targetLanguage: string,
 			displayType?: string,
+			copyLocalizations?: boolean,
 		) =>
 			fetchApi<{ copied: number }>(
 				`/api/apps/${appId}/publishing/screenshots/copy`,
@@ -845,6 +869,7 @@ export const api = {
 						targetLanguage,
 						versionId,
 						...(displayType ? { displayType } : {}),
+						...(copyLocalizations ? { copyLocalizations: true } : {}),
 					}),
 					method: "POST",
 				},
@@ -960,6 +985,50 @@ export const api = {
 			fetchApi<{ synced: number }>(`/api/apps/${appId}/reviews/sync`, {
 				method: "POST",
 			}),
+	},
+
+	screenshotScenes: {
+		list: (appId: string) =>
+			fetchApi<{ scenes: ScreenshotScene[] }>(
+				`/api/apps/${appId}/screenshot-scenes`,
+			).then((r) => r.scenes),
+		get: (appId: string, sceneId: string) =>
+			fetchApi<{ scene: ScreenshotScene }>(
+				`/api/apps/${appId}/screenshot-scenes/${sceneId}`,
+			).then((r) => r.scene),
+		create: (
+			appId: string,
+			data: {
+				language: string;
+				displayType: string;
+				name: string;
+				scene: SceneData;
+				sortOrder?: number;
+			},
+		) =>
+			fetchApi<{ scene: ScreenshotScene }>(
+				`/api/apps/${appId}/screenshot-scenes`,
+				{ body: JSON.stringify(data), method: "POST" },
+			).then((r) => r.scene),
+		update: (
+			appId: string,
+			sceneId: string,
+			data: Partial<{
+				name: string;
+				scene: SceneData;
+				sortOrder: number;
+				assetId: string | null;
+			}>,
+		) =>
+			fetchApi<{ scene: ScreenshotScene }>(
+				`/api/apps/${appId}/screenshot-scenes/${sceneId}`,
+				{ body: JSON.stringify(data), method: "PUT" },
+			).then((r) => r.scene),
+		delete: (appId: string, sceneId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/screenshot-scenes/${sceneId}`,
+				{ method: "DELETE" },
+			),
 	},
 
 	settings: {
@@ -1138,4 +1207,26 @@ export const api = {
 	},
 };
 
-export { ApiError };
+/**
+ * Narrow a caught error to the structured dimension-validation payload the
+ * backend sends with code "INVALID_SCREENSHOT_DIMENSIONS" (HTTP 422). Returns
+ * the typed `data` so callers can build an actionable message, or `null` for
+ * any other error.
+ */
+function getScreenshotDimensionError(
+	err: unknown,
+): ScreenshotDimensionErrorData | null {
+	if (
+		err instanceof ApiError &&
+		err.code === "INVALID_SCREENSHOT_DIMENSIONS" &&
+		err.data &&
+		typeof err.data === "object" &&
+		"providedDimensions" in err.data &&
+		"supportedDimensions" in err.data
+	) {
+		return err.data as ScreenshotDimensionErrorData;
+	}
+	return null;
+}
+
+export { ApiError, getScreenshotDimensionError };

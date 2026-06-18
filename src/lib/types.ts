@@ -49,7 +49,9 @@ export interface Listing {
 	videoUrl: string;
 	source: string;
 	isDirty: boolean;
-	[key: string]: string | boolean;
+	doNotTranslateFields: string[] | null;
+	translationInstructions: string | null;
+	[key: string]: string | string[] | boolean | null;
 }
 
 export interface Asset {
@@ -225,8 +227,7 @@ export interface SettingRow {
 
 export interface TranslateRequest {
 	text: string;
-	sourceLang: string;
-	targetLangs: string[];
+	targetLanguages: string[];
 }
 
 export interface TranslateLocalizationRequest {
@@ -369,10 +370,18 @@ export interface PushPreview {
 	} | null;
 }
 
+export interface PublishReportItem {
+	kind: "asset" | "listing" | "localization";
+	ref: string;
+	status: "published" | "failed";
+	error?: string;
+}
+
 export interface PublishResult {
 	listings: { published: number };
 	assets: { published: number };
 	versionLocalizations?: { published: number; errors?: string[] };
+	report?: PublishReportItem[];
 }
 
 export interface VersionInfo {
@@ -464,6 +473,151 @@ export interface VersionScreenshot {
 	url: string;
 	width: number | null;
 	height: number | null;
+}
+
+// Screenshot dimension validation (pre-upload /validate endpoint response)
+export interface ScreenshotValidationResult {
+	displayType: string;
+	displayTypeName: string;
+	providedDimensions: [number, number];
+	supportedDimensions: [number, number][];
+	suggestion: string;
+	valid: boolean;
+}
+
+// Shape of `ApiError.data` when an upload fails with code
+// "INVALID_SCREENSHOT_DIMENSIONS" (HTTP 422). Mirrors the backend error payload.
+export interface ScreenshotDimensionErrorData {
+	displayType: string;
+	displayTypeName: string;
+	info: string;
+	providedDimensions: [number, number];
+	suggestion: string;
+	supportedDimensions: [number, number][];
+}
+
+// Screenshot editor scene (browser-based canvas editor).
+// `SceneData` mirrors the backend `jsonb` shape stored per scene — the frontend
+// owns rendering/export, the backend persists this object intact.
+export type SceneBackgroundType = "color" | "gradient" | "image";
+export type SceneTextAlign = "left" | "center" | "right";
+export type SceneScreenshotFit = "cover" | "contain";
+export type SceneDeviceFrame = "iphone" | "android" | "none";
+
+export interface SceneBackground {
+	type: SceneBackgroundType;
+	value: string;
+	gradient?: { from: string; to: string; angle: number };
+}
+
+export interface SceneDevice {
+	frame: SceneDeviceFrame;
+	scale: number;
+	offsetX: number;
+	offsetY: number;
+	rotation?: number;
+}
+
+export interface SceneScreenshot {
+	assetId?: string;
+	url?: string;
+	fit?: SceneScreenshotFit;
+}
+
+export interface SceneTextLayer {
+	id: string;
+	text: string;
+	x: number;
+	y: number;
+	fontFamily: string;
+	fontSize: number;
+	color: string;
+	align: SceneTextAlign;
+	weight?: number;
+	/**
+	 * When true, this layer's text is kept verbatim across language variants
+	 * (e.g. brand names, prices). Persisted inside the opaque `jsonb` scene, so
+	 * no backend migration is needed.
+	 */
+	doNotTranslate?: boolean;
+}
+
+export type SceneAnnotationType = "callout" | "badge" | "label";
+
+/**
+ * Properties shared by every annotation variant. Positions (`x`/`y`) are
+ * normalized (0..1) fractions of the scene, mirroring {@link SceneTextLayer},
+ * so annotations survive a change of target dimensions. Color/font props are
+ * named consistently with text layers (`color` = text color, `fontSize`,
+ * `weight`) for a uniform properties panel.
+ */
+interface SceneAnnotationBase {
+	id: string;
+	text: string;
+	/** Normalized (0..1) anchor position of the annotation box. */
+	x: number;
+	y: number;
+	fontSize: number;
+	/** Text color. */
+	color: string;
+	/** Background fill color of the pill/bubble/label. */
+	bg: string;
+	weight?: number;
+	fontFamily?: string;
+	/**
+	 * When true, the text is kept verbatim across language variants (e.g. a "NEW"
+	 * badge or a brand name). Persisted in the opaque `jsonb` scene — no backend
+	 * migration needed. Mirrors {@link SceneTextLayer.doNotTranslate}.
+	 */
+	doNotTranslate?: boolean;
+}
+
+/** A text bubble with a pointer/tail aimed at a target point on the scene. */
+export interface SceneCalloutAnnotation extends SceneAnnotationBase {
+	type: "callout";
+	/** Normalized (0..1) point the tail points toward. */
+	targetX: number;
+	targetY: number;
+}
+
+/** A pill-shaped badge with text. */
+export interface SceneBadgeAnnotation extends SceneAnnotationBase {
+	type: "badge";
+}
+
+/** A simple text label with an optional background. */
+export interface SceneLabelAnnotation extends SceneAnnotationBase {
+	type: "label";
+	/** When false, the label is drawn without a background fill. */
+	showBackground?: boolean;
+}
+
+export type SceneAnnotation =
+	| SceneCalloutAnnotation
+	| SceneBadgeAnnotation
+	| SceneLabelAnnotation;
+
+export interface SceneData {
+	width: number;
+	height: number;
+	background: SceneBackground;
+	device?: SceneDevice;
+	screenshot?: SceneScreenshot;
+	textLayers: SceneTextLayer[];
+	annotations?: SceneAnnotation[];
+}
+
+export interface ScreenshotScene {
+	id: string;
+	appId: string;
+	assetId: string | null;
+	displayType: string;
+	language: string;
+	name: string;
+	scene: SceneData;
+	sortOrder: number;
+	createdAt: string;
+	updatedAt: string;
 }
 
 // Privacy Declaration

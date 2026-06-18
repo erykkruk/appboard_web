@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
+import { PublishReport } from "@/components/publishing/publish-report";
 import { useApp } from "@/hooks/use-apps";
 import {
   useCreateVersion,
@@ -46,6 +47,7 @@ import {
   usePublishingOverview,
   useSubmitForReview,
 } from "@/hooks/use-publishing";
+import type { PublishReportItem } from "@/lib/types";
 
 const VERSION_STATE_LABELS: Record<
   string,
@@ -86,23 +88,32 @@ export default function PublishPage() {
   const createVersion = useCreateVersion(appId);
   const [showReviewDialog, setShowReviewDialog] = useState(false);
   const [newVersionString, setNewVersionString] = useState("");
+  const [publishReport, setPublishReport] = useState<PublishReportItem[]>([]);
 
   const isIos = app.data?.platform === "ios";
 
   const handlePublish = async () => {
     try {
       const result = await publish.mutateAsync(false);
+      const report = result.report ?? [];
+      setPublishReport(report);
+
       const total =
         (result.listings?.published ?? 0) +
         (result.assets?.published ?? 0) +
         (result.versionLocalizations?.published ?? 0);
-      toast.success(`Published ${total} change(s) to the store`);
-      if (result.versionLocalizations?.errors?.length) {
-        for (const err of result.versionLocalizations.errors) {
-          toast.error(err);
-        }
+      const failed = report.filter((r) => r.status === "failed").length;
+
+      if (failed > 0) {
+        const published = report.length - failed;
+        toast.warning(
+          `Published ${published} change(s), ${failed} failed — see the report below`,
+        );
+      } else {
+        toast.success(`Published ${total} change(s) to the store`);
       }
     } catch {
+      setPublishReport([]);
       toast.error("Failed to publish changes");
     }
   };
@@ -521,6 +532,21 @@ export default function PublishPage() {
           </AlertDialogContent>
         </AlertDialog>
       </div>
+
+      {/* Publish Report — per-item results from the last publish */}
+      {publishReport.length > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-base">
+              <Rocket className="h-4 w-4" />
+              Publish Report
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <PublishReport report={publishReport} />
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }
