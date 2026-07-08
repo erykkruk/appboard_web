@@ -62,14 +62,14 @@ const FONT_WEIGHTS = [
 	{ label: "Black", value: 900 },
 ];
 
-/** Icon + Polish label for each annotation variant, shared by list and menu. */
+/** Icon + label for each annotation variant, shared by list and menu. */
 const ANNOTATION_META: Record<
 	SceneAnnotationType,
 	{ label: string; icon: typeof Tag }
 > = {
 	badge: { label: "Badge", icon: Tag },
 	callout: { label: "Callout", icon: MessageSquare },
-	label: { label: "Etykieta", icon: Type },
+	label: { label: "Label", icon: Type },
 };
 
 /** List/panel meta for any annotation, including image layers. */
@@ -112,10 +112,10 @@ export function LayersPanel({
 	return (
 		<div className="flex w-56 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border p-3">
 			<div className="flex items-center justify-between">
-				<span className="text-sm font-semibold">Warstwy</span>
+				<span className="text-sm font-semibold">Layers</span>
 				<Button size="sm" variant="ghost" onClick={onAddText}>
 					<Plus className="h-4 w-4" />
-					Tekst
+					Text
 				</Button>
 			</div>
 
@@ -130,7 +130,7 @@ export function LayersPanel({
 				)}
 			>
 				<ImageIcon className="h-4 w-4 text-muted-foreground" />
-				Tło
+				Background
 			</button>
 
 			<button
@@ -142,14 +142,14 @@ export function LayersPanel({
 				)}
 			>
 				<Smartphone className="h-4 w-4 text-muted-foreground" />
-				Urządzenie + screenshot
+				Device + screenshot
 			</button>
 
 			<div className="mt-1 text-xs font-medium text-muted-foreground">
-				Napisy
+				Text layers
 			</div>
 			{scene.textLayers.length === 0 && (
-				<p className="px-2 text-xs text-muted-foreground">Brak napisów.</p>
+				<p className="px-2 text-xs text-muted-foreground">No text layers.</p>
 			)}
 			{scene.textLayers.map((layer) => (
 				<div
@@ -165,13 +165,13 @@ export function LayersPanel({
 						className="flex min-w-0 flex-1 items-center gap-2 text-left"
 					>
 						<Type className="h-4 w-4 shrink-0 text-muted-foreground" />
-						<span className="truncate">{layer.text || "Pusty tekst"}</span>
+						<span className="truncate">{layer.text || "Empty text"}</span>
 					</button>
 					<button
 						type="button"
 						onClick={() => onDeleteText(layer.id)}
 						className="opacity-0 transition-opacity group-hover:opacity-100"
-						aria-label="Usuń napis"
+						aria-label="Delete text layer"
 					>
 						<Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
 					</button>
@@ -180,24 +180,22 @@ export function LayersPanel({
 
 			<div className="mt-2 flex items-center justify-between">
 				<span className="text-xs font-medium text-muted-foreground">
-					Adnotacje
+					Annotations
 				</span>
-				<div className="flex items-center">
-					<Button size="sm" variant="ghost" onClick={onAddImage}>
-						<ImageIcon className="h-4 w-4" />
-						Add image
-					</Button>
-					<DropdownMenu>
-						<DropdownMenuTrigger asChild>
-							<Button size="sm" variant="ghost">
-								<Plus className="h-4 w-4" />
-								Dodaj
-							</Button>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							{(
-								Object.keys(ANNOTATION_META) as SceneAnnotationType[]
-							).map((type) => {
+				<DropdownMenu>
+					<DropdownMenuTrigger asChild>
+						<Button size="sm" variant="ghost">
+							<Plus className="h-4 w-4" />
+							Add
+						</Button>
+					</DropdownMenuTrigger>
+					<DropdownMenuContent align="end">
+						<DropdownMenuItem onSelect={onAddImage}>
+							<ImageIcon className="h-4 w-4" />
+							Image
+						</DropdownMenuItem>
+						{(Object.keys(ANNOTATION_META) as SceneAnnotationType[]).map(
+							(type) => {
 								const { label, icon: Icon } = ANNOTATION_META[type];
 								return (
 									<DropdownMenuItem
@@ -208,13 +206,13 @@ export function LayersPanel({
 										{label}
 									</DropdownMenuItem>
 								);
-							})}
-						</DropdownMenuContent>
-					</DropdownMenu>
-				</div>
+							},
+						)}
+					</DropdownMenuContent>
+				</DropdownMenu>
 			</div>
 			{annotations.length === 0 && (
-				<p className="px-2 text-xs text-muted-foreground">Brak adnotacji.</p>
+				<p className="px-2 text-xs text-muted-foreground">No annotations.</p>
 			)}
 			{annotations.map((annotation) => {
 				const { label, icon: Icon } = annotationMeta(annotation);
@@ -244,7 +242,7 @@ export function LayersPanel({
 							type="button"
 							onClick={() => onDeleteAnnotation(annotation.id)}
 							className="opacity-0 transition-opacity group-hover:opacity-100"
-							aria-label="Usuń adnotację"
+							aria-label="Delete annotation"
 						>
 							<Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
 						</button>
@@ -331,8 +329,8 @@ export function PropertiesPanel({
 			)}
 			{!selectedLayerId && (
 				<p className="text-sm text-muted-foreground">
-					Wybierz warstwę z lewej listy lub kliknij napis na podglądzie, aby
-					edytować jego właściwości.
+					Select a layer from the list on the left, or click a text layer in
+					the preview to edit its properties.
 				</p>
 			)}
 		</div>
@@ -351,9 +349,9 @@ function BackgroundProperties({
 	const bg = scene.background;
 	return (
 		<div className="flex flex-col gap-3">
-			<h4 className="text-sm font-semibold">Tło</h4>
+			<h4 className="text-sm font-semibold">Background</h4>
 			<div className="flex flex-col gap-1.5">
-				<Label className="text-xs">Typ</Label>
+				<Label className="text-xs">Type</Label>
 				<Select
 					value={bg.type}
 					onValueChange={(type) => {
@@ -384,16 +382,16 @@ function BackgroundProperties({
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="color">Jednolity kolor</SelectItem>
+						<SelectItem value="color">Solid color</SelectItem>
 						<SelectItem value="gradient">Gradient</SelectItem>
-						<SelectItem value="image">Obraz</SelectItem>
+						<SelectItem value="image">Image</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
 
 			{bg.type === "color" && (
 				<ColorField
-					label="Kolor"
+					label="Color"
 					value={bg.value}
 					onChange={(value) =>
 						onPatchScene({ background: { type: "color", value } })
@@ -404,7 +402,7 @@ function BackgroundProperties({
 			{bg.type === "gradient" && bg.gradient && (
 				<>
 					<ColorField
-						label="Od"
+						label="From"
 						value={bg.gradient.from}
 						onChange={(from) =>
 							onPatchScene({
@@ -417,7 +415,7 @@ function BackgroundProperties({
 						}
 					/>
 					<ColorField
-						label="Do"
+						label="To"
 						value={bg.gradient.to}
 						onChange={(to) =>
 							onPatchScene({
@@ -429,7 +427,7 @@ function BackgroundProperties({
 						}
 					/>
 					<div className="flex flex-col gap-1.5">
-						<Label className="text-xs">Kąt: {bg.gradient.angle}°</Label>
+						<Label className="text-xs">Angle: {bg.gradient.angle}°</Label>
 						<Slider
 							min={0}
 							max={360}
@@ -452,7 +450,7 @@ function BackgroundProperties({
 				<>
 					<Button variant="outline" size="sm" onClick={onPickBackgroundImage}>
 						<ImageIcon className="h-4 w-4" />
-						{bg.value ? "Zmień obraz tła" : "Wgraj obraz tła"}
+						{bg.value ? "Change background image" : "Upload background image"}
 					</Button>
 
 					<div className="flex flex-col gap-1.5">
@@ -538,9 +536,9 @@ function DeviceProperties({
 	};
 	return (
 		<div className="flex flex-col gap-3">
-			<h4 className="text-sm font-semibold">Urządzenie</h4>
+			<h4 className="text-sm font-semibold">Device</h4>
 			<div className="flex flex-col gap-1.5">
-				<Label className="text-xs">Ramka</Label>
+				<Label className="text-xs">Frame</Label>
 				<Select
 					value={device.frame}
 					onValueChange={(frame) =>
@@ -555,14 +553,14 @@ function DeviceProperties({
 					<SelectContent>
 						<SelectItem value="iphone">iPhone</SelectItem>
 						<SelectItem value="android">Android</SelectItem>
-						<SelectItem value="none">Brak (pełny ekran)</SelectItem>
+						<SelectItem value="none">None (full screen)</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
 
 			{device.frame !== "none" && (
 				<div className="flex flex-col gap-1.5">
-					<Label className="text-xs">Kolor ramki</Label>
+					<Label className="text-xs">Frame color</Label>
 					<Select
 						value={device.color ?? (device.frame === "android" ? "black" : "silver")}
 						onValueChange={(color) =>
@@ -575,8 +573,8 @@ function DeviceProperties({
 							<SelectValue />
 						</SelectTrigger>
 						<SelectContent>
-							<SelectItem value="silver">Srebrny</SelectItem>
-							<SelectItem value="black">Czarny</SelectItem>
+							<SelectItem value="silver">Silver</SelectItem>
+							<SelectItem value="black">Black</SelectItem>
 						</SelectContent>
 					</Select>
 				</div>
@@ -584,7 +582,7 @@ function DeviceProperties({
 
 			<div className="flex flex-col gap-1.5">
 				<Label className="text-xs">
-					Rozmiar: {Math.round(device.scale * 100)}%
+					Size: {Math.round(device.scale * 100)}%
 				</Label>
 				<Slider
 					min={20}
@@ -611,7 +609,7 @@ function DeviceProperties({
 			</div>
 
 			<div className="flex flex-col gap-1.5">
-				<Label className="text-xs">Pozycja pionowa</Label>
+				<Label className="text-xs">Vertical position</Label>
 				<Slider
 					min={-40}
 					max={40}
@@ -655,16 +653,16 @@ function DeviceProperties({
 
 			<Button variant="outline" size="sm" onClick={onPickScreenshot}>
 				<ImageIcon className="h-4 w-4" />
-				{scene.screenshot?.url ? "Zmień screenshot" : "Wgraj screenshot"}
+				{scene.screenshot?.url ? "Change screenshot" : "Upload screenshot"}
 			</Button>
 
 			<Button variant="outline" size="sm" onClick={onPickExistingScreenshot}>
 				<ImageIcon className="h-4 w-4" />
-				Wybierz z wgranych
+				Choose from uploaded
 			</Button>
 
 			<div className="flex flex-col gap-1.5">
-				<Label className="text-xs">Dopasowanie screenshotu</Label>
+				<Label className="text-xs">Screenshot fit</Label>
 				<Select
 					value={scene.screenshot?.fit ?? "cover"}
 					onValueChange={(fit) =>
@@ -680,8 +678,8 @@ function DeviceProperties({
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
-						<SelectItem value="cover">Wypełnij (cover)</SelectItem>
-						<SelectItem value="contain">Zmieść (contain)</SelectItem>
+						<SelectItem value="cover">Fill (cover)</SelectItem>
+						<SelectItem value="contain">Fit (contain)</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
@@ -702,9 +700,9 @@ function TextProperties({
 }) {
 	return (
 		<div className="flex flex-col gap-3">
-			<h4 className="text-sm font-semibold">Napis</h4>
+			<h4 className="text-sm font-semibold">Text</h4>
 			<div className="flex flex-col gap-1.5">
-				<Label className="text-xs">Treść</Label>
+				<Label className="text-xs">Content</Label>
 				<Textarea
 					value={layer.text}
 					rows={2}
@@ -713,7 +711,7 @@ function TextProperties({
 			</div>
 
 			<div className="flex flex-col gap-1.5">
-				<Label className="text-xs">Czcionka</Label>
+				<Label className="text-xs">Font</Label>
 				<Select
 					value={layer.fontFamily}
 					onValueChange={(fontFamily) => {
@@ -745,7 +743,7 @@ function TextProperties({
 
 			<div className="flex gap-2">
 				<div className="flex flex-1 flex-col gap-1.5">
-					<Label className="text-xs">Rozmiar</Label>
+					<Label className="text-xs">Size</Label>
 					<Input
 						type="number"
 						value={layer.fontSize}
@@ -756,7 +754,7 @@ function TextProperties({
 					/>
 				</div>
 				<ColorField
-					label="Kolor"
+					label="Color"
 					value={layer.color}
 					onChange={(color) => onPatch({ color })}
 				/>
@@ -771,7 +769,7 @@ function TextProperties({
 					}
 				/>
 				<Label htmlFor={`bg-${layer.id}`} className="flex-1 text-xs">
-					Tło pod tekstem
+					Background behind text
 				</Label>
 				{layer.bg != null && (
 					<input
@@ -779,13 +777,13 @@ function TextProperties({
 						value={layer.bg}
 						onChange={(e) => onPatch({ bg: e.target.value })}
 						className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
-						aria-label="Kolor tła tekstu"
+						aria-label="Text background color"
 					/>
 				)}
 			</div>
 
 			<div className="flex flex-col gap-1.5">
-				<Label className="text-xs">Grubość</Label>
+				<Label className="text-xs">Weight</Label>
 				<Select
 					value={String(layer.weight ?? 400)}
 					onValueChange={(w) => onPatch({ weight: Number(w) })}
@@ -804,7 +802,7 @@ function TextProperties({
 			</div>
 
 			<div className="flex flex-col gap-1.5">
-				<Label className="text-xs">Wyrównanie</Label>
+				<Label className="text-xs">Alignment</Label>
 				<div className="flex gap-1">
 					{(["left", "center", "right"] as SceneTextAlign[]).map((align) => (
 						<Button
@@ -815,7 +813,7 @@ function TextProperties({
 							className="flex-1"
 							onClick={() => onPatch({ align })}
 						>
-							{align === "left" ? "Lewo" : align === "center" ? "Środek" : "Prawo"}
+							{align === "left" ? "Left" : align === "center" ? "Center" : "Right"}
 						</Button>
 					))}
 				</div>
@@ -834,11 +832,11 @@ function TextProperties({
 						htmlFor={`dnt-${layer.id}`}
 						className="cursor-pointer text-xs font-medium"
 					>
-						Nie tłumacz
+						Do not translate
 					</Label>
 					<p className="text-[11px] text-muted-foreground">
-						Ten napis zostanie dosłownie skopiowany przy generowaniu wariantów
-						językowych (np. nazwa marki, cena).
+						This text is copied verbatim when generating language variants
+						(e.g. brand name, price).
 					</p>
 				</div>
 			</div>
@@ -945,10 +943,10 @@ function AnnotationProperties({
 	const { label } = ANNOTATION_META[annotation.type];
 	return (
 		<div className="flex flex-col gap-3">
-			<h4 className="text-sm font-semibold">Adnotacja · {label}</h4>
+			<h4 className="text-sm font-semibold">Annotation · {label}</h4>
 
 			<div className="flex flex-col gap-1.5">
-				<Label className="text-xs">Treść</Label>
+				<Label className="text-xs">Content</Label>
 				<Textarea
 					value={annotation.text}
 					rows={2}
@@ -958,7 +956,7 @@ function AnnotationProperties({
 
 			<div className="flex gap-2">
 				<div className="flex flex-1 flex-col gap-1.5">
-					<Label className="text-xs">Rozmiar</Label>
+					<Label className="text-xs">Size</Label>
 					<Input
 						type="number"
 						value={annotation.fontSize}
@@ -971,7 +969,7 @@ function AnnotationProperties({
 					/>
 				</div>
 				<div className="flex flex-1 flex-col gap-1.5">
-					<Label className="text-xs">Grubość</Label>
+					<Label className="text-xs">Weight</Label>
 					<Select
 						value={String(annotation.weight ?? 600)}
 						onValueChange={(w) => onPatch({ weight: Number(w) })}
@@ -992,14 +990,14 @@ function AnnotationProperties({
 
 			<div className="flex gap-2">
 				<ColorField
-					label="Tekst"
+					label="Text"
 					value={annotation.color}
 					onChange={(color) => onPatch({ color })}
 				/>
 				{(annotation.type !== "label" ||
 					annotation.showBackground !== false) && (
 					<ColorField
-						label="Tło"
+						label="Background"
 						value={annotation.bg}
 						onChange={(bg) => onPatch({ bg })}
 					/>
@@ -1019,15 +1017,15 @@ function AnnotationProperties({
 						htmlFor={`bg-${annotation.id}`}
 						className="cursor-pointer text-xs font-medium"
 					>
-						Pokaż tło etykiety
+						Show label background
 					</Label>
 				</div>
 			)}
 
 			{annotation.type === "callout" && (
 				<p className="rounded-md border border-border/60 p-2.5 text-[11px] text-muted-foreground">
-					Przeciągnij dymek, aby go przesunąć. Gdy callout jest zaznaczony,
-					przeciągnij końcówkę ogonka na podglądzie, aby wskazać cel.
+					Drag the bubble to move it. When the callout is selected, drag the
+					tip of its tail in the preview to point at a target.
 				</p>
 			)}
 
@@ -1044,11 +1042,11 @@ function AnnotationProperties({
 						htmlFor={`dnt-ann-${annotation.id}`}
 						className="cursor-pointer text-xs font-medium"
 					>
-						Nie tłumacz
+						Do not translate
 					</Label>
 					<p className="text-[11px] text-muted-foreground">
-						Treść adnotacji zostanie dosłownie skopiowana przy generowaniu
-						wariantów językowych (np. „NOWOŚĆ”, nazwa marki).
+						The annotation text is copied verbatim when generating language
+						variants (e.g. “NEW”, brand name).
 					</p>
 				</div>
 			</div>
