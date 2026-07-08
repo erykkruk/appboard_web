@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.2",
+    serverVersion: "0.6.0",
+    date: "2026-07-08",
+    changes: [
+      "Listings: on a published (locked) version, clicking a field now opens a prompt to create a new editable version — or jump to an existing draft",
+      "Google Play setup: the generated script now auto-allows service-account key creation (handles Google's default org policy) and is safe to re-run",
+      "Onboarding: fixed the setup wizard not scrolling on smaller screens",
+    ],
+  },
+  {
     version: "0.6.1",
     serverVersion: "0.6.0",
     date: "2026-07-08",
