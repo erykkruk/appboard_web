@@ -53,7 +53,7 @@ function sceneWithBadge(): SceneData {
 			{
 				id: "a0",
 				type: "badge",
-				text: "NOWOŚĆ",
+				text: "NEW",
 				x: 0.5,
 				y: 0.5,
 				fontSize: 60,
@@ -74,8 +74,8 @@ describe("LayersPanel", () => {
 				{...noopLayerProps}
 			/>,
 		);
-		expect(screen.getByText("Tło")).toBeInTheDocument();
-		expect(screen.getByText("Urządzenie + screenshot")).toBeInTheDocument();
+		expect(screen.getByText("Background")).toBeInTheDocument();
+		expect(screen.getByText("Device + screenshot")).toBeInTheDocument();
 		expect(screen.getByText("Layer 0")).toBeInTheDocument();
 		expect(screen.getByText("Layer 1")).toBeInTheDocument();
 	});
@@ -89,7 +89,7 @@ describe("LayersPanel", () => {
 				{...noopLayerProps}
 			/>,
 		);
-		expect(screen.getByText("Brak napisów.")).toBeInTheDocument();
+		expect(screen.getByText("No text layers.")).toBeInTheDocument();
 	});
 
 	test("fires onSelectLayer with the layer id when clicked", async () => {
@@ -106,7 +106,7 @@ describe("LayersPanel", () => {
 		expect(onSelectLayer).toHaveBeenCalledWith("t0");
 	});
 
-	test("fires onAddText when the Tekst button is clicked", async () => {
+	test("fires onAddText when the Text button is clicked", async () => {
 		const onAddText = mock(() => {});
 		render(
 			<LayersPanel
@@ -117,7 +117,7 @@ describe("LayersPanel", () => {
 				onAddText={onAddText}
 			/>,
 		);
-		await userEvent.click(screen.getByText("Tekst"));
+		await userEvent.click(screen.getByText("Text"));
 		expect(onAddText).toHaveBeenCalled();
 	});
 
@@ -132,7 +132,7 @@ describe("LayersPanel", () => {
 				onDeleteText={onDeleteText}
 			/>,
 		);
-		await userEvent.click(screen.getByLabelText("Usuń napis"));
+		await userEvent.click(screen.getByLabelText("Delete text layer"));
 		expect(onDeleteText).toHaveBeenCalledWith("t0");
 	});
 
@@ -145,7 +145,7 @@ describe("LayersPanel", () => {
 				{...noopLayerProps}
 			/>,
 		);
-		expect(screen.getByText("Brak adnotacji.")).toBeInTheDocument();
+		expect(screen.getByText("No annotations.")).toBeInTheDocument();
 
 		rerender(
 			<LayersPanel
@@ -155,7 +155,7 @@ describe("LayersPanel", () => {
 				{...noopLayerProps}
 			/>,
 		);
-		expect(screen.getByText("NOWOŚĆ")).toBeInTheDocument();
+		expect(screen.getByText("NEW")).toBeInTheDocument();
 	});
 
 	test("fires onDeleteAnnotation from the annotation trash button", async () => {
@@ -169,13 +169,13 @@ describe("LayersPanel", () => {
 				onDeleteAnnotation={onDeleteAnnotation}
 			/>,
 		);
-		await userEvent.click(screen.getByLabelText("Usuń adnotację"));
+		await userEvent.click(screen.getByLabelText("Delete annotation"));
 		expect(onDeleteAnnotation).toHaveBeenCalledWith("a0");
 	});
 });
 
 describe("PropertiesPanel — Do Not Translate toggle", () => {
-	test("toggling 'Nie tłumacz' patches doNotTranslate on the selected layer", async () => {
+	test("toggling 'Do not translate' patches doNotTranslate on the selected layer", async () => {
 		const onPatchTextLayer = mock(
 			(id: string, patch: Record<string, unknown>) => ({ id, patch }),
 		);
@@ -188,7 +188,7 @@ describe("PropertiesPanel — Do Not Translate toggle", () => {
 			/>,
 		);
 
-		await userEvent.click(screen.getByLabelText("Nie tłumacz"));
+		await userEvent.click(screen.getByLabelText("Do not translate"));
 		expect(onPatchTextLayer).toHaveBeenCalledWith("t0", {
 			doNotTranslate: true,
 		});
@@ -209,7 +209,7 @@ describe("PropertiesPanel — annotation editing", () => {
 			/>,
 		);
 
-		const textarea = screen.getByDisplayValue("NOWOŚĆ");
+		const textarea = screen.getByDisplayValue("NEW");
 		await userEvent.type(textarea, "!");
 		expect(onPatchAnnotation).toHaveBeenCalled();
 		expect(onPatchAnnotation.mock.calls[0][0]).toBe("a0");

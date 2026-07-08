@@ -22,7 +22,7 @@ const suggestKeywords = mock(async () => ({
 const generateReleaseNotes = mock(async () => ({
   mock: false,
   model: "test",
-  result: "Nowości w tej wersji.",
+  result: "What's new in this version.",
 }));
 
 mock.module("@/lib/api", () => ({
@@ -81,7 +81,7 @@ afterEach(() => {
   generateReleaseNotes.mockImplementation(async () => ({
     mock: false,
     model: "test",
-    result: "Nowości w tej wersji.",
+    result: "What's new in this version.",
   }));
 });
 
@@ -127,7 +127,7 @@ describe("useLocalizationPipeline", () => {
       "ai, keywords, suggested",
     );
     expect(result.current.jobs.pl?.result.whatsNew).toBe(
-      "Nowości w tej wersji.",
+      "What's new in this version.",
     );
   });
 
@@ -135,7 +135,7 @@ describe("useLocalizationPipeline", () => {
     translateLocalization.mockImplementation(
       async ({ targetLanguage }: { targetLanguage: string }) => {
         if (targetLanguage === "pl") {
-          throw new Error("AI niedostępne");
+          throw new Error("AI unavailable");
         }
         return {
           model: "test",
@@ -155,7 +155,7 @@ describe("useLocalizationPipeline", () => {
     });
 
     expect(result.current.jobs.pl?.stage).toBe("error");
-    expect(result.current.jobs.pl?.error).toBe("AI niedostępne");
+    expect(result.current.jobs.pl?.error).toBe("AI unavailable");
     expect(result.current.jobs["de-DE"]?.stage).toBe("done");
   });
 
@@ -188,10 +188,10 @@ describe("useLocalizationPipeline", () => {
     });
 
     act(() => {
-      result.current.updateResultField("pl", "title", "Edytowany tytuł");
+      result.current.updateResultField("pl", "title", "Edited title");
     });
 
-    expect(result.current.jobs.pl?.result.title).toBe("Edytowany tytuł");
+    expect(result.current.jobs.pl?.result.title).toBe("Edited title");
     expect(result.current.jobs.pl?.saved).toBe(false);
   });
 });

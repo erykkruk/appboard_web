@@ -2,7 +2,7 @@
 
 ## Overview
 
-Panel administracyjny AppBoard — narzędzie ASO (App Store Optimization) do zarządzania aplikacjami, listingami, screenshotami i metadanymi w App Store i Google Play. Użytkownicy trafiają tu z publicznej strony marketingowej (appboard_website).
+AppBoard admin panel — an ASO (App Store Optimization) tool for managing apps, listings, screenshots, and metadata on the App Store and Google Play. Users arrive here from the public marketing website (appboard_website).
 
 ---
 
@@ -116,7 +116,7 @@ src/
 
 ## Architecture Pattern
 
-**App Router + Hooks-based architecture** (bez feature-based folders):
+**App Router + Hooks-based architecture** (no feature-based folders):
 
 ```
 Pages (src/app/)  →  Hooks (src/hooks/)  →  API Client (src/lib/api.ts)  →  Backend
@@ -136,49 +136,49 @@ Components            TanStack Query
 
 ### Key Patterns
 
-- **Hooks = business logic layer** — każdy hook opakowuje TanStack Query (`useQuery`, `useMutation`)
-- **Components = prezentacja** — nie wywołują API bezpośrednio, używają hooków
-- **Pages = kompozycja** — składają hooks + components w stronę
-- **API client** (`lib/api.ts`) — centralny fetch wrapper, proxy przez Next.js rewrites do backendu
+- **Hooks = business logic layer** — each hook wraps TanStack Query (`useQuery`, `useMutation`)
+- **Components = presentation** — they never call the API directly, they use hooks
+- **Pages = composition** — they assemble hooks + components into a page
+- **API client** (`lib/api.ts`) — central fetch wrapper, proxied through Next.js rewrites to the backend
 
 ---
 
 ## Feature Flags System
 
-Workspace-scoped toggles dla 12 modułów. Nawigacja sidebar jest filtrowana po flagach, a endpointy są gatowane po stronie backendu (403 gdy flag wyłączony).
+Workspace-scoped toggles for 12 modules. The sidebar navigation is filtered by the flags, and endpoints are gated on the backend (403 when a flag is disabled).
 
-- **Hook**: `src/hooks/use-features.ts` — `useFeatures()`, `useUpdateFeatures()`, `useIsFeatureEnabled(key)` (defaultuje `true` podczas loading)
-- **Settings page**: `src/app/(app)/settings/features/page.tsx` — toggle switche per flag z auto-save
-- **Nav filtering**: `src/app/(app)/apps/[appId]/layout.tsx` oraz `src/components/app-sidebar.tsx` filtrują nav items po `featureKey`
-- **Types**: `FeatureDefinition`, `FeaturesResponse` w `src/lib/types.ts`
-- **API**: `api.features.get()`, `api.features.update()` w `src/lib/api.ts`
+- **Hook**: `src/hooks/use-features.ts` — `useFeatures()`, `useUpdateFeatures()`, `useIsFeatureEnabled(key)` (defaults to `true` while loading)
+- **Settings page**: `src/app/(app)/settings/features/page.tsx` — per-flag toggle switches with auto-save
+- **Nav filtering**: `src/app/(app)/apps/[appId]/layout.tsx` and `src/components/app-sidebar.tsx` filter nav items by `featureKey`
+- **Types**: `FeatureDefinition`, `FeaturesResponse` in `src/lib/types.ts`
+- **API**: `api.features.get()`, `api.features.update()` in `src/lib/api.ts`
 
 ---
 
 ## Diff System
 
-GitHub-style wizualny diff dla pól listingów (word/line-level LCS).
+GitHub-style visual diff for listing fields (word/line-level LCS).
 
-- **Algorithm**: `src/lib/diff.ts` — `computeDiff()` wybiera tryb inline/line-by-line po długości, `MAX_DIFF_TOKENS = 5000` guard, memoizacja
-- **Komponenty** (`src/components/diff/`):
-  - `DiffBadge` — amber dot przy zmienionym polu z tooltipem original value
-  - `InlineDiff` — renderuje `DiffSegment[]` z kolorami added/removed
-  - `FieldDiffPanel` — collapsible panel pod polem z pełnym diffem
+- **Algorithm**: `src/lib/diff.ts` — `computeDiff()` picks inline/line-by-line mode by length, `MAX_DIFF_TOKENS = 5000` guard, memoization
+- **Components** (`src/components/diff/`):
+  - `DiffBadge` — amber dot on a changed field with a tooltip showing the original value
+  - `InlineDiff` — renders `DiffSegment[]` with added/removed colors
+  - `FieldDiffPanel` — collapsible panel under the field with the full diff
   - `index.ts` — barrel export
-- **Field labels**: `src/lib/field-labels.ts` — wspólne mapowanie kluczy pól na human-readable nazwy (używane przez diff i history)
+- **Field labels**: `src/lib/field-labels.ts` — shared mapping of field keys to human-readable names (used by diff and history)
 - **Hook**: `src/hooks/use-listing-diffs.ts` — fetch `/api/apps/:id/listings/diffs`
-- **Integracja**: Version detail page (`apps/[appId]/versions/[versionId]/page.tsx`) + Push preview dialog (`components/push-preview-dialog.tsx`)
+- **Integration**: Version detail page (`apps/[appId]/versions/[versionId]/page.tsx`) + Push preview dialog (`components/push-preview-dialog.tsx`)
 
 ---
 
 ## History System
 
-Historia zmian listingów z rollbackiem — git-log style.
+Listing change history with rollback — git-log style.
 
-- **Hook**: `src/hooks/use-history.ts` — `useHistory(appId, { language?, field?, enabled? })` + `useRollback(appId)` z invalidation listings/diffs queries
-- **Timeline component**: `src/components/history/history-timeline.tsx` — Sheet z grupowaniem po `publishedAt` i rollback per entry
-- **History page**: `src/app/(app)/apps/[appId]/history/page.tsx` — pełna strona z filtrami language/field, expandable entries z `InlineDiff`, `allEntries` obliczone przez `useMemo`
-- **Nav item**: `History` (`Clock` icon) w `NAV_ITEMS` z `featureKey: "HISTORY"`
+- **Hook**: `src/hooks/use-history.ts` — `useHistory(appId, { language?, field?, enabled? })` + `useRollback(appId)` with invalidation of listings/diffs queries
+- **Timeline component**: `src/components/history/history-timeline.tsx` — Sheet grouped by `publishedAt` with per-entry rollback
+- **History page**: `src/app/(app)/apps/[appId]/history/page.tsx` — full page with language/field filters, expandable entries with `InlineDiff`, `allEntries` computed via `useMemo`
+- **Nav item**: `History` (`Clock` icon) in `NAV_ITEMS` with `featureKey: "HISTORY"`
 
 ---
 
@@ -267,19 +267,19 @@ const mutation = useMutation({
 
 | Agent | File | Scope |
 |-------|------|-------|
-| architecture-review | `.claude/agents/architecture-review.md` | Struktura katalogów, warstwy, zależności |
-| code-review | `.claude/agents/code-review.md` | Jakość kodu, typy, nazewnictwo, importy |
-| security-review | `.claude/agents/security-review.md` | Auth, walidacja, XSS, dane wrażliwe |
-| testing-review | `.claude/agents/testing-review.md` | Jakość testów, pokrycie, izolacja |
+| architecture-review | `.claude/agents/architecture-review.md` | Directory structure, layers, dependencies |
+| code-review | `.claude/agents/code-review.md` | Code quality, types, naming, imports |
+| security-review | `.claude/agents/security-review.md` | Auth, validation, XSS, sensitive data |
+| testing-review | `.claude/agents/testing-review.md` | Test quality, coverage, isolation |
 | performance-review | `.claude/agents/performance-review.md` | Rendering, bundle, Core Web Vitals |
 
 ### Commands
 
 | Command | Purpose |
 |---------|---------|
-| `/commit` | Conventional commit z pre-commit checks |
-| `/pr` | Structured PR z template |
-| `/review` | Routing zmian do odpowiednich agentów |
+| `/commit` | Conventional commit with pre-commit checks |
+| `/pr` | Structured PR with template |
+| `/review` | Route changes to the relevant agents |
 | `/quality-check` | lint + test + build pipeline |
 
 ---

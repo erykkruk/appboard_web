@@ -76,7 +76,7 @@ describe("TranslationSettings", () => {
 		expect(screen.getByLabelText("Description")).toBeInTheDocument();
 		expect(screen.getByLabelText("Keywords")).toBeInTheDocument();
 		expect(
-			screen.getByLabelText(/Instrukcje tłumaczenia/i),
+			screen.getByLabelText(/Translation instructions/i),
 		).toBeInTheDocument();
 	});
 
@@ -94,7 +94,7 @@ describe("TranslationSettings", () => {
 		expect(screen.getByLabelText("Name")).toBeChecked();
 		expect(screen.getByLabelText("Description")).not.toBeChecked();
 		expect(
-			screen.getByLabelText(/Instrukcje tłumaczenia/i),
+			screen.getByLabelText(/Translation instructions/i),
 		).toHaveValue("Keep the brand name as-is.");
 	});
 
@@ -136,15 +136,15 @@ describe("TranslationSettings", () => {
 			<TranslationSettings appId="app-1" fields={FIELDS} language="pl" />,
 		);
 
-		const textarea = screen.getByLabelText(/Instrukcje tłumaczenia/i);
-		await user.type(textarea, "Profesjonalny ton");
+		const textarea = screen.getByLabelText(/Translation instructions/i);
+		await user.type(textarea, "Professional tone");
 
 		await waitFor(() => {
 			expect(lastAutoSaveData?.translationInstructions).toBe(
-				"Profesjonalny ton",
+				"Professional tone",
 			);
 		});
-		expect(textarea).toHaveValue("Profesjonalny ton");
+		expect(textarea).toHaveValue("Professional tone");
 	});
 
 	test("does not render switches when disabled interaction is blocked", () => {
@@ -158,6 +158,6 @@ describe("TranslationSettings", () => {
 		);
 
 		expect(screen.getByLabelText("Name")).toBeDisabled();
-		expect(screen.getByLabelText(/Instrukcje tłumaczenia/i)).toBeDisabled();
+		expect(screen.getByLabelText(/Translation instructions/i)).toBeDisabled();
 	});
 });

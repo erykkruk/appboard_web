@@ -40,28 +40,28 @@ export function SceneGallery({
 		<div className="rounded-lg border border-border p-4">
 			<div className="mb-3 flex items-center justify-between">
 				<div>
-					<h3 className="text-sm font-semibold">Edytor screenshotów</h3>
+					<h3 className="text-sm font-semibold">Screenshot editor</h3>
 					<p className="text-xs text-muted-foreground">
-						Twórz grafiki {getDisplayTypeLabel(displayType)} w przeglądarce i
-						eksportuj w dokładnych wymiarach.
+						Create {getDisplayTypeLabel(displayType)} graphics in the browser and
+						export at exact dimensions.
 					</p>
 				</div>
 				<Button size="sm" onClick={onNew} disabled={!language}>
 					<Plus className="h-4 w-4" />
-					Otwórz edytor
+					Open editor
 				</Button>
 			</div>
 
 			{scenes.isLoading && (
 				<div className="flex items-center gap-2 text-sm text-muted-foreground">
 					<Loader2 className="h-4 w-4 animate-spin" />
-					Wczytywanie scen…
+					Loading scenes…
 				</div>
 			)}
 
 			{!scenes.isLoading && filtered.length === 0 && (
 				<p className="text-sm text-muted-foreground">
-					Brak zapisanych scen dla tego języka i urządzenia.
+					No saved scenes for this language and device.
 				</p>
 			)}
 
@@ -80,14 +80,14 @@ export function SceneGallery({
 									onClick={() => onOpen(scene)}
 								>
 									<Pencil className="h-3.5 w-3.5" />
-									Edytuj
+									Edit
 								</Button>
 								<Button
 									size="sm"
 									variant="ghost"
 									onClick={() => deleteScene.mutate(scene.id)}
 									disabled={deleteScene.isPending}
-									aria-label="Usuń scenę"
+									aria-label="Delete scene"
 								>
 									<Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
 								</Button>

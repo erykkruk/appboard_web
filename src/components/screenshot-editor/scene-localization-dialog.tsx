@@ -57,10 +57,10 @@ interface SceneLocalizationDialogProps {
 }
 
 const STAGE_LABELS: Record<VariantStage, string> = {
-	done: "Gotowe",
-	error: "Błąd",
-	pending: "Oczekuje",
-	translating: "Tłumaczenie…",
+	done: "Done",
+	error: "Error",
+	pending: "Pending",
+	translating: "Translating…",
 };
 
 function languageLabel(locale: string): string {
@@ -152,11 +152,11 @@ export function SceneLocalizationDialog({
 	const handleRun = async () => {
 		const targetList = [...targets].filter((l) => l !== sourceLanguage);
 		if (targetList.length === 0) {
-			toast.error("Wybierz przynajmniej jeden język docelowy");
+			toast.error("Select at least one target language");
 			return;
 		}
 		if (translatableCount === 0) {
-			toast.error("Brak napisów do przetłumaczenia na tej scenie");
+			toast.error("No text to translate in this scene");
 			return;
 		}
 		await localization.run(sourceScene, targetList);
@@ -178,13 +178,13 @@ export function SceneLocalizationDialog({
 				created++;
 			} catch (error) {
 				const message =
-					error instanceof Error ? error.message : "Zapis nie powiódł się";
+					error instanceof Error ? error.message : "Save failed";
 				toast.error(`${languageLabel(variant.language)}: ${message}`);
 			}
 		}
 		setIsPersisting(false);
 		if (created > 0) {
-			toast.success(`Utworzono ${created} wariant(ów) jako osobne sceny`);
+			toast.success(`Created ${created} variant(s) as separate scenes`);
 		}
 	};
 
@@ -197,7 +197,7 @@ export function SceneLocalizationDialog({
 			const blob = await exportSceneToPng(variant.scene);
 			if (!blob) {
 				toast.error(
-					`${languageLabel(variant.language)}: nie można wyeksportować (zdalny obraz bez CORS)`,
+					`${languageLabel(variant.language)}: cannot export (remote image without CORS)`,
 				);
 				continue;
 			}
@@ -219,14 +219,14 @@ export function SceneLocalizationDialog({
 					`${languageLabel(variant.language)}: ${
 						dimErr
 							? buildDimensionMessage(dimErr)
-							: "nie udało się wgrać screenshotu"
+							: "failed to upload the screenshot"
 					}`,
 				);
 			}
 		}
 		setIsPersisting(false);
 		if (uploaded > 0) {
-			toast.success(`Wgrano ${uploaded} screenshot(ów)`);
+			toast.success(`Uploaded ${uploaded} screenshot(s)`);
 		}
 	};
 
@@ -247,26 +247,26 @@ export function SceneLocalizationDialog({
 				<DialogHeader className="border-b border-border p-6 pb-4">
 					<DialogTitle className="flex items-center gap-2">
 						<Languages className="h-5 w-5" />
-						Lokalizacja napisów
+						Text localization
 					</DialogTitle>
 					<DialogDescription>
-						Wygeneruj warianty tej sceny dla innych języków —{" "}
-						{getDisplayTypeLabel(displayType)}, źródło:{" "}
-						{languageLabel(sourceLanguage)}. Napisy oznaczone „Nie tłumacz”
-						zostaną skopiowane dosłownie.
+						Generate variants of this scene for other languages —{" "}
+						{getDisplayTypeLabel(displayType)}, source:{" "}
+						{languageLabel(sourceLanguage)}. Text marked “Do not translate”
+						is copied verbatim.
 					</DialogDescription>
 				</DialogHeader>
 
 				<ScrollArea className="min-h-0 flex-1">
 					<div className="space-y-6 p-6">
 						<p className="text-xs text-muted-foreground">
-							{translatableCount} napis(ów) do przetłumaczenia
-							{dntCount > 0 && ` · ${dntCount} pominięte (Nie tłumacz)`}
+							{translatableCount} text item(s) to translate
+							{dntCount > 0 && ` · ${dntCount} skipped (Do not translate)`}
 						</p>
 
 						{/* Target languages */}
 						<div className="space-y-2">
-							<Label className="text-sm font-medium">Języki docelowe</Label>
+							<Label className="text-sm font-medium">Target languages</Label>
 							<div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
 								{availableTargets.map((lang) => {
 									const id = `variant-${lang.locale}`;
@@ -300,11 +300,11 @@ export function SceneLocalizationDialog({
 							<div className="space-y-3">
 								<div className="flex items-center justify-between">
 									<Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-										Warianty
+										Variants
 									</Label>
 									<span className="text-xs text-muted-foreground">
-										{doneVariants.length}/{variantList.length} gotowe
-										{errorCount > 0 && ` · ${errorCount} błąd(ów)`}
+										{doneVariants.length}/{variantList.length} done
+										{errorCount > 0 && ` · ${errorCount} error(s)`}
 									</span>
 								</div>
 								<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
@@ -357,11 +357,11 @@ export function SceneLocalizationDialog({
 									) : (
 										<Sparkles className="mr-2 h-4 w-4" />
 									)}
-									Zapisz jako sceny ({doneVariants.length})
+									Save as scenes ({doneVariants.length})
 								</Button>
 								<Button disabled={busy} onClick={handleExportAll} variant="outline">
 									<Upload className="mr-2 h-4 w-4" />
-									Eksportuj i wgraj
+									Export and upload
 								</Button>
 							</>
 						)}
@@ -372,7 +372,7 @@ export function SceneLocalizationDialog({
 						) : (
 							<Languages className="mr-2 h-4 w-4" />
 						)}
-						{localization.isRunning ? "Generowanie…" : "Generuj warianty"}
+						{localization.isRunning ? "Generating…" : "Generate variants"}
 					</Button>
 				</DialogFooter>
 			</DialogContent>

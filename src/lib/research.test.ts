@@ -242,7 +242,7 @@ describe("researchAppKey", () => {
 
 describe("researchCategoryLabel", () => {
 	test("maps known backend category ids", () => {
-		expect(researchCategoryLabel("crash-bugi")).toBe("Crashe / Bugi");
+		expect(researchCategoryLabel("crash-bugi")).toBe("Crashes / Bugs");
 	});
 
 	test("falls back to the raw id for unknown categories", () => {

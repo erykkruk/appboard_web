@@ -121,7 +121,7 @@ describe("useSceneLocalization", () => {
 		translate.mockImplementation(
 			async ({ targetLanguages }: { targetLanguages: string[] }) => {
 				if (targetLanguages.includes("pl")) {
-					throw new Error("AI niedostępne");
+					throw new Error("AI unavailable");
 				}
 				return {
 					model: "test",
@@ -140,7 +140,7 @@ describe("useSceneLocalization", () => {
 		await waitFor(() => expect(result.current.isRunning).toBe(false));
 
 		expect(result.current.variants.pl?.stage).toBe("error");
-		expect(result.current.variants.pl?.error).toBe("AI niedostępne");
+		expect(result.current.variants.pl?.error).toBe("AI unavailable");
 		expect(result.current.variants.pl?.scene).toBeNull();
 		expect(result.current.variants["de-DE"]?.stage).toBe("done");
 	});

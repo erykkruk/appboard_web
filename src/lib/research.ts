@@ -16,19 +16,19 @@ export const ASO_TITLE_LIMIT = 30;
 export const ASO_SUMMARY_LIMIT = 80;
 
 export const RESEARCH_CATEGORY_LABELS: Record<string, string> = {
-	"brak-funkcji": "Brakujące funkcje",
-	"crash-bugi": "Crashe / Bugi",
-	inne: "Inne",
-	logowanie: "Logowanie / Konto",
-	"obsluga-klienta": "Obsługa klienta",
-	platnosci: "Płatności / Subskrypcje",
-	pochwaly: "Pochwały (co działa)",
-	powiadomienia: "Powiadomienia",
-	prywatnosc: "Prywatność / Bezpieczeństwo",
-	reklamy: "Reklamy / Monetyzacja",
-	"sync-offline": "Synchronizacja / Offline",
+	"brak-funkcji": "Missing features",
+	"crash-bugi": "Crashes / Bugs",
+	inne: "Other",
+	logowanie: "Login / Account",
+	"obsluga-klienta": "Customer support",
+	platnosci: "Payments / Subscriptions",
+	pochwaly: "Praise (what works)",
+	powiadomienia: "Notifications",
+	prywatnosc: "Privacy / Security",
+	reklamy: "Ads / Monetization",
+	"sync-offline": "Sync / Offline",
 	"ux-ui": "UX / UI",
-	wydajnosc: "Wydajność",
+	wydajnosc: "Performance",
 };
 
 export function researchCategoryLabel(id: string): string {

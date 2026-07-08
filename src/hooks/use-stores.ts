@@ -34,6 +34,18 @@ export function useDisconnectStore() {
   });
 }
 
+export function useRenameStore() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, name }: { id: string; name: string }) =>
+      api.stores.rename(id, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stores"] });
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
+    },
+  });
+}
+
 export function useSyncStore() {
   const queryClient = useQueryClient();
   return useMutation({

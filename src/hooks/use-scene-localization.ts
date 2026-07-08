@@ -93,7 +93,7 @@ export function useSceneLocalization() {
 				return true;
 			} catch (error) {
 				patchVariant(targetLanguage, {
-					error: errorMessage(error, "Tłumaczenie nie powiodło się"),
+					error: errorMessage(error, "Translation failed"),
 					stage: "error",
 				});
 				return false;

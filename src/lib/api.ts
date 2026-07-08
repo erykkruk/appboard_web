@@ -1312,6 +1312,12 @@ export const api = {
 			).then((r) => r.presets),
 	},
 
+	system: {
+		health: () =>
+			fetchApi<{ status: string; uptime: number; version: string }>(
+				"/api/system/health",
+			),
+	},
 	stores: {
 		connect: (data: ConnectStoreData) =>
 			fetchApi<ConnectStoreResponse>("/api/stores/connect", {
@@ -1322,6 +1328,11 @@ export const api = {
 			fetchApi<void>(`/api/stores/${id}`, { method: "DELETE" }),
 		list: () =>
 			fetchApi<{ stores: Store[] }>("/api/stores").then((r) => r.stores),
+		rename: (id: string, name: string) =>
+			fetchApi<Store>(`/api/stores/${id}`, {
+				body: JSON.stringify({ name }),
+				method: "PATCH",
+			}),
 		sync: (id: string) =>
 			fetchApi<{ synced: number }>(`/api/stores/${id}/sync`, {
 				method: "POST",

@@ -96,18 +96,18 @@ export function TranslationSettings({
 		<div className="max-w-2xl space-y-4 rounded-lg border border-border bg-[#1a1a1a] p-4">
 			<div className="flex items-center gap-2">
 				<Languages className="h-4 w-4 text-muted-foreground" />
-				<h2 className="text-sm font-medium">Ustawienia tłumaczenia</h2>
+				<h2 className="text-sm font-medium">Translation settings</h2>
 			</div>
 			<p className="text-xs text-muted-foreground">
-				Wybierz pola, które mają pozostać nieprzetłumaczone dla języka{" "}
-				<span className="font-medium text-foreground">{language}</span>, oraz
-				dodaj instrukcje dla AI.
+				Choose which fields should stay untranslated for the{" "}
+				<span className="font-medium text-foreground">{language}</span> language,
+				and add instructions for the AI.
 			</p>
 
 			{/* Per-field "Do Not Translate" toggles */}
 			<div className="space-y-2">
 				<Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-					Nie tłumacz
+					Do not translate
 				</Label>
 				<div className="space-y-1.5">
 					{fields.map((field) => {
@@ -145,7 +145,7 @@ export function TranslationSettings({
 						className="text-sm font-medium"
 						htmlFor={`translation-instructions-${language}`}
 					>
-						Instrukcje tłumaczenia (ton, słownik, czego nie zmieniać)
+						Translation instructions (tone, glossary, what to keep unchanged)
 					</Label>
 					<span
 						className={cn(
@@ -167,7 +167,7 @@ export function TranslationSettings({
 					id={`translation-instructions-${language}`}
 					maxLength={INSTRUCTIONS_MAX_LENGTH}
 					onChange={(e) => setInstructions(e.target.value)}
-					placeholder="np. Zachowaj nazwę marki bez zmian, ton profesjonalny, używaj formy „Ty”."
+					placeholder="e.g. Keep the brand name unchanged, professional tone, use a friendly voice."
 					rows={3}
 					value={instructions}
 				/>

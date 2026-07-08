@@ -91,7 +91,7 @@ export function createDefaultScene(displayType: string): SceneData {
 		textLayers: [
 			{
 				id: "headline",
-				text: "Twój nagłówek",
+				text: "Your headline",
 				x: 0.5,
 				y: 0.08,
 				fontFamily: "Inter, system-ui, sans-serif",
@@ -255,9 +255,9 @@ const DEFAULT_ANNOTATION_FONT = "Inter, system-ui, sans-serif";
 
 /** Default text for each annotation variant. */
 const ANNOTATION_DEFAULT_TEXT: Record<SceneAnnotationType, string> = {
-	badge: "NOWOŚĆ",
-	callout: "Twój opis",
-	label: "Etykieta",
+	badge: "NEW",
+	callout: "Your description",
+	label: "Label",
 };
 
 /**

@@ -16,7 +16,7 @@ interface ScreenshotEditorEntryProps {
 
 /**
  * Drop-in entry point for the screenshot editor: shows the saved-scenes gallery
- * with an "Otwórz edytor" button and manages the full-screen editor dialog. A
+ * with an "Open editor" button and manages the full-screen editor dialog. A
  * `key` on the dialog forces a fresh editor state each time it opens so a new
  * scene never inherits the previous scene's layers.
  */

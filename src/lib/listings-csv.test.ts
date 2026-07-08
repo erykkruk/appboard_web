@@ -27,12 +27,12 @@ const LOC_EN: VersionLocalization = {
 const LOC_PL: VersionLocalization = {
   localizationId: "loc-2",
   language: "pl",
-  title: "Moja Apka",
-  subtitle: "Najlepsza apka",
-  description: "Wspaniala aplikacja.",
-  keywords: "apka,super",
-  whatsNew: "Poprawki",
-  promotionalText: "Sprawdz!",
+  title: "My App",
+  subtitle: "The best app",
+  description: "Great app.",
+  keywords: "app,great",
+  whatsNew: "Fixes",
+  promotionalText: "Check it out!",
   marketingUrl: "",
   supportUrl: "",
 };
@@ -182,7 +182,7 @@ describe("parseListingsFile (CSV)", () => {
   });
 
   test("parses multiple rows", () => {
-    const csv = `${HEADER}\nen-US,App,Sub,Desc,k,,,,\npl,Apka,Pod,Opis,k,,,,`;
+    const csv = `${HEADER}\nen-US,App,Sub,Desc,k,,,,\npl,My App,Sub,Desc,k,,,,`;
     const { rows, errors } = parseListingsFile(csv, "test.csv");
 
     expect(errors).toHaveLength(0);
@@ -213,7 +213,7 @@ describe("parseListingsFile (CSV)", () => {
   });
 
   test("handles CRLF line endings", () => {
-    const csv = `${HEADER}\r\nen-US,App,Sub,Desc,k,,,,\r\npl,Apka,Pod,Opis,k,,,,`;
+    const csv = `${HEADER}\r\nen-US,App,Sub,Desc,k,,,,\r\npl,My App,Sub,Desc,k,,,,`;
     const { rows, errors } = parseListingsFile(csv, "test.csv");
 
     expect(errors).toHaveLength(0);
@@ -327,7 +327,7 @@ describe("roundtrip: export then import", () => {
     expect(rows[0].whatsNew).toBe("Bug fixes");
     expect(rows[0].marketingUrl).toBe("https://example.com");
     expect(rows[1].language).toBe("pl");
-    expect(rows[1].title).toBe("Moja Apka");
+    expect(rows[1].title).toBe("My App");
   });
 
   test("CSV roundtrip preserves special characters", () => {
@@ -350,7 +350,7 @@ describe("roundtrip: export then import", () => {
     expect(rows[0].language).toBe("en-US");
     expect(rows[0].title).toBe("My App");
     expect(rows[1].language).toBe("pl");
-    expect(rows[1].title).toBe("Moja Apka");
+    expect(rows[1].title).toBe("My App");
   });
 });
 

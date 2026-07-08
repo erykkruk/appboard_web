@@ -77,12 +77,12 @@ function fieldLabelFor(fields: PipelineField[], key: string): string {
 }
 
 const STAGE_LABELS: Record<PipelineStage, string> = {
-  done: "Gotowe",
-  error: "Błąd",
-  keywords: "Słowa kluczowe…",
-  pending: "Oczekuje",
-  "release-notes": "Nowości…",
-  translating: "Tłumaczenie…",
+  done: "Done",
+  error: "Error",
+  keywords: "Keywords…",
+  pending: "Pending",
+  "release-notes": "Release notes…",
+  translating: "Translating…",
 };
 
 function StageIndicator({ job }: { job: LanguageJob }) {
@@ -169,7 +169,7 @@ export function LocalizationPipelineDialog({
   const handleRun = async () => {
     const targetList = [...targets].filter((l) => l !== sourceLanguage);
     if (targetList.length === 0) {
-      toast.error("Wybierz przynajmniej jeden język docelowy");
+      toast.error("Select at least one target language");
       return;
     }
 
@@ -177,7 +177,7 @@ export function LocalizationPipelineDialog({
     const hasContent = Object.values(sourceFields).some((v) => v?.trim());
     if (!hasContent) {
       toast.error(
-        `Brak treści w języku źródłowym (${sourceLanguage}) do przetłumaczenia`,
+        `No content in the source language (${sourceLanguage}) to translate`,
       );
       return;
     }
@@ -203,10 +203,10 @@ export function LocalizationPipelineDialog({
     try {
       await onSaveLanguage(target.localizationId, job.result);
       pipeline.markSaved(language);
-      toast.success(`Zapisano tłumaczenie: ${target.label}`);
+      toast.success(`Saved translation: ${target.label}`);
     } catch (error) {
       const message =
-        error instanceof Error ? error.message : "Zapis nie powiódł się";
+        error instanceof Error ? error.message : "Save failed";
       toast.error(`${target.label}: ${message}`);
     } finally {
       setSavingLanguage(null);
@@ -230,13 +230,13 @@ export function LocalizationPipelineDialog({
         saved++;
       } catch (error) {
         const message =
-          error instanceof Error ? error.message : "Zapis nie powiódł się";
+          error instanceof Error ? error.message : "Save failed";
         toast.error(`${target.label}: ${message}`);
       }
     }
     setIsSavingAll(false);
     if (saved > 0) {
-      toast.success(`Zapisano ${saved} język(ów)`);
+      toast.success(`Saved ${saved} language(s)`);
     }
   };
 
@@ -270,11 +270,12 @@ export function LocalizationPipelineDialog({
         <DialogHeader className="border-b border-border p-6 pb-4">
           <DialogTitle className="flex items-center gap-2">
             <Languages className="h-5 w-5" />
-            Lokalizacja
+            Localization
           </DialogTitle>
           <DialogDescription>
-            Przetłumacz listing z języka źródłowego na wybrane języki, opcjonalnie
-            wygeneruj słowa kluczowe i opis nowości, a następnie zapisz wyniki.
+            Translate the listing from the source language into the selected
+            languages, optionally generate keywords and release notes, then save
+            the results.
           </DialogDescription>
         </DialogHeader>
 
@@ -282,7 +283,7 @@ export function LocalizationPipelineDialog({
           <div className="space-y-6 p-6">
             {/* Source language */}
             <div className="space-y-2">
-              <Label className="text-sm font-medium">Język źródłowy</Label>
+              <Label className="text-sm font-medium">Source language</Label>
               <Select
                 value={sourceLanguage}
                 onValueChange={(value) => {
@@ -297,7 +298,7 @@ export function LocalizationPipelineDialog({
               >
                 <SelectTrigger className="w-full">
                   <Globe className="mr-2 h-4 w-4 text-muted-foreground" />
-                  <SelectValue placeholder="Wybierz język" />
+                  <SelectValue placeholder="Select a language" />
                 </SelectTrigger>
                 <SelectContent>
                   {languages.map((lang) => (
@@ -309,11 +310,11 @@ export function LocalizationPipelineDialog({
               </Select>
               {doNotTranslateLabels.length > 0 && (
                 <p className="text-xs text-muted-foreground">
-                  Pola pominięte (Nie tłumacz):{" "}
+                  Skipped fields (Do not translate):{" "}
                   <span className="font-medium text-foreground">
                     {doNotTranslateLabels.join(", ")}
                   </span>{" "}
-                  — kopiowane dosłownie ze źródła.
+                  — copied verbatim from the source.
                 </p>
               )}
             </div>
@@ -321,7 +322,7 @@ export function LocalizationPipelineDialog({
             {/* Target languages */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <Label className="text-sm font-medium">Języki docelowe</Label>
+                <Label className="text-sm font-medium">Target languages</Label>
                 {availableTargets.length > 0 && (
                   <Button
                     className="h-7 px-2 text-xs"
@@ -330,13 +331,13 @@ export function LocalizationPipelineDialog({
                     size="sm"
                     variant="ghost"
                   >
-                    Zaznacz wszystkie
+                    Select all
                   </Button>
                 )}
               </div>
               {availableTargets.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  Brak innych języków. Dodaj języki w zakładce Języki.
+                  No other languages. Add languages in the Languages tab.
                 </p>
               ) : (
                 <div className="grid grid-cols-2 gap-2">
@@ -371,7 +372,7 @@ export function LocalizationPipelineDialog({
             {/* Pipeline options */}
             <div className="space-y-3">
               <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                Kroki dodatkowe
+                Additional steps
               </Label>
               <div className="flex items-center gap-2">
                 <Checkbox
@@ -386,7 +387,7 @@ export function LocalizationPipelineDialog({
                   className="cursor-pointer text-sm font-normal"
                   htmlFor="step-keywords"
                 >
-                  Wygeneruj słowa kluczowe dla każdego języka
+                  Generate keywords for each language
                 </Label>
               </div>
               <div className="flex items-center gap-2">
@@ -402,7 +403,7 @@ export function LocalizationPipelineDialog({
                   className="cursor-pointer text-sm font-normal"
                   htmlFor="step-release-notes"
                 >
-                  Wygeneruj opis nowości (What&apos;s New)
+                  Generate release notes (What&apos;s New)
                 </Label>
               </div>
               {includeReleaseNotes && (
@@ -410,7 +411,7 @@ export function LocalizationPipelineDialog({
                   className="resize-none border-border bg-[#0f0f0f] text-sm"
                   disabled={pipeline.isRunning}
                   onChange={(e) => setReleaseNotesChanges(e.target.value)}
-                  placeholder="Lista zmian w tej wersji (po jednej w linii) — podstawa do wygenerowania opisu nowości."
+                  placeholder="List of changes in this version (one per line) — the basis for generating release notes."
                   rows={3}
                   value={releaseNotesChanges}
                 />
@@ -422,11 +423,11 @@ export function LocalizationPipelineDialog({
               <div className="space-y-3">
                 <div className="flex items-center justify-between">
                   <Label className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
-                    Postęp
+                    Progress
                   </Label>
                   <span className="text-xs text-muted-foreground">
-                    {doneCount}/{jobList.length} gotowe
-                    {errorCount > 0 && ` · ${errorCount} błąd(ów)`}
+                    {doneCount}/{jobList.length} done
+                    {errorCount > 0 && ` · ${errorCount} error(s)`}
                   </span>
                 </div>
                 <div className="space-y-2">
@@ -458,7 +459,7 @@ export function LocalizationPipelineDialog({
                                 className="h-5 gap-1 px-1.5 text-[10px]"
                                 variant="secondary"
                               >
-                                <Check className="h-3 w-3" /> Zapisano
+                                <Check className="h-3 w-3" /> Saved
                               </Badge>
                             )}
                           </div>
@@ -479,7 +480,7 @@ export function LocalizationPipelineDialog({
                               ) : (
                                 <Save className="h-3 w-3" />
                               )}
-                              Zapisz
+                              Save
                             </Button>
                           )}
                         </div>
@@ -528,7 +529,7 @@ export function LocalizationPipelineDialog({
                 ) : (
                   <Save className="mr-2 h-4 w-4" />
                 )}
-                Zapisz wszystkie ({unsavedDone})
+                Save all ({unsavedDone})
               </Button>
             )}
           </div>
@@ -541,7 +542,7 @@ export function LocalizationPipelineDialog({
             ) : (
               <Sparkles className="mr-2 h-4 w-4" />
             )}
-            {pipeline.isRunning ? "Przetwarzanie…" : "Uruchom pipeline"}
+            {pipeline.isRunning ? "Processing…" : "Run pipeline"}
           </Button>
         </DialogFooter>
       </DialogContent>

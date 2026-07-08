@@ -53,12 +53,12 @@ describe("buildTranslatedScene", () => {
 	test("replaces translatable layers and preserves Do-Not-Translate layers", () => {
 		const source = sceneWithLayers();
 		const result = buildTranslatedScene(source, {
-			empty: "powinno zostać pominięte",
-			headline: "Twój nagłówek",
+			empty: "should be skipped",
+			headline: "Your translated headline",
 		});
 
 		const byId = Object.fromEntries(result.textLayers.map((l) => [l.id, l]));
-		expect(byId.headline.text).toBe("Twój nagłówek");
+		expect(byId.headline.text).toBe("Your translated headline");
 		// DNT layer kept verbatim even though no translation was supplied.
 		expect(byId.brand.text).toBe("AppBoard");
 		expect(byId.brand.doNotTranslate).toBe(true);
@@ -82,7 +82,7 @@ describe("buildTranslatedScene", () => {
 
 	test("does not mutate the source scene", () => {
 		const source = sceneWithLayers();
-		buildTranslatedScene(source, { headline: "Zmienione" });
+		buildTranslatedScene(source, { headline: "Changed" });
 		expect(source.textLayers[0].text).toBe("Your headline");
 	});
 });
@@ -136,18 +136,18 @@ function sceneWithAnnotations(): SceneData {
 describe("buildTranslatedScene — annotations", () => {
 	test("translates text annotations keyed by id", () => {
 		const result = buildTranslatedScene(sceneWithAnnotations(), {
-			badge: "NOWOŚĆ",
+			badge: "NEW!",
 		});
 		const badge = result.annotations?.find((a) => a.id === "badge");
 		expect(badge?.type).toBe("badge");
 		if (badge && badge.type !== "image") {
-			expect(badge.text).toBe("NOWOŚĆ");
+			expect(badge.text).toBe("NEW!");
 		}
 	});
 
 	test("keeps Do-Not-Translate annotations verbatim", () => {
 		const result = buildTranslatedScene(sceneWithAnnotations(), {
-			"brand-label": "przetłumaczone",
+			"brand-label": "translated",
 		});
 		const label = result.annotations?.find((a) => a.id === "brand-label");
 		if (label && label.type !== "image") {
@@ -172,7 +172,7 @@ describe("buildTranslatedScene — annotations", () => {
 
 	test("does not mutate the source annotations", () => {
 		const source = sceneWithAnnotations();
-		buildTranslatedScene(source, { badge: "Zmienione" });
+		buildTranslatedScene(source, { badge: "Changed" });
 		const badge = source.annotations?.find((a) => a.id === "badge");
 		if (badge && badge.type !== "image") {
 			expect(badge.text).toBe("NEW");

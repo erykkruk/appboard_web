@@ -107,7 +107,7 @@ export function ScreenshotEditorDialog({
 		() => editingScene?.scene ?? createDefaultScene(displayType),
 	);
 	const [sceneName, setSceneName] = useState(
-		() => editingScene?.name ?? "Nowa scena",
+		() => editingScene?.name ?? "New scene",
 	);
 	const [sceneId, setSceneId] = useState<string | null>(
 		editingScene?.id ?? null,
@@ -210,7 +210,7 @@ export function ScreenshotEditorDialog({
 				...prev.textLayers,
 				{
 					id,
-					text: "Nowy napis",
+					text: "New text",
 					x: 0.5,
 					y: 0.2,
 					fontFamily: "Inter, system-ui, sans-serif",
@@ -434,9 +434,9 @@ export function ScreenshotEditorDialog({
 				});
 				setSceneId(created.id);
 			}
-			toast.success("Scena zapisana");
+			toast.success("Scene saved");
 		} catch {
-			toast.error("Nie udało się zapisać sceny");
+			toast.error("Failed to save the scene");
 		}
 	};
 
@@ -444,7 +444,7 @@ export function ScreenshotEditorDialog({
 		const blob = await canvasRef.current?.exportPng();
 		if (!blob) {
 			toast.error(
-				"Nie można wyeksportować — obraz pochodzi ze zdalnego źródła bez nagłówków CORS. Wgraj plik lokalnie.",
+				"Cannot export — the image comes from a remote source without CORS headers. Upload the file locally.",
 			);
 			return;
 		}
@@ -454,13 +454,13 @@ export function ScreenshotEditorDialog({
 		});
 		try {
 			await uploadScreenshot.mutateAsync({ displayType, file, language });
-			toast.success(`Wgrano screenshot ${w}×${h}px`);
+			toast.success(`Uploaded screenshot ${w}×${h}px`);
 		} catch (err) {
 			const dimErr = getScreenshotDimensionError(err);
 			if (dimErr) {
 				toast.error(buildDimensionMessage(dimErr));
 			} else {
-				toast.error("Nie udało się wgrać screenshotu");
+				toast.error("Failed to upload the screenshot");
 			}
 		}
 	};
@@ -476,12 +476,12 @@ export function ScreenshotEditorDialog({
 			>
 				<DialogHeader className="flex flex-row items-center justify-between gap-4 border-b border-border px-4 py-3">
 					<div className="flex flex-1 items-center gap-3">
-						<DialogTitle className="shrink-0">Edytor screenshotów</DialogTitle>
+						<DialogTitle className="shrink-0">Screenshot editor</DialogTitle>
 						<Input
 							value={sceneName}
 							onChange={(e) => setSceneName(e.target.value)}
 							className="max-w-xs"
-							placeholder="Nazwa sceny"
+							placeholder="Scene name"
 						/>
 						<span className="text-sm text-muted-foreground">
 							{getDisplayTypeLabel(displayType)} · {language} · {target0}×
@@ -498,7 +498,7 @@ export function ScreenshotEditorDialog({
 							}
 						>
 							<Languages className="h-4 w-4" />
-							Warianty językowe
+							Language variants
 						</Button>
 						<Button
 							variant="outline"
@@ -510,7 +510,7 @@ export function ScreenshotEditorDialog({
 							) : (
 								<Save className="h-4 w-4" />
 							)}
-							Zapisz
+							Save
 						</Button>
 						<Button onClick={handleExportUpload} disabled={isUploading}>
 							{isUploading ? (
@@ -518,10 +518,10 @@ export function ScreenshotEditorDialog({
 							) : (
 								<Upload className="h-4 w-4" />
 							)}
-							Eksportuj i wgraj
+							Export and upload
 						</Button>
 						<Button variant="ghost" onClick={() => onOpenChange(false)}>
-							Zamknij
+							Close
 						</Button>
 					</div>
 				</DialogHeader>
@@ -649,7 +649,7 @@ function ExistingScreenshotPicker({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="max-w-2xl">
 				<DialogHeader>
-					<DialogTitle>Wybierz z wgranych screenshotów</DialogTitle>
+					<DialogTitle>Choose from uploaded screenshots</DialogTitle>
 				</DialogHeader>
 				{loading ? (
 					<div className="flex items-center justify-center py-12 text-muted-foreground">
@@ -657,7 +657,7 @@ function ExistingScreenshotPicker({
 					</div>
 				) : list.length === 0 ? (
 					<p className="py-12 text-center text-sm text-muted-foreground">
-						Brak wgranych screenshotów dla tej aplikacji.
+						No uploaded screenshots for this app.
 					</p>
 				) : (
 					<div className="grid max-h-[60vh] grid-cols-3 gap-3 overflow-y-auto p-1 sm:grid-cols-4">

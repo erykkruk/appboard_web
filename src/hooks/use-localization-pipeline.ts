@@ -141,7 +141,7 @@ export function useLocalizationPipeline() {
         return true;
       } catch (error) {
         patchJob(targetLanguage, {
-          error: errorMessage(error, "Pipeline nie powiódł się"),
+          error: errorMessage(error, "Pipeline failed"),
           stage: "error",
         });
         return false;
