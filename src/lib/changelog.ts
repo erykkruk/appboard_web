@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.4",
+    serverVersion: "0.6.1",
+    date: "2026-07-08",
+    changes: [
+      "AI: fixed AI generation failing with a 502 — the model list now uses valid OpenRouter IDs (dead Gemini preview IDs removed), and an invalid model now shows a clear error instead of a gateway crash",
+      "AI settings: model picker updated to current models — GLM 5.2/4.7/4.6, Gemini 3 Flash & 2.5, Claude 4.x, DeepSeek V3.1, Grok 4.3, Qwen3",
+    ],
+  },
+  {
     version: "0.6.3",
     serverVersion: "0.6.0",
     date: "2026-07-08",

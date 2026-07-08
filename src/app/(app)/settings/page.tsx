@@ -107,12 +107,15 @@ const PRIMARY_TERRITORIES = [
   { code: "NO", currency: "NOK", label: "Norway" },
 ] as const;
 
+// Values are OpenRouter model IDs — verified against the live catalog.
 const FLAGSHIP_MODELS = [
   { label: "GLM 5.2", value: "z-ai/glm-5.2" },
+  { label: "GLM 4.7", value: "z-ai/glm-4.7" },
   { label: "GLM 4.6", value: "z-ai/glm-4.6" },
-  { label: "Gemini 2.5 Pro", value: "google/gemini-2.5-pro-preview" },
-  { label: "Gemini 2.5 Flash", value: "google/gemini-2.5-flash-preview" },
-  { label: "Gemini 2.0 Flash", value: "google/gemini-2.0-flash-001" },
+  { label: "Gemini 3 Flash", value: "google/gemini-3-flash-preview" },
+  { label: "Gemini 2.5 Pro", value: "google/gemini-2.5-pro" },
+  { label: "Gemini 2.5 Flash", value: "google/gemini-2.5-flash" },
+  { label: "Gemini 2.5 Flash Lite", value: "google/gemini-2.5-flash-lite" },
   { label: "Claude Sonnet 4.5", value: "anthropic/claude-sonnet-4.5" },
   { label: "Claude Sonnet 4", value: "anthropic/claude-sonnet-4" },
   { label: "Claude Opus 4.1", value: "anthropic/claude-opus-4.1" },
@@ -122,7 +125,7 @@ const FLAGSHIP_MODELS = [
   { label: "GPT-4.1 Mini", value: "openai/gpt-4.1-mini" },
   { label: "DeepSeek V3.1", value: "deepseek/deepseek-chat-v3.1" },
   { label: "DeepSeek V3", value: "deepseek/deepseek-chat-v3-0324" },
-  { label: "Grok 4", value: "x-ai/grok-4" },
+  { label: "Grok 4.3", value: "x-ai/grok-4.3" },
   { label: "Qwen3 235B", value: "qwen/qwen3-235b-a22b" },
   { label: "Llama 4 Maverick", value: "meta-llama/llama-4-maverick" },
 ] as const;
@@ -181,7 +184,7 @@ function ModelSelector({
       </div>
       <Select value={selectValue} onValueChange={handleSelectChange}>
         <SelectTrigger id={id}>
-          <SelectValue placeholder="Default (Gemini 2.0 Flash)" />
+          <SelectValue placeholder="Default (Gemini 3 Flash)" />
         </SelectTrigger>
         <SelectContent>
           {FLAGSHIP_MODELS.map((m) => (
