@@ -766,7 +766,7 @@ export default function PurchasesPage() {
 		ungroupedSubscriptions.length === 0;
 
 	return (
-		<div className="mx-auto max-w-4xl p-6">
+		<div className="mx-auto w-full max-w-6xl p-6">
 			<div className="mb-6 flex items-center justify-between">
 				<div>
 					<h1 className="text-lg font-semibold">
@@ -812,7 +812,7 @@ export default function PurchasesPage() {
 			)}
 
 			{isLoading && (
-				<div className="space-y-4">
+				<div className="grid gap-4 sm:grid-cols-2">
 					{[1, 2, 3].map((i) => (
 						<Skeleton key={i} className="h-28 rounded-xl" />
 					))}
@@ -842,9 +842,12 @@ export default function PurchasesPage() {
 						</TabsTrigger>
 					</TabsList>
 
-					<TabsContent value="all" className="mt-4 space-y-3">
+					<TabsContent
+						value="all"
+						className="mt-4 grid items-start gap-4 sm:grid-cols-2"
+					>
 						{hasNoContent && (
-							<div className="flex flex-col items-center justify-center gap-2 py-12">
+							<div className="flex flex-col items-center justify-center gap-2 py-12 sm:col-span-2">
 								<Package className="h-10 w-10 text-muted-foreground" />
 								<p className="text-sm text-muted-foreground">
 									No purchases found. Click Sync to fetch from
@@ -885,10 +888,10 @@ export default function PurchasesPage() {
 
 					<TabsContent
 						value="subscriptions"
-						className="mt-4 space-y-3"
+						className="mt-4 grid items-start gap-4 sm:grid-cols-2"
 					>
 						{subscriptions.length === 0 && (
-							<div className="flex flex-col items-center justify-center gap-2 py-12">
+							<div className="flex flex-col items-center justify-center gap-2 py-12 sm:col-span-2">
 								<Repeat className="h-10 w-10 text-muted-foreground" />
 								<p className="text-sm text-muted-foreground">
 									No subscriptions found.
@@ -906,9 +909,12 @@ export default function PurchasesPage() {
 						))}
 					</TabsContent>
 
-					<TabsContent value="iaps" className="mt-4 space-y-3">
+					<TabsContent
+						value="iaps"
+						className="mt-4 grid items-start gap-4 sm:grid-cols-2"
+					>
 						{iaps.length === 0 && (
-							<div className="flex flex-col items-center justify-center gap-2 py-12">
+							<div className="flex flex-col items-center justify-center gap-2 py-12 sm:col-span-2">
 								<Package className="h-10 w-10 text-muted-foreground" />
 								<p className="text-sm text-muted-foreground">
 									No in-app purchases found.
@@ -926,8 +932,11 @@ export default function PurchasesPage() {
 						))}
 					</TabsContent>
 
-					<TabsContent value="groups" className="mt-4 space-y-4">
-						<div className="flex justify-end">
+					<TabsContent
+						value="groups"
+						className="mt-4 grid items-start gap-4 sm:grid-cols-2"
+					>
+						<div className="flex justify-end sm:col-span-2">
 							<Button
 								variant="outline"
 								size="sm"
@@ -938,7 +947,7 @@ export default function PurchasesPage() {
 							</Button>
 						</div>
 						{subscriptionGroups.data?.length === 0 && (
-							<div className="flex flex-col items-center justify-center gap-2 py-12">
+							<div className="flex flex-col items-center justify-center gap-2 py-12 sm:col-span-2">
 								<Repeat className="h-10 w-10 text-muted-foreground" />
 								<p className="text-sm text-muted-foreground">
 									No subscription groups found.

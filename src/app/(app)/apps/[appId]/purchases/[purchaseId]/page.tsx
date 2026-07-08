@@ -256,7 +256,7 @@ export default function PurchaseDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="mx-auto max-w-4xl space-y-4 p-6">
+			<div className="mx-auto w-full max-w-6xl space-y-4 p-6">
 				<Skeleton className="h-8 w-64" />
 				<Skeleton className="h-40 rounded-xl" />
 				<Skeleton className="h-60 rounded-xl" />
@@ -284,7 +284,7 @@ export default function PurchaseDetailPage() {
 		STATUS_COLORS[purchase.status] ?? "bg-muted text-muted-foreground";
 
 	return (
-		<div className="mx-auto max-w-4xl space-y-6 p-6">
+		<div className="mx-auto w-full max-w-6xl space-y-6 p-6">
 			{/* Breadcrumb */}
 			<nav className="flex items-center gap-1 text-sm text-muted-foreground">
 				<Link
@@ -390,6 +390,8 @@ export default function PurchaseDetailPage() {
 
 			<MonetizationChatPopup appId={appId} />
 
+			<div className="grid items-start gap-6 lg:grid-cols-2">
+				<div className="space-y-6">
 			{/* Metadata */}
 			<Card>
 				<CardHeader>
@@ -569,7 +571,9 @@ export default function PurchaseDetailPage() {
 					</CardContent>
 				</Card>
 			)}
+				</div>
 
+				<div className="space-y-6">
 			{/* Prices */}
 			<Card>
 				<CardHeader>
@@ -598,6 +602,8 @@ export default function PurchaseDetailPage() {
 					aiContext={aiContext}
 				/>
 			)}
+				</div>
+			</div>
 		</div>
 	);
 }

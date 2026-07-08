@@ -494,7 +494,7 @@ export default function PrivacyTemplatePage() {
     : "This is a reference tool only — privacy declarations cannot be pushed to App Store Connect via API. Use this to plan your declaration and fill it in manually.";
 
   return (
-    <div className="mx-auto max-w-3xl p-6">
+    <div className="mx-auto w-full max-w-6xl p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold tracking-tight">{pageTitle}</h1>
         <p className="mt-1 text-sm text-muted-foreground">{pageSubtitle}</p>
@@ -550,7 +550,7 @@ export default function PrivacyTemplatePage() {
       </div>
 
       {/* Full catalog — collapsible categories */}
-      <div className="space-y-2">
+      <div className="grid items-start gap-2 lg:grid-cols-2">
         {categories.map((cat) => {
           const Icon = categoryIcons[cat.category] ?? Briefcase;
           const isExpanded = expandedCategories.has(cat.category);

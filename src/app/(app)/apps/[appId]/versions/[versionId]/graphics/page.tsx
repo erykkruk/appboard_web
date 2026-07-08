@@ -208,7 +208,7 @@ export default function StoreGraphicsPage() {
   const { versionString, state } = detail.data;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-5 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -258,6 +258,7 @@ export default function StoreGraphicsPage() {
         </Select>
       </div>
 
+      <div className="grid items-start gap-5 lg:grid-cols-2">
       {/* Feature Graphic */}
       <SingleAssetSection
         title="Feature Graphic"
@@ -306,6 +307,7 @@ export default function StoreGraphicsPage() {
         isDeleting={deleteAsset.isPending}
         disabled={!hasLanguage}
       />
+      </div>
     </div>
   );
 }

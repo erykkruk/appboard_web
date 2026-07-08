@@ -256,7 +256,7 @@ export default function ReviewsManager() {
   const syncReviews = useSyncReviews(appId);
 
   return (
-    <div className="mx-auto max-w-4xl p-6">
+    <div className="mx-auto w-full max-w-6xl p-6">
       {stats.isLoading && (
         <div className="mb-6 grid gap-4 md:grid-cols-2">
           <Skeleton className="h-40 rounded-xl" />
@@ -361,7 +361,7 @@ export default function ReviewsManager() {
       </div>
 
       {reviews.isLoading && (
-        <div className="space-y-4">
+        <div className="grid gap-4 lg:grid-cols-2">
           {[1, 2, 3].map((i) => (
             <Skeleton key={i} className="h-36 rounded-xl" />
           ))}
@@ -388,7 +388,7 @@ export default function ReviewsManager() {
       )}
 
       {reviews.data && reviews.data.length > 0 && (
-        <div className="space-y-4">
+        <div className="grid items-start gap-4 lg:grid-cols-2">
           {reviews.data.map((review) => (
             <ReviewCard
               key={review.id}

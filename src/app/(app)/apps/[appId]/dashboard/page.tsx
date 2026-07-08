@@ -78,7 +78,7 @@ export default function AppDashboardPage() {
   const stats = reviewStats.data;
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
       {/* App header */}
       <div className="flex items-center gap-4">
         {data.iconUrl ? (
@@ -106,7 +106,9 @@ export default function AppDashboardPage() {
         </Badge>
       </div>
 
-      {/* Stats grid */}
+      {/* Stats + rating */}
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
       <div className="grid grid-cols-2 gap-4">
         {/* Version */}
         <Card>
@@ -174,6 +176,26 @@ export default function AppDashboardPage() {
         </Card>
       </div>
 
+      {/* Pending changes summary */}
+      {overview.data?.hasPendingChanges && (
+        <Card className="border-amber-500/20">
+          <CardContent className="flex items-center gap-3 py-4">
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
+              <Download className="h-4 w-4 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-sm font-medium">Pending changes</p>
+              <p className="text-xs text-muted-foreground">
+                {overview.data.listings.count} listing change(s),{" "}
+                {overview.data.assets.count} asset change(s) ready to publish.
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+        </div>
+
+        <div className="space-y-6">
       {/* Rating distribution */}
       {stats && stats.totalReviews > 0 && (
         <Card>
@@ -207,24 +229,8 @@ export default function AppDashboardPage() {
           </CardContent>
         </Card>
       )}
-
-      {/* Pending changes summary */}
-      {overview.data?.hasPendingChanges && (
-        <Card className="border-amber-500/20">
-          <CardContent className="flex items-center gap-3 py-4">
-            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-amber-500/10">
-              <Download className="h-4 w-4 text-amber-500" />
-            </div>
-            <div>
-              <p className="text-sm font-medium">Pending changes</p>
-              <p className="text-xs text-muted-foreground">
-                {overview.data.listings.count} listing change(s),{" "}
-                {overview.data.assets.count} asset change(s) ready to publish.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+        </div>
+      </div>
     </div>
   );
 }

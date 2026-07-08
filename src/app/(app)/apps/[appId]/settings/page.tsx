@@ -56,7 +56,7 @@ export default function AppSettingsPage() {
 	return (
 		<div className="flex flex-1 flex-col">
 			<PageHeader title="App Settings" />
-			<div className="mx-auto w-full max-w-2xl space-y-6 p-6">
+			<div className="mx-auto w-full max-w-4xl space-y-6 p-6">
 				<Card>
 					<CardHeader>
 						<CardTitle>AI Prompts</CardTitle>

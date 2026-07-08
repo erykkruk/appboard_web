@@ -502,7 +502,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
 
   if (app.isLoading || profile.isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 p-6">
+      <div className="mx-auto w-full max-w-6xl space-y-4 p-6">
         <Skeleton className="h-24 w-full rounded-xl" />
         <Skeleton className="h-48 w-full rounded-xl" />
         <Skeleton className="h-36 w-full rounded-xl" />
@@ -565,7 +565,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
 
   return (
     <TooltipProvider>
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
       {/* App header */}
       <div className="flex items-center gap-4">
         {data.iconUrl ? (
@@ -626,6 +626,8 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
         </div>
       )}
 
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
       {/* REQUIRED: Core Information */}
       <Card>
         <CardHeader className="pb-2">
@@ -729,7 +731,9 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           </div>
         </CardContent>
       </Card>
+        </div>
 
+        <div className="space-y-6">
       {/* Optional sections */}
       <Section title="Audience & Target">
         <TextField
@@ -924,6 +928,8 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           />
         </div>
       </Section>
+        </div>
+      </div>
     </div>
 
       {/* Copy From Dialog */}

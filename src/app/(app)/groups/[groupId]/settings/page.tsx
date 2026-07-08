@@ -20,7 +20,7 @@ export default function GroupSettingsPage() {
 
   if (groups.isLoading) {
     return (
-      <div className="mx-auto max-w-2xl space-y-4 p-6">
+      <div className="mx-auto w-full max-w-6xl space-y-4 p-6">
         <Skeleton className="h-24 w-full rounded-xl" />
         <Skeleton className="h-36 w-full rounded-xl" />
       </div>
@@ -70,9 +70,10 @@ export default function GroupSettingsPage() {
   };
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6 p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
       <h1 className="text-xl font-bold tracking-tight">Group Settings</h1>
 
+      <div className="grid items-start gap-6 lg:grid-cols-2">
       {/* General settings */}
       <Card>
         <CardHeader className="pb-2">
@@ -135,6 +136,7 @@ export default function GroupSettingsPage() {
           </div>
         </CardContent>
       </Card>
+      </div>
     </div>
   );
 }

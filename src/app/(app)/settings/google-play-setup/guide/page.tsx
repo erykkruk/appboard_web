@@ -146,7 +146,7 @@ export default function GooglePlaySetupGuidePage() {
 	const script = generateScript(projectId);
 
 	return (
-		<div className="mx-auto w-full max-w-2xl space-y-6 p-6">
+		<div className="mx-auto w-full max-w-4xl space-y-6 p-6">
 			<div>
 				<Link
 					href="/settings/google-play-setup"

@@ -6,6 +6,7 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  Pencil,
   RefreshCw,
   Trash2,
 } from "lucide-react";
@@ -22,6 +23,13 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -39,10 +47,12 @@ import { useAutoSave } from "@/hooks/use-auto-save";
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
 import {
   useDisconnectStore,
+  useRenameStore,
   useStores,
   useSyncAllStores,
   useSyncStore,
 } from "@/hooks/use-stores";
+import type { Store } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const OTHER_VALUE = "__other__";
@@ -189,6 +199,9 @@ export default function SettingsGeneralPage() {
   const disconnectStore = useDisconnectStore();
   const syncStore = useSyncStore();
   const syncAllStores = useSyncAllStores();
+  const renameStore = useRenameStore();
+  const [renamingStore, setRenamingStore] = useState<Store | null>(null);
+  const [renameValue, setRenameValue] = useState("");
 
   useEffect(() => {
     if (settings.data) {
@@ -261,6 +274,29 @@ export default function SettingsGeneralPage() {
     }
   };
 
+  const openRename = (store: Store) => {
+    setRenamingStore(store);
+    setRenameValue(store.name);
+  };
+
+  const handleRename = async () => {
+    if (!renamingStore) return;
+    const name = renameValue.trim();
+    if (!name) {
+      toast.error("Store name cannot be empty");
+      return;
+    }
+    try {
+      await renameStore.mutateAsync({ id: renamingStore.id, name });
+      toast.success("Store renamed");
+      setRenamingStore(null);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to rename store",
+      );
+    }
+  };
+
   const handleSync = async (storeId: string) => {
     try {
       await syncStore.mutateAsync(storeId);
@@ -283,7 +319,9 @@ export default function SettingsGeneralPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6 p-6">
+    <div className="mx-auto w-full max-w-6xl p-6">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>Connected Stores</CardTitle>
@@ -394,6 +432,15 @@ export default function SettingsGeneralPage() {
                       <Button
                         variant="ghost"
                         size="icon"
+                        className="h-8 w-8"
+                        onClick={() => openRename(store)}
+                        aria-label="Rename store"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
                         className="h-8 w-8 text-destructive"
                         onClick={() => handleDisconnect(store.id)}
                         disabled={isDisconnectingRow}
@@ -439,8 +486,71 @@ export default function SettingsGeneralPage() {
         </CardContent>
       </Card>
 
+      <Dialog
+        open={renamingStore !== null}
+        onOpenChange={(open) => {
+          if (!open) setRenamingStore(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Rename store</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="store-name">Store name</Label>
+            <Input
+              id="store-name"
+              value={renameValue}
+              onChange={(e) => setRenameValue(e.target.value)}
+              maxLength={255}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleRename();
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setRenamingStore(null)}
+              disabled={renameStore.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleRename}
+              disabled={renameStore.isPending || !renameValue.trim()}
+            >
+              {renameStore.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <VaultSettingsCard />
 
+      <Card>
+        <CardHeader>
+          <CardTitle>About</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Version</span>
+            <span>0.1.0</span>
+          </div>
+          <Separator />
+          <div className="flex justify-between text-sm">
+            <span className="text-muted-foreground">Framework</span>
+            <span>Next.js 15</span>
+          </div>
+        </CardContent>
+      </Card>
+        </div>
+
+        <div className="space-y-6">
       <Card>
         <CardHeader>
           <CardTitle>AI Configuration</CardTitle>
@@ -583,23 +693,8 @@ export default function SettingsGeneralPage() {
 
         </CardContent>
       </Card>
-
-      <Card>
-        <CardHeader>
-          <CardTitle>About</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Version</span>
-            <span>0.1.0</span>
-          </div>
-          <Separator />
-          <div className="flex justify-between text-sm">
-            <span className="text-muted-foreground">Framework</span>
-            <span>Next.js 15</span>
-          </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
     </div>
   );
 }

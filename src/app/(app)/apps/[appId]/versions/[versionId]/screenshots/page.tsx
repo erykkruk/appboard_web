@@ -483,7 +483,7 @@ export default function VersionScreenshotsPage() {
   const hasLanguage = !!activeLang;
 
   return (
-    <div className="mx-auto max-w-5xl space-y-5 p-6">
+    <div className="mx-auto w-full max-w-7xl space-y-5 p-6">
       {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
@@ -701,7 +701,7 @@ export default function VersionScreenshotsPage() {
                                 setCopyTextToo(v === true)
                               }
                             />
-                            Skopiuj też teksty (tytuł, opis, słowa kluczowe…)
+                            Also copy texts (title, description, keywords…)
                           </label>
                         </div>
                       )}
@@ -840,7 +840,7 @@ export default function VersionScreenshotsPage() {
                                 onCheckedChange={(v) => setCopyTextToo(v === true)}
                                 className="mt-0.5"
                               />
-                              Skopiuj też teksty (tytuł, opis, słowa kluczowe…)
+                              Also copy texts (title, description, keywords…)
                             </label>
                           </PopoverContent>
                         </Popover>
@@ -862,7 +862,7 @@ export default function VersionScreenshotsPage() {
                   </div>
                   {dimensionWarning && !uploadError && (
                     <p className="mt-2 text-xs text-amber-600 dark:text-amber-500">
-                      {dimensionWarning} Możesz to skorygować podczas kadrowania.
+                      {dimensionWarning} You can correct this while cropping.
                     </p>
                   )}
                   {uploadError && (

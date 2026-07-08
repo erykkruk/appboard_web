@@ -150,7 +150,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="mx-auto max-w-4xl space-y-6 p-6">
+    <div className="mx-auto w-full max-w-7xl space-y-6 p-6">
       <div>
         <h1 className="text-xl font-bold tracking-tight">All Apps</h1>
         <p className="mt-1 text-sm text-muted-foreground">
@@ -159,7 +159,7 @@ export default function DashboardPage() {
         </p>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
         {appsList.map((app) => (
           <AppCard key={app.id} app={app} />
         ))}

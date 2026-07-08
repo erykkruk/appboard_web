@@ -195,7 +195,7 @@ export default function LanguagesPage() {
   const isEditable = EDITABLE_STATES.has(state);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -383,7 +383,7 @@ export default function LanguagesPage() {
           No languages added to this version yet.
         </p>
       ) : (
-        <div className="space-y-2">
+        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {localizations
             .slice()
             .sort((a, b) => a.language.localeCompare(b.language))

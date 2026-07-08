@@ -174,7 +174,9 @@ export default function PublishPage() {
   const gpConsoleUrl = getGpConsolePublishingUrl(app.data?.externalId);
 
   return (
-    <div className="mx-auto max-w-3xl space-y-6 p-6">
+    <div className="mx-auto w-full max-w-6xl p-6">
+      <div className="grid items-start gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
       {/* Managed Publishing — Google Play only */}
       {!isIos && (
         <Card>
@@ -357,7 +359,9 @@ export default function PublishPage() {
           </CardContent>
         </Card>
       )}
+        </div>
 
+        <div className="space-y-6">
       {/* Pending Listing Changes */}
       <Card>
         <CardHeader className="pb-3">
@@ -547,6 +551,8 @@ export default function PublishPage() {
           </CardContent>
         </Card>
       )}
+        </div>
+      </div>
     </div>
   );
 }

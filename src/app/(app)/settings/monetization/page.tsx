@@ -85,14 +85,14 @@ export default function SettingsMonetizationPage() {
   };
 
   return (
-    <div className="mx-auto w-full max-w-2xl space-y-6 p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
       <Tabs defaultValue="prompts">
         <TabsList>
           <TabsTrigger value="prompts">Prompts</TabsTrigger>
           <TabsTrigger value="guide">Guide</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="prompts" className="space-y-6">
+        <TabsContent value="prompts" className="grid items-start gap-6 lg:grid-cols-2">
           <Card>
             <CardHeader>
               <CardTitle>Monetization Chat Prompts</CardTitle>

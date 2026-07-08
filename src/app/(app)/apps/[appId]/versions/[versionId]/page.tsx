@@ -1457,7 +1457,7 @@ export default function VersionDetailPage() {
 	];
 
 	return (
-		<div className="mx-auto max-w-3xl space-y-6 p-6">
+		<div className="mx-auto w-full max-w-5xl space-y-6 p-6">
 			{/* Cache banner */}
 			{isFromCache && (
 				<div className="flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-2.5 text-sm text-yellow-200">
@@ -1732,8 +1732,13 @@ export default function VersionDetailPage() {
 				</AlertDialogContent>
 			</AlertDialog>
 
+			{/* Copyright + Categories side by side on large screens */}
+			{(!capData ||
+				capData.publishing.hasVersions ||
+				capData.categories.supported) && (
+			<div className="grid items-start gap-6 lg:grid-cols-2">
 			{/* Copyright (version-level, not language-dependent, iOS only) */}
-			{(!capData || capData.publishing.hasVersions) && <div className="max-w-2xl space-y-1.5">
+			{(!capData || capData.publishing.hasVersions) && <div className="space-y-1.5">
 				<div className="flex items-center justify-between">
 					<Label className="text-sm font-medium" htmlFor="copyright">
 						Copyright
@@ -1774,7 +1779,7 @@ export default function VersionDetailPage() {
 			{(!capData || capData.categories.supported) &&
 				categoriesData &&
 				categoriesData.availableCategories.length > 0 && (
-					<div className="max-w-2xl space-y-3">
+					<div className="space-y-3">
 						<div className="flex items-center justify-between">
 							<Label className="text-sm font-medium">
 								Categories
@@ -1872,6 +1877,8 @@ export default function VersionDetailPage() {
 						</div>
 					</div>
 				)}
+			</div>
+			)}
 
 			{/* No localizations */}
 			{localizations.length === 0 ? (
@@ -1884,7 +1891,7 @@ export default function VersionDetailPage() {
 					Select a language to view its listing.
 				</p>
 			) : (
-				<div className="max-w-2xl space-y-6">
+				<div className="space-y-6">
 					{visibleFields.map((field) => {
 						const activeLang =
 							fieldLangOverrides[field.key] ||

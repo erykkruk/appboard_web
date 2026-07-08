@@ -190,13 +190,13 @@ export default function ReviewPage() {
   const attachments = reviewDetail.data?.attachments ?? [];
 
   return (
-    <div className="mx-auto max-w-5xl space-y-6 p-6">
+    <div className="mx-auto w-full max-w-5xl space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">App Review Information</h1>
       </div>
 
-      <div className="max-w-5xl space-y-8">
+      <div className="space-y-8">
         {/* Sign-In Information + Contact Information */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Sign-In Information */}
@@ -329,6 +329,8 @@ export default function ReviewPage() {
           </div>
         </div>
 
+        {/* Notes + Attachments side by side on large screens */}
+        <div className="grid items-start gap-8 lg:grid-cols-2">
         {/* Notes */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
@@ -444,6 +446,7 @@ export default function ReviewPage() {
               ))}
             </div>
           )}
+        </div>
         </div>
       </div>
     </div>

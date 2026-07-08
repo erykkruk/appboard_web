@@ -97,7 +97,7 @@ export default function GooglePlaySetupPage() {
 
 	if (isConnecting) {
 		return (
-			<div className="mx-auto w-full max-w-2xl p-6">
+			<div className="mx-auto w-full max-w-4xl p-6">
 				<div className="flex flex-col items-center justify-center py-12">
 					<Loader2 className="mb-4 h-12 w-12 animate-spin text-foreground" />
 					<h3 className="text-lg font-semibold">Connecting...</h3>
@@ -111,7 +111,7 @@ export default function GooglePlaySetupPage() {
 
 	if (connectResult) {
 		return (
-			<div className="mx-auto w-full max-w-2xl p-6">
+			<div className="mx-auto w-full max-w-4xl p-6">
 				<div className="flex flex-col items-center justify-center py-12">
 					<CheckCircle2 className="mb-4 h-12 w-12 text-green-500" />
 					<h3 className="text-lg font-semibold">Connected!</h3>
@@ -142,7 +142,7 @@ export default function GooglePlaySetupPage() {
 	}
 
 	return (
-		<div className="mx-auto w-full max-w-2xl space-y-6 p-6">
+		<div className="mx-auto w-full max-w-4xl space-y-6 p-6">
 			<div>
 				<h1 className="text-2xl font-bold tracking-tight">
 					Google Play Credentials

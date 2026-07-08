@@ -46,7 +46,7 @@ export default function SetupPage() {
     : "https://play.google.com/console";
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-10">
+    <div className="mx-auto w-full max-w-4xl px-6 py-10">
       <div className="flex items-start gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-amber-500/10">
           <AlertTriangle className="h-5 w-5 text-amber-500" />

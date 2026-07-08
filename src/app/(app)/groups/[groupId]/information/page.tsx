@@ -205,7 +205,7 @@ function AsoProfileForm({
   disabled?: boolean;
 }) {
   return (
-    <>
+    <div className="grid items-start gap-6 lg:grid-cols-2">
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm font-medium">Core Information</CardTitle>
@@ -261,7 +261,7 @@ function AsoProfileForm({
         <MultiInput label="Long-tail Keywords" values={arr("longTailKeywords")} onChange={(v) => set("longTailKeywords", v.length ? v : null)} placeholder="Add a phrase..." hint={FIELD_HINTS.longTailKeywords} disabled={disabled} />
         <MultiInput label="Exclude Keywords" values={arr("excludeKeywords")} onChange={(v) => set("excludeKeywords", v.length ? v : null)} placeholder="Add a keyword..." hint={FIELD_HINTS.excludeKeywords} disabled={disabled} />
       </Section>
-    </>
+    </div>
   );
 }
 
@@ -486,7 +486,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
 
   if (groups.isLoading || groupProfile.isLoading) {
     return (
-      <div className="mx-auto max-w-3xl space-y-4 p-6">
+      <div className="mx-auto w-full max-w-6xl space-y-4 p-6">
         <Skeleton className="h-24 w-full rounded-xl" />
         <Skeleton className="h-48 w-full rounded-xl" />
       </div>
@@ -503,7 +503,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
 
   return (
     <TooltipProvider>
-      <div className="mx-auto max-w-3xl space-y-6 p-6">
+      <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div>

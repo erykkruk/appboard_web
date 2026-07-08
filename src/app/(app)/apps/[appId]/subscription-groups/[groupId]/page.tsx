@@ -144,7 +144,7 @@ export default function SubscriptionGroupDetailPage() {
 
 	if (isLoading) {
 		return (
-			<div className="mx-auto max-w-4xl space-y-4 p-6">
+			<div className="mx-auto w-full max-w-6xl space-y-4 p-6">
 				<Skeleton className="h-8 w-64" />
 				<Skeleton className="h-40 rounded-xl" />
 			</div>
@@ -162,7 +162,7 @@ export default function SubscriptionGroupDetailPage() {
 	}
 
 	return (
-		<div className="mx-auto max-w-4xl space-y-6 p-6">
+		<div className="mx-auto w-full max-w-6xl space-y-6 p-6">
 			{/* Breadcrumb */}
 			<nav className="flex items-center gap-1 text-sm text-muted-foreground">
 				<Link
@@ -322,9 +322,9 @@ function SubscriptionsTab({
 						</Button>
 					</div>
 				</CardHeader>
-				<CardContent className="space-y-3">
+				<CardContent className="grid items-start gap-3 sm:grid-cols-2">
 					{group.subscriptions.length === 0 && (
-						<div className="flex flex-col items-center justify-center gap-2 py-8">
+						<div className="flex flex-col items-center justify-center gap-2 py-8 sm:col-span-2">
 							<Repeat className="h-8 w-8 text-muted-foreground" />
 							<p className="text-sm text-muted-foreground">
 								No subscriptions in this group.

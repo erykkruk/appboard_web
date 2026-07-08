@@ -32,7 +32,7 @@ export default function SettingsFeaturesPage() {
 	};
 
 	return (
-		<div className="mx-auto w-full max-w-2xl space-y-6 p-6">
+		<div className="mx-auto w-full max-w-6xl space-y-6 p-6">
 			<div>
 				<h1 className="text-2xl font-bold tracking-tight">Feature Flags</h1>
 				<p className="text-sm text-muted-foreground">
@@ -64,7 +64,7 @@ export default function SettingsFeaturesPage() {
 					)}
 
 					{features.data && (
-						<div className="space-y-1">
+						<div className="grid items-start gap-3 sm:grid-cols-2">
 							{features.data.definitions.map((definition) => {
 								const checked =
 									features.data.features[definition.key] ?? true;

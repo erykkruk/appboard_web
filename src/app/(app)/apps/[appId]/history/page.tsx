@@ -67,7 +67,7 @@ export default function HistoryPage() {
 		: null;
 
 	return (
-		<div className="mx-auto flex h-full w-full max-w-4xl flex-col gap-4 p-6">
+		<div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-4 p-6">
 			<div>
 				<h1 className="text-2xl font-bold tracking-tight">Change History</h1>
 				<p className="text-sm text-muted-foreground">

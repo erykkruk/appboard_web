@@ -155,7 +155,7 @@ export default function AgeRatingPage() {
   const isIos = app.data?.platform === "ios";
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="mx-auto w-full max-w-5xl p-6 space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-xl font-bold">Age Rating</h1>
         <div className="flex items-center gap-2">
@@ -187,7 +187,7 @@ export default function AgeRatingPage() {
         </div>
       </div>
 
-      <div className="max-w-4xl space-y-8">
+      <div className="space-y-8">
         {/* Info about ASC sync */}
         {isIos && (
           <Alert variant="default" className="border-yellow-500/30 bg-yellow-500/5">
@@ -213,6 +213,8 @@ export default function AgeRatingPage() {
           </Alert>
         )}
 
+        {/* Preset + Rating Summary side by side on larger screens */}
+        <div className="grid items-start gap-6 sm:grid-cols-2">
         {/* Preset Selection */}
         <div className="space-y-2">
           <Label className="text-sm font-semibold">Preset</Label>
@@ -249,6 +251,7 @@ export default function AgeRatingPage() {
               {displayedGoogleRating}
             </Badge>
           </div>
+        </div>
         </div>
 
         {/* Apple Questionnaire */}

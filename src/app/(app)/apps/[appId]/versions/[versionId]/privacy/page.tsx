@@ -272,7 +272,7 @@ export default function PrivacyDeclarationPage() {
   const pageTitle = isAndroid ? "Data Safety" : "Privacy Declaration";
 
   return (
-    <div className="p-6 space-y-6 max-w-4xl">
+    <div className="mx-auto w-full max-w-5xl p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -284,11 +284,13 @@ export default function PrivacyDeclarationPage() {
         </div>
       </div>
 
+      {/* Template + Privacy Policy URL side by side on larger screens */}
+      <div className="grid items-start gap-6 sm:grid-cols-2">
       {/* Template selector */}
       <div className="space-y-2">
         <Label className="text-sm font-semibold">Template</Label>
         <Select value={templateId} onValueChange={handleTemplateChange}>
-          <SelectTrigger className="w-72 bg-[#1a1a1a] border-border">
+          <SelectTrigger className="w-full bg-[#1a1a1a] border-border">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -313,8 +315,9 @@ export default function PrivacyDeclarationPage() {
           value={privacyPolicyUrl}
           onChange={(e) => setPrivacyPolicyUrl(e.target.value)}
           placeholder="https://example.com/privacy"
-          className="max-w-lg bg-[#1a1a1a] border-border"
+          className="bg-[#1a1a1a] border-border"
         />
+      </div>
       </div>
 
       {/* Platform-specific overview section */}

@@ -45,25 +45,27 @@ export default function ResearchPage() {
         description="Analyze store reviews, ASO keywords, markets and competitors for any app"
       />
       <div className="flex-1 overflow-y-auto">
-        <div className="mx-auto w-full max-w-5xl space-y-6 p-6">
-          <AppListSection
-            apps={list.apps}
-            country={country}
-            onAdd={list.add}
-            onRemove={list.remove}
-            onToggle={list.toggle}
-          />
+        <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
+          <div className="grid items-start gap-6 lg:grid-cols-2">
+            <AppListSection
+              apps={list.apps}
+              country={country}
+              onAdd={list.add}
+              onRemove={list.remove}
+              onToggle={list.toggle}
+            />
 
-          <AnalysisOptionsSection
-            country={country}
-            deep={deep}
-            onCountryChange={setCountry}
-            onDeepChange={setDeep}
-            onRun={runAnalysis}
-            progress={pipeline.progress}
-            running={pipeline.running}
-            selectedCount={selected.length}
-          />
+            <AnalysisOptionsSection
+              country={country}
+              deep={deep}
+              onCountryChange={setCountry}
+              onDeepChange={setDeep}
+              onRun={runAnalysis}
+              progress={pipeline.progress}
+              running={pipeline.running}
+              selectedCount={selected.length}
+            />
+          </div>
 
           {results.length > 0 && (
             <Tabs value={currentTab} onValueChange={setActiveTab}>

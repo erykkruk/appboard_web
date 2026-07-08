@@ -448,7 +448,7 @@ export default function OnboardingPage() {
   return (
     <div className="flex flex-1 flex-col">
       <PageHeader title="Connect a Store" />
-      <div className="mx-auto w-full max-w-2xl overflow-y-auto p-6">
+      <div className="mx-auto w-full max-w-4xl overflow-y-auto p-6">
         <div className="mb-8">
           <StepIndicator currentStep={step} totalSteps={TOTAL_STEPS} />
         </div>
