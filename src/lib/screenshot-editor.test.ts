@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+	applyPanelCount,
 	computeDeviceRect,
 	computeDisplayScale,
 	computeImageFit,
@@ -9,6 +10,7 @@ import {
 	createImageAnnotation,
 	defaultFrameForDisplayType,
 	getDisplayTypeLabel,
+	getPanelCount,
 	getTargetDimensions,
 	hitTestAnnotation,
 	hitTestCalloutTarget,
@@ -500,5 +502,60 @@ describe("hitTestCalloutTarget", () => {
 			bg: "#000",
 		};
 		expect(hitTestCalloutTarget(badge, scene, 500, 1200)).toBe(false);
+	});
+});
+
+describe("getPanelCount", () => {
+	test("defaults to 1 when panels is missing", () => {
+		expect(getPanelCount({})).toBe(1);
+		expect(getPanelCount({ panels: undefined })).toBe(1);
+	});
+
+	test("returns the stored panel count", () => {
+		expect(getPanelCount({ panels: 3 })).toBe(3);
+	});
+
+	test("clamps invalid values to 1", () => {
+		expect(getPanelCount({ panels: 0 })).toBe(1);
+		expect(getPanelCount({ panels: Number.NaN })).toBe(1);
+	});
+});
+
+describe("applyPanelCount", () => {
+	test("widens the scene to target width × panels", () => {
+		const scene = createDefaultScene("APP_IPHONE_65");
+		const panorama = applyPanelCount(scene, "APP_IPHONE_65", 3);
+		expect(panorama.width).toBe(1242 * 3);
+		expect(panorama.height).toBe(2688);
+		expect(panorama.panels).toBe(3);
+	});
+
+	test("returns to a single-screen scene for panels = 1", () => {
+		const scene = applyPanelCount(
+			createDefaultScene("APP_IPHONE_65"),
+			"APP_IPHONE_65",
+			4,
+		);
+		const single = applyPanelCount(scene, "APP_IPHONE_65", 1);
+		expect(single.width).toBe(1242);
+		expect(single.panels).toBe(1);
+	});
+
+	test("keeps layers intact when resizing", () => {
+		const scene = createDefaultScene("APP_IPHONE_65");
+		const panorama = applyPanelCount(scene, "APP_IPHONE_65", 2);
+		expect(panorama.textLayers).toEqual(scene.textLayers);
+		expect(panorama.device).toEqual(scene.device);
+	});
+});
+
+describe("computeDeviceRect in panorama mode", () => {
+	test("keeps the frame sized to ONE panel width, not the full canvas", () => {
+		const single = createDefaultScene("APP_IPHONE_65");
+		const singleRect = computeDeviceRect(single);
+		const panorama = applyPanelCount(single, "APP_IPHONE_65", 3);
+		const panoramaRect = computeDeviceRect(panorama);
+		expect(panoramaRect?.width).toBeCloseTo(singleRect?.width ?? 0);
+		expect(panoramaRect?.height).toBeCloseTo(singleRect?.height ?? 0);
 	});
 });

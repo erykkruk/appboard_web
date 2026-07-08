@@ -721,6 +721,12 @@ export interface SceneData {
 	annotations?: SceneAnnotation[];
 	/** User-uploaded fonts referenced by text layers/annotations. */
 	customFonts?: SceneCustomFont[];
+	/**
+	 * Panorama panel count (default 1). When > 1 the scene is one wide canvas
+	 * spanning N store screenshots (`width` = target width × panels); export
+	 * splits it back into N images. Persisted in the opaque `jsonb` scene.
+	 */
+	panels?: number;
 }
 
 export interface ScreenshotScene {

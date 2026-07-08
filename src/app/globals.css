@@ -127,3 +127,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* Always-visible horizontal scrollbar (macOS hides overlay scrollbars until
+   scroll — screenshot strips need the affordance visible immediately). */
+.scrollbar-always {
+  scrollbar-width: thin;
+  scrollbar-color: var(--muted-foreground) var(--muted);
+}
+.scrollbar-always::-webkit-scrollbar {
+  height: 8px;
+  width: 8px;
+}
+.scrollbar-always::-webkit-scrollbar-track {
+  background: var(--muted);
+  border-radius: 9999px;
+}
+.scrollbar-always::-webkit-scrollbar-thumb {
+  background: var(--muted-foreground);
+  border-radius: 9999px;
+}

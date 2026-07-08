@@ -111,13 +111,14 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 			return () => observer.disconnect();
 		}, [scene.width, scene.height]);
 
-		// Redraw whenever the scene, decoded images or loaded fonts change.
+		// Redraw whenever the scene, decoded images or loaded fonts change. The
+		// live preview shows panorama split guides; the export path does not.
 		useEffect(() => {
 			const canvas = canvasRef.current;
 			if (!canvas) return;
 			const ctx = canvas.getContext("2d");
 			if (!ctx) return;
-			renderScene(ctx, scene, images);
+			renderScene(ctx, scene, images, { splitGuides: true });
 		}, [scene, images, fontsVersion]);
 
 		useImperativeHandle(

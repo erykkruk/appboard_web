@@ -721,7 +721,7 @@ export default function VersionScreenshotsPage() {
                         items={currentScreenshots.map((s) => s.externalId)}
                         strategy={horizontalListSortingStrategy}
                       >
-                        <div className="flex gap-3 overflow-x-auto pb-2">
+                        <div className="scrollbar-always flex gap-3 overflow-x-auto pb-2">
                           {currentScreenshots.map((s, i) => (
                             <SortableScreenshot
                               key={s.externalId}

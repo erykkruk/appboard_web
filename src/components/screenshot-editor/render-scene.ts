@@ -2,6 +2,7 @@ import {
 	buildFontString,
 	computeDeviceRect,
 	computeImageFit,
+	getPanelCount,
 	measureAnnotationBox,
 	resolveTextPosition,
 	type Rect,
@@ -537,10 +538,35 @@ export function renderScene(
 	ctx: CanvasRenderingContext2D,
 	scene: SceneData,
 	images: RenderImages,
+	options?: { splitGuides?: boolean },
 ): void {
 	ctx.clearRect(0, 0, scene.width, scene.height);
 	drawBackground(ctx, scene, images);
 	drawDeviceFrame(ctx, scene, images);
 	drawTextLayers(ctx, scene);
 	drawAnnotations(ctx, scene, images);
+	if (options?.splitGuides) drawSplitGuides(ctx, scene);
+}
+
+/**
+ * Editor-only overlay: dashed vertical lines where a panorama scene will be
+ * split into individual store screenshots. Never drawn on export — the caller
+ * opts in for the live preview only.
+ */
+function drawSplitGuides(ctx: CanvasRenderingContext2D, scene: SceneData): void {
+	const panels = getPanelCount(scene);
+	if (panels < 2) return;
+	const panelWidth = scene.width / panels;
+	ctx.save();
+	ctx.strokeStyle = "rgba(255, 255, 255, 0.75)";
+	ctx.lineWidth = Math.max(2, Math.round(scene.width / 1000));
+	ctx.setLineDash([scene.height * 0.02, scene.height * 0.012]);
+	for (let i = 1; i < panels; i++) {
+		const x = Math.round(panelWidth * i);
+		ctx.beginPath();
+		ctx.moveTo(x, 0);
+		ctx.lineTo(x, scene.height);
+		ctx.stroke();
+	}
+	ctx.restore();
 }

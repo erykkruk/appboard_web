@@ -17,9 +17,17 @@ import {
 	useUpdateScreenshotScene,
 } from "@/hooks/use-screenshot-scenes";
 import {
+	useSplitUploadScreenshots,
 	useUploadScreenshot,
 	useVersionScreenshots,
 } from "@/hooks/use-publishing";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "@/components/ui/select";
 import { getScreenshotDimensionError } from "@/lib/api";
 import {
 	dedupeFontFamily,
@@ -27,10 +35,12 @@ import {
 	sanitizeFontFamilyName,
 } from "@/lib/scene-fonts";
 import {
+	applyPanelCount,
 	createDefaultAnnotation,
 	createDefaultScene,
 	createImageAnnotation,
 	getDisplayTypeLabel,
+	getPanelCount,
 	getTargetDimensions,
 } from "@/lib/screenshot-editor";
 import { buildDimensionMessage } from "@/lib/screenshot-validation";
@@ -134,6 +144,7 @@ export function ScreenshotEditorDialog({
 	const createScene = useCreateScreenshotScene(appId);
 	const updateScene = useUpdateScreenshotScene(appId);
 	const uploadScreenshot = useUploadScreenshot(appId, versionId);
+	const splitUpload = useSplitUploadScreenshots(appId, versionId);
 	// Screenshots already uploaded for this app/version (incl. panorama splits),
 	// so the editor can reuse them as the device screenshot from the DB.
 	const existingScreenshots = useVersionScreenshots(appId, versionId);
@@ -440,6 +451,17 @@ export function ScreenshotEditorDialog({
 		}
 	};
 
+	const panels = getPanelCount(scene);
+
+	const handlePanelsChange = useCallback(
+		(value: string) => {
+			const count = Number.parseInt(value, 10);
+			if (!Number.isFinite(count) || count < 1) return;
+			setScene((prev) => applyPanelCount(prev, displayType, count));
+		},
+		[displayType],
+	);
+
 	const handleExportUpload = async () => {
 		const blob = await canvasRef.current?.exportPng();
 		if (!blob) {
@@ -453,8 +475,22 @@ export function ScreenshotEditorDialog({
 			type: "image/png",
 		});
 		try {
-			await uploadScreenshot.mutateAsync({ displayType, file, language });
-			toast.success(`Uploaded screenshot ${w}×${h}px`);
+			if (panels > 1) {
+				// Panorama: upload the wide PNG once; the backend slices it into
+				// `panels` store screenshots at the exact target size.
+				await splitUpload.mutateAsync({
+					displayType,
+					file,
+					language,
+					parts: panels,
+					targetHeight: h,
+					targetWidth: w,
+				});
+				toast.success(`Uploaded panorama as ${panels} screenshots ${w}×${h}px`);
+			} else {
+				await uploadScreenshot.mutateAsync({ displayType, file, language });
+				toast.success(`Uploaded screenshot ${w}×${h}px`);
+			}
 		} catch (err) {
 			const dimErr = getScreenshotDimensionError(err);
 			if (dimErr) {
@@ -466,7 +502,7 @@ export function ScreenshotEditorDialog({
 	};
 
 	const isSaving = createScene.isPending || updateScene.isPending;
-	const isUploading = uploadScreenshot.isPending;
+	const isUploading = uploadScreenshot.isPending || splitUpload.isPending;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -486,7 +522,21 @@ export function ScreenshotEditorDialog({
 						<span className="text-sm text-muted-foreground">
 							{getDisplayTypeLabel(displayType)} · {language} · {target0}×
 							{target1}px
+							{panels > 1 ? ` × ${panels}` : ""}
 						</span>
+						<Select value={String(panels)} onValueChange={handlePanelsChange}>
+							<SelectTrigger className="w-[150px]" size="sm">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="1">Single screen</SelectItem>
+								{[2, 3, 4, 5].map((n) => (
+									<SelectItem key={n} value={String(n)}>
+										Panorama × {n}
+									</SelectItem>
+								))}
+							</SelectContent>
+						</Select>
 					</div>
 					<div className="flex items-center gap-2">
 						<Button

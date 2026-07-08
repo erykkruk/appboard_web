@@ -111,6 +111,31 @@ export interface Rect {
 	height: number;
 }
 
+/** Number of panorama panels in a scene (1 = a regular single screenshot). */
+export function getPanelCount(scene: Pick<SceneData, "panels">): number {
+	const panels = scene.panels ?? 1;
+	return Number.isFinite(panels) && panels >= 1 ? Math.round(panels) : 1;
+}
+
+/**
+ * Resize a scene to span `panels` store screenshots side by side. The canvas
+ * width becomes target width × panels; layers keep their normalized positions.
+ */
+export function applyPanelCount(
+	scene: SceneData,
+	displayType: string,
+	panels: number,
+): SceneData {
+	const [targetWidth, targetHeight] = getTargetDimensions(displayType);
+	const count = Math.max(1, Math.round(panels));
+	return {
+		...scene,
+		height: targetHeight,
+		panels: count,
+		width: targetWidth * count,
+	};
+}
+
 /**
  * Compute the on-canvas pixel rect of the device frame from the scene's device
  * config. `scale` is the fraction of canvas width the frame spans; `offsetX/Y`
@@ -119,7 +144,9 @@ export interface Rect {
 export function computeDeviceRect(scene: SceneData): Rect | null {
 	if (!scene.device) return null;
 	const { scale, offsetX, offsetY } = scene.device;
-	const frameWidth = scene.width * scale;
+	// In panorama mode `scale` stays a fraction of ONE panel's width, so the
+	// frame keeps its size when the canvas widens to N panels.
+	const frameWidth = (scene.width / getPanelCount(scene)) * scale;
 	// iPhone aspect ratio ~ 2.16 (height/width) for a typical 9:19.5 device body.
 	const frameHeight = frameWidth * 2.05;
 	const centerX = scene.width / 2 + offsetX * scene.width;
