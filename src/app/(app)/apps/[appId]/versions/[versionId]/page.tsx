@@ -16,7 +16,7 @@ import {
 	Upload,
 	X,
 } from "lucide-react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -77,10 +77,13 @@ import { useCapabilities } from "@/hooks/use-capabilities";
 import { useHistory, useRollback } from "@/hooks/use-history";
 import { useListingDiffs } from "@/hooks/use-listing-diffs";
 import {
+	useCreateVersion,
+	usePublishingOverview,
 	useSyncVersions,
 	useUpdateCopyright,
 	useUpdateLocalization,
 	useVersionDetail,
+	useVersions,
 } from "@/hooks/use-publishing";
 import { api } from "@/lib/api";
 import { computeDiff } from "@/lib/diff";
@@ -243,6 +246,32 @@ function getLanguageLabel(locale: string): string {
 	return found ? found.label : locale;
 }
 
+// Suggest the next version by incrementing the last numeric segment (e.g. 1.3.1
+// → 1.3.2). Used as a fallback when the backend has no suggested version yet.
+function bumpVersion(version: string): string {
+	const parts = version.split(".");
+	const lastIndex = parts.length - 1;
+	const last = Number.parseInt(parts[lastIndex] ?? "", 10);
+	if (Number.isNaN(last)) return version;
+	parts[lastIndex] = String(last + 1);
+	return parts.join(".");
+}
+
+// Transparent overlay that sits on top of a locked (read-only) field. Disabled
+// inputs don't emit click events, so this captures the click and lets us prompt
+// the user to create a new, editable version.
+function LockedFieldOverlay({ onClick }: { onClick: () => void }) {
+	return (
+		<button
+			aria-label="This version is locked — create a new version to edit"
+			className="absolute inset-0 z-30 cursor-pointer rounded-md"
+			onClick={onClick}
+			title="This version is locked — create a new version to edit"
+			type="button"
+		/>
+	);
+}
+
 type FieldData = Record<string, string>;
 
 function buildFieldData(loc: VersionLocalization): FieldData {
@@ -353,6 +382,11 @@ export default function VersionDetailPage() {
 	const updateLoc = useUpdateLocalization(params.appId, params.versionId);
 	const updateCopyright = useUpdateCopyright(params.appId, params.versionId);
 	const syncVersions = useSyncVersions(params.appId);
+	const router = useRouter();
+	const versions = useVersions(params.appId);
+	const publishingOverview = usePublishingOverview(params.appId);
+	const createVersion = useCreateVersion(params.appId);
+	const [lockedDialogOpen, setLockedDialogOpen] = useState(false);
 	const [selectedLanguage, setSelectedLanguage] = useState<string>("");
 	// Multi-language form data keyed by locale
 	const [allFormData, setAllFormData] = useState<Record<string, FieldData>>(
@@ -1361,6 +1395,41 @@ export default function VersionDetailPage() {
 	const isFromCache = detail.data.source === "cache";
 	const hasAnyContent = visibleAiFields.some((f) => !!formData[f]);
 
+	// Locked (read-only) version: when the user clicks a disabled field, offer to
+	// create a new editable version — or jump to an existing editable one.
+	const versionsSupported = !capData || capData.publishing.hasVersions;
+	const lockedEditEnabled = !isEditable && versionsSupported;
+	const editableVersion = versions.data?.find(
+		(v) => v.isEditable && v.id !== params.versionId,
+	);
+	const suggestedVersion =
+		publishingOverview.data?.version?.suggestedVersion ||
+		bumpVersion(versionString);
+
+	const openLockedDialog = () => setLockedDialogOpen(true);
+
+	const handleGoToEditableVersion = () => {
+		if (!editableVersion) return;
+		setLockedDialogOpen(false);
+		router.push(`/apps/${params.appId}/versions/${editableVersion.id}`);
+	};
+
+	const handleCreateVersionToEdit = async () => {
+		try {
+			await createVersion.mutateAsync(suggestedVersion);
+			toast.success(`Version ${suggestedVersion} created`);
+			const { data } = await versions.refetch();
+			const created =
+				data?.find((v) => v.versionString === suggestedVersion) ??
+				data?.find((v) => v.isEditable);
+			if (created) {
+				router.push(`/apps/${params.appId}/versions/${created.id}`);
+			}
+		} catch {
+			toast.error("Failed to create version");
+		}
+	};
+
 	const sortedLocalizations = localizations
 		.slice()
 		.sort((a, b) => a.language.localeCompare(b.language));
@@ -1738,7 +1807,10 @@ export default function VersionDetailPage() {
 				capData.categories.supported) && (
 			<div className="grid items-start gap-6 lg:grid-cols-2">
 			{/* Copyright (version-level, not language-dependent, iOS only) */}
-			{(!capData || capData.publishing.hasVersions) && <div className="space-y-1.5">
+			{(!capData || capData.publishing.hasVersions) && <div className="relative space-y-1.5">
+				{lockedEditEnabled && (
+					<LockedFieldOverlay onClick={openLockedDialog} />
+				)}
 				<div className="flex items-center justify-between">
 					<Label className="text-sm font-medium" htmlFor="copyright">
 						Copyright
@@ -1803,7 +1875,10 @@ export default function VersionDetailPage() {
 								)}
 							</div>
 						</div>
-						<div className="grid grid-cols-2 gap-4">
+						<div className="relative grid grid-cols-2 gap-4">
+							{lockedEditEnabled && (
+								<LockedFieldOverlay onClick={openLockedDialog} />
+							)}
 							<div className="space-y-1.5">
 								<Label className="text-xs text-muted-foreground">
 									Primary Category
@@ -2086,6 +2161,9 @@ export default function VersionDetailPage() {
 								)}
 
 								<div className="relative">
+									{lockedEditEnabled && (
+										<LockedFieldOverlay onClick={openLockedDialog} />
+									)}
 									{(isGeneratingAll || isTranslatingAll || translatingField === field.key) &&
 										isAiField && (
 											<div className="absolute inset-0 z-10 flex items-center justify-center rounded-md bg-background/60 backdrop-blur-[1px]">
@@ -2255,6 +2333,45 @@ export default function VersionDetailPage() {
 					platform={appData.data?.platform ?? "ios"}
 				/>
 			)}
+
+			{/* Locked version → prompt to create or switch to an editable version */}
+			<AlertDialog
+				onOpenChange={setLockedDialogOpen}
+				open={lockedDialogOpen}
+			>
+				<AlertDialogContent>
+					<AlertDialogHeader>
+						<AlertDialogTitle>
+							{editableVersion
+								? "Switch to an editable version"
+								: "Create a new version to edit"}
+						</AlertDialogTitle>
+						<AlertDialogDescription>
+							{editableVersion
+								? `Version ${versionString} is ${STATE_LABELS[state] ?? state} and can't be edited. Version ${editableVersion.versionString} is editable — switch to it to make your changes.`
+								: `Version ${versionString} is ${STATE_LABELS[state] ?? state} and can't be edited. Create version ${suggestedVersion} to make changes — your current listing content will be copied over.`}
+						</AlertDialogDescription>
+					</AlertDialogHeader>
+					<AlertDialogFooter>
+						<AlertDialogCancel>Cancel</AlertDialogCancel>
+						<AlertDialogAction
+							disabled={createVersion.isPending}
+							onClick={
+								editableVersion
+									? handleGoToEditableVersion
+									: handleCreateVersionToEdit
+							}
+						>
+							{createVersion.isPending && (
+								<Loader2 className="mr-2 h-4 w-4 animate-spin" />
+							)}
+							{editableVersion
+								? `Go to version ${editableVersion.versionString}`
+								: "Create new version"}
+						</AlertDialogAction>
+					</AlertDialogFooter>
+				</AlertDialogContent>
+			</AlertDialog>
 
 			{/* History sheet */}
 			<Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
