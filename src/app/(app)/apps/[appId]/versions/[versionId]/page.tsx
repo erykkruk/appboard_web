@@ -2,6 +2,7 @@
 
 import {
 	AlertCircle,
+	CalendarDays,
 	Clock,
 	Download,
 	Globe,
@@ -30,6 +31,7 @@ import {
 	AlertDialogTitle,
 	AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
 	DropdownMenu,
@@ -47,6 +49,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import {
 	Sheet,
 	SheetContent,
@@ -54,6 +57,7 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@/components/ui/sheet";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { ActionsMenu } from "@/components/actions-menu";
 import type { ActionsMenuAction } from "@/components/actions-menu";
@@ -82,7 +86,11 @@ import { api } from "@/lib/api";
 import { computeDiff } from "@/lib/diff";
 import { getListingFieldLabel } from "@/lib/field-labels";
 import {
+	type ChangeSinceDate,
+	computeChangesSinceDate,
 	formatPreviewDate,
+	formatPreviewDay,
+	listChangeDates,
 	resolvePreviewFormField,
 } from "@/lib/history-preview";
 import {
@@ -296,27 +304,31 @@ function getFieldError(
 }
 
 interface HistoryPreviewDiffProps {
-	entry: HistoryEntry;
+	thenValue: string;
+	thenLabel: string;
 	currentValue: string;
 }
 
 /**
- * Read-only comparison between a historical version value (entry.newValue)
- * and today's draft value. Red segments existed in that version only, green
- * segments exist only in the current draft.
+ * Read-only comparison between a historical value and today's draft value.
+ * Red segments existed in the historical value only, green segments exist
+ * only in the current draft.
  */
-function HistoryPreviewDiff({ entry, currentValue }: HistoryPreviewDiffProps) {
-	const versionValue = entry.newValue ?? "";
+function HistoryPreviewDiff({
+	thenValue,
+	thenLabel,
+	currentValue,
+}: HistoryPreviewDiffProps) {
 	const { segments, mode } = useMemo(
-		() => computeDiff(versionValue, currentValue),
-		[versionValue, currentValue],
+		() => computeDiff(thenValue, currentValue),
+		[thenValue, currentValue],
 	);
 
 	return (
 		<div className="rounded-md border border-primary/40 bg-card p-3">
 			<div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
 				<span className="rounded bg-red-500/20 px-1.5 py-0.5 text-red-400">
-					This version ({formatPreviewDate(entry)})
+					{thenLabel}
 				</span>
 				<span className="rounded bg-green-500/20 px-1.5 py-0.5 text-green-400">
 					Today
@@ -384,8 +396,14 @@ export default function VersionDetailPage() {
 	// Diff + history state
 	const [expandedDiffs, setExpandedDiffs] = useState<Set<string>>(new Set());
 	const [historyOpen, setHistoryOpen] = useState(false);
+	const [translationSettingsOpen, setTranslationSettingsOpen] = useState(false);
+	// Sheet list mode: individual changes vs distinct dates
+	const [historyMode, setHistoryMode] = useState<"change" | "date">("change");
 	// History entry previewed on the main editor (set by clicking a sheet entry)
 	const [previewEntry, setPreviewEntry] = useState<HistoryEntry | null>(null);
+	// Bulk preview: show everything that changed since this date (exclusive
+	// with previewEntry)
+	const [previewSince, setPreviewSince] = useState<Date | null>(null);
 	const diffsQuery = useListingDiffs(params.appId);
 	const historyQuery = useHistory(params.appId, { enabled: historyOpen });
 	const rollbackMutation = useRollback(params.appId);
@@ -548,6 +566,7 @@ export default function VersionDetailPage() {
 	const handleSelectHistoryEntry = useCallback(
 		(entry: HistoryEntry) => {
 			setHistoryOpen(false);
+			setPreviewSince(null);
 			setPreviewEntry(entry);
 			// Switch the editor to the entry's language so the diff shows next
 			// to the actual field being previewed.
@@ -561,8 +580,15 @@ export default function VersionDetailPage() {
 		[handleLanguageChange, localizations, selectedLanguage],
 	);
 
+	const handleSelectHistoryDate = useCallback((date: Date) => {
+		setHistoryOpen(false);
+		setPreviewEntry(null);
+		setPreviewSince(date);
+	}, []);
+
 	const handleCancelPreview = useCallback(() => {
 		setPreviewEntry(null);
+		setPreviewSince(null);
 	}, []);
 
 	const handleRestorePreview = useCallback(async () => {
@@ -572,6 +598,43 @@ export default function VersionDetailPage() {
 			setPreviewEntry(null);
 		}
 	}, [handleHistoryRollback, previewEntry]);
+
+	// Distinct days with changes, for the "By date" sheet mode
+	const changeDates = useMemo(
+		() => listChangeDates(historyQuery.data ?? []),
+		[historyQuery.data],
+	);
+
+	// Bulk preview: everything that changed between previewSince and today.
+	// "Today" is the current editor value when the history field maps to a
+	// visible form input; unmapped fields fall back to their latest history
+	// newValue inside computeChangesSinceDate.
+	const bulkChanges = useMemo(() => {
+		if (!previewSince) return [];
+		const visibleKeys = visibleFields.map((f): string => f.key);
+		return computeChangesSinceDate(
+			historyQuery.data ?? [],
+			previewSince,
+			(language, field) => {
+				const formKey = resolvePreviewFormField(field, visibleKeys);
+				if (!formKey) return null;
+				return allFormData[language]?.[formKey] ?? "";
+			},
+		);
+	}, [allFormData, historyQuery.data, previewSince, visibleFields]);
+
+	const bulkChangesByLanguage = useMemo(() => {
+		const groups = new Map<string, ChangeSinceDate[]>();
+		for (const change of bulkChanges) {
+			const list = groups.get(change.language);
+			if (list) {
+				list.push(change);
+			} else {
+				groups.set(change.language, [change]);
+			}
+		}
+		return Array.from(groups.entries());
+	}, [bulkChanges]);
 
 	const handleFieldLangChange = useCallback(
 		(fieldKey: string, lang: string) => {
@@ -1336,6 +1399,18 @@ export default function VersionDetailPage() {
 					},
 				]
 			: []),
+		...(localizations.length > 1 && translatableFields.length > 0
+			? [
+					{
+						key: "translation-settings",
+						label: translationSettingsOpen
+							? "Hide Translation Settings"
+							: "Translation Settings",
+						icon: "languages" as const,
+						onSelect: () => setTranslationSettingsOpen((v) => !v),
+					},
+				]
+			: []),
 		{
 			key: "sync",
 			label: "Sync",
@@ -1523,8 +1598,66 @@ export default function VersionDetailPage() {
 										] ?? "")
 									: ""
 							}
-							entry={previewEntry}
+							thenLabel={`This version (${formatPreviewDate(previewEntry)})`}
+							thenValue={previewEntry.newValue ?? ""}
 						/>
+					)}
+				</div>
+			)}
+
+			{/* Bulk history preview: all changes since a date */}
+			{previewSince && (
+				<div className="space-y-3 rounded-md border border-primary/40 bg-primary/5 px-4 py-3">
+					<div className="flex flex-wrap items-center gap-2">
+						<Clock className="h-4 w-4 shrink-0 text-primary" />
+						<span className="text-sm">
+							Previewing all changes since{" "}
+							<span className="font-medium">
+								{formatPreviewDay(previewSince)}
+							</span>
+						</span>
+						<Button
+							className="ml-auto h-7 text-xs"
+							onClick={handleCancelPreview}
+							size="sm"
+							variant="ghost"
+						>
+							Cancel
+						</Button>
+					</div>
+					{bulkChanges.length === 0 ? (
+						<p className="text-xs text-muted-foreground">
+							Nothing differs from today — changes since this date
+							were reverted or already match the current values.
+						</p>
+					) : (
+						<div className="space-y-4">
+							{bulkChangesByLanguage.map(([language, changes]) => (
+								<div className="space-y-2" key={language}>
+									<Badge
+										className="text-[10px] uppercase"
+										variant="outline"
+									>
+										{getLanguageLabel(language)}
+									</Badge>
+									{changes.map((change) => (
+										<div
+											className="space-y-1"
+											key={`${change.language}:${change.field}`}
+										>
+											<p className="text-xs font-medium text-foreground">
+												{getListingFieldLabel(change.field)}
+											</p>
+											<HistoryPreviewDiff
+												currentValue={change.todayValue}
+												thenLabel={`As of ${formatPreviewDay(previewSince)}`}
+												thenValue={change.thenValue}
+											/>
+										</div>
+									))}
+								</div>
+							))}
+						</div>
 					)}
 				</div>
 			)}
@@ -1940,7 +2073,8 @@ export default function VersionDetailPage() {
 								{isPreviewedField && previewEntry && (
 									<HistoryPreviewDiff
 										currentValue={value}
-										entry={previewEntry}
+										thenLabel={`This version (${formatPreviewDate(previewEntry)})`}
+										thenValue={previewEntry.newValue ?? ""}
 									/>
 								)}
 
@@ -2036,8 +2170,10 @@ export default function VersionDetailPage() {
 						);
 					})}
 
-					{/* Per-language translation settings (DNT toggles + instructions) */}
-					{localizations.length > 1 &&
+					{/* Per-language translation settings (DNT toggles + instructions).
+					    Hidden by default — toggled from the top-right actions menu. */}
+					{translationSettingsOpen &&
+						localizations.length > 1 &&
 						translatableFields.length > 0 && (
 							<TranslationSettings
 								appId={params.appId}
@@ -2119,16 +2255,75 @@ export default function VersionDetailPage() {
 					<SheetHeader className="border-b border-border">
 						<SheetTitle>Change History</SheetTitle>
 						<SheetDescription>
-							Click a change to preview it in the editor.
+							{historyMode === "date"
+								? "Click a date to preview everything that changed since then."
+								: "Click a change to preview it in the editor."}
 						</SheetDescription>
 					</SheetHeader>
+					<div className="border-b border-border px-4 py-2">
+						<Tabs
+							onValueChange={(v) =>
+								setHistoryMode(v as "change" | "date")
+							}
+							value={historyMode}
+						>
+							<TabsList className="w-full">
+								<TabsTrigger className="text-xs" value="change">
+									By change
+								</TabsTrigger>
+								<TabsTrigger className="text-xs" value="date">
+									By date
+								</TabsTrigger>
+							</TabsList>
+						</Tabs>
+					</div>
 					<div className="min-h-0 flex-1">
-						<HistoryTimeline
-							compact
-							entries={historyQuery.data ?? []}
-							isLoading={historyQuery.isLoading}
-							onSelectEntry={handleSelectHistoryEntry}
-						/>
+						{historyMode === "change" ? (
+							<HistoryTimeline
+								compact
+								entries={historyQuery.data ?? []}
+								isLoading={historyQuery.isLoading}
+								onSelectEntry={handleSelectHistoryEntry}
+							/>
+						) : historyQuery.isLoading ? (
+							<div className="flex items-center justify-center py-10">
+								<Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+							</div>
+						) : changeDates.length === 0 ? (
+							<div className="flex h-full flex-col items-center justify-center gap-2 p-8 text-muted-foreground">
+								<Clock className="h-8 w-8 opacity-50" />
+								<p className="text-sm">No changes yet</p>
+							</div>
+						) : (
+							<ScrollArea className="h-full">
+								<div className="space-y-2 p-4">
+									{changeDates.map((day) => (
+										<button
+											className="flex w-full cursor-pointer items-center gap-2 rounded-md border border-border bg-card p-3 text-left text-sm transition-colors hover:bg-accent/40"
+											key={day.date.getTime()}
+											onClick={() =>
+												handleSelectHistoryDate(day.date)
+											}
+											type="button"
+										>
+											<CalendarDays className="h-4 w-4 shrink-0 text-muted-foreground" />
+											<span className="font-medium">
+												{formatPreviewDay(day.date)}
+											</span>
+											<Badge
+												className="ml-auto shrink-0 text-[10px]"
+												variant="outline"
+											>
+												{day.count}{" "}
+												{day.count === 1
+													? "change"
+													: "changes"}
+											</Badge>
+										</button>
+									))}
+								</div>
+							</ScrollArea>
+						)}
 					</div>
 				</SheetContent>
 			</Sheet>
