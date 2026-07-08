@@ -1,6 +1,5 @@
 "use client";
 
-import packageJson from "../../package.json";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { type ReactNode, useCallback, useEffect, useMemo, useState } from "react";
@@ -37,6 +36,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { VersionDialog } from "@/components/version-dialog";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -1568,7 +1568,7 @@ export function AppSidebar() {
             Settings
           </TooltipContent>
         </Tooltip>
-        <span className="text-[10px] text-muted-foreground/50">v{packageJson.version}</span>
+        <VersionDialog />
       </div>
 
       {/* Manage stores dialog */}
