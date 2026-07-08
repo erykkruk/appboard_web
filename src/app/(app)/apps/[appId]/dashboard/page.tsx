@@ -64,6 +64,14 @@ export default function AppDashboardPage() {
     );
   }
 
+  if (overview.isError || reviewStats.isError) {
+    return (
+      <div className="flex flex-1 items-center justify-center p-6">
+        <p className="text-sm text-destructive">Failed to load data. Please try again.</p>
+      </div>
+    );
+  }
+
   const data = app.data;
   const isIos = data.platform === "ios";
   const version = overview.data?.version;

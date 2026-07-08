@@ -4,6 +4,36 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 
+export function usePublishSettings(appId: string) {
+	return useQuery({
+		enabled: !!appId,
+		queryFn: () => api.publishing.publishSettings(appId),
+		queryKey: ["publishing", appId, "settings"],
+	});
+}
+
+export function useUpdatePublishSettings(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (data: { publishMode: string; publishScheduledAt?: string }) =>
+			api.publishing.updatePublishSettings(appId, data),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: ["publishing", appId, "settings"],
+			});
+		},
+	});
+}
+
+export function usePushPreview(appId: string, enabled: boolean) {
+	return useQuery({
+		enabled: !!appId && enabled,
+		queryFn: () => api.publishing.pushPreview(appId),
+		queryKey: ["publishing", appId, "push-preview"],
+		staleTime: 0,
+	});
+}
+
 export function usePublishingOverview(appId: string) {
 	return useQuery({
 		enabled: !!appId,
@@ -95,6 +125,13 @@ export function useUploadScreenshot(appId: string, versionId: string) {
 				queryKey: ["publishing", appId, "versions", versionId, "screenshots"],
 			});
 		},
+	});
+}
+
+export function useValidateScreenshot(appId: string) {
+	return useMutation({
+		mutationFn: ({ displayType, file }: { displayType: string; file: File }) =>
+			api.publishing.validateScreenshot(appId, displayType, file),
 	});
 }
 
@@ -214,6 +251,8 @@ export function useUpdateLocalization(appId: string, versionId: string) {
 				promotionalText: string;
 				marketingUrl: string;
 				supportUrl: string;
+				shortDescription: string;
+				fullDescription: string;
 			}>;
 		}) =>
 			api.publishing.updateLocalization(appId, versionId, localizationId, data),
@@ -404,10 +443,12 @@ export function useCopyScreenshots(appId: string, versionId: string) {
 			sourceLanguage,
 			targetLanguage,
 			displayType,
+			copyLocalizations,
 		}: {
 			sourceLanguage: string;
 			targetLanguage: string;
 			displayType?: string;
+			copyLocalizations?: boolean;
 		}) =>
 			api.publishing.copyScreenshots(
 				appId,
@@ -415,10 +456,16 @@ export function useCopyScreenshots(appId: string, versionId: string) {
 				sourceLanguage,
 				targetLanguage,
 				displayType,
+				copyLocalizations,
 			),
 		onSuccess: () => {
 			queryClient.invalidateQueries({
 				queryKey: ["publishing", appId, "versions", versionId, "screenshots"],
+			});
+			// Copying text localizations updates the target language draft, so the
+			// version detail (titles/descriptions/keywords) must refetch too.
+			queryClient.invalidateQueries({
+				queryKey: ["publishing", appId, "versions", versionId],
 			});
 		},
 	});

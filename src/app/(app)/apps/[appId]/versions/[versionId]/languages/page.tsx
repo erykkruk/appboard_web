@@ -37,6 +37,7 @@ import { APP_STORE_LANGUAGES } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const STATE_COLORS: Record<string, string> = {
+  ACTIVE: "bg-green-400",
   PREPARE_FOR_SUBMISSION: "bg-yellow-400",
   READY_FOR_SALE: "bg-green-400",
   WAITING_FOR_REVIEW: "bg-blue-400",
@@ -47,6 +48,7 @@ const STATE_COLORS: Record<string, string> = {
 };
 
 const STATE_LABELS: Record<string, string> = {
+  ACTIVE: "Active",
   PREPARE_FOR_SUBMISSION: "Prepare for Submission",
   READY_FOR_SALE: "Ready for Sale",
   WAITING_FOR_REVIEW: "Waiting for Review",
@@ -57,6 +59,7 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 const EDITABLE_STATES = new Set([
+  "ACTIVE",
   "PREPARE_FOR_SUBMISSION",
   "DEVELOPER_REJECTED",
   "REJECTED",
@@ -192,7 +195,7 @@ export default function LanguagesPage() {
   const isEditable = EDITABLE_STATES.has(state);
 
   return (
-    <div className="p-6 space-y-6">
+    <div className="mx-auto max-w-3xl space-y-6 p-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">

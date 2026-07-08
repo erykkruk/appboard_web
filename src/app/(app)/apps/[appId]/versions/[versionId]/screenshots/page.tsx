@@ -17,23 +17,34 @@ import {
   useSortable,
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { Copy, Info, Loader2, Smartphone, Tablet, Trash2 } from "lucide-react";
+import { Copy, Image as ImageIcon, Info, Loader2, Smartphone, Tablet, Trash2, Upload } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
 
+import { useApp } from "@/hooks/use-apps";
 import {
   useCopyScreenshots,
   useDeleteAllScreenshots,
   useDeleteScreenshot,
   useReorderScreenshots,
   useUploadScreenshot,
+  useValidateScreenshot,
   useVersionDetail,
   useVersionScreenshots,
 } from "@/hooks/use-publishing";
+import { getScreenshotDimensionError } from "@/lib/api";
+import {
+  buildDimensionMessage,
+  buildValidationWarning,
+} from "@/lib/screenshot-validation";
 import { cn } from "@/lib/utils";
 import { APP_STORE_LANGUAGES, type VersionScreenshot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ScreenshotCropDialog } from "@/components/screenshot-crop-dialog";
+import { ScreenshotEditorEntry } from "@/components/screenshot-editor";
 import { ScreenshotSplitDialog } from "@/components/screenshot-split-dialog";
+import { useAssets, useUploadAsset, useDeleteAsset } from "@/hooks/use-assets";
 import {
   Select,
   SelectContent,
@@ -57,6 +68,7 @@ import {
 } from "@/components/ui/popover";
 
 const STATE_COLORS: Record<string, string> = {
+  ACTIVE: "bg-green-400",
   PREPARE_FOR_SUBMISSION: "bg-yellow-400",
   READY_FOR_SALE: "bg-green-400",
   WAITING_FOR_REVIEW: "bg-blue-400",
@@ -69,6 +81,55 @@ const STATE_COLORS: Record<string, string> = {
 const IPHONE_65_DISPLAY = "APP_IPHONE_65";
 const IPAD_PRO_129_DISPLAY = "APP_IPAD_PRO_129";
 const MAX_SCREENSHOTS = 10;
+
+type DeviceConfig = {
+  key: string;
+  label: string;
+  sublabel: string;
+  icon: typeof Smartphone;
+  sizeHint: string;
+};
+
+const IOS_DEVICES: DeviceConfig[] = [
+  {
+    key: IPHONE_65_DISPLAY,
+    label: "iPhone",
+    sublabel: '6.5" Display',
+    icon: Smartphone,
+    sizeHint: "1242 \u00d7 2688px, 2688 \u00d7 1242px, 1284 \u00d7 2778px or 2778 \u00d7 1284px",
+  },
+  {
+    key: IPAD_PRO_129_DISPLAY,
+    label: "iPad",
+    sublabel: '12.9" or 13" Displays',
+    icon: Tablet,
+    sizeHint: "2064 \u00d7 2752px, 2752 \u00d7 2064px, 2048 \u00d7 2732px or 2732 \u00d7 2048px",
+  },
+];
+
+const ANDROID_DEVICES: DeviceConfig[] = [
+  {
+    key: "phone",
+    label: "Phone",
+    sublabel: "1284 \u00d7 2778px",
+    icon: Smartphone,
+    sizeHint: "1284 \u00d7 2778px or 2778 \u00d7 1284px (custom size also supported)",
+  },
+  {
+    key: "sevenInch",
+    label: '7" Tablet',
+    sublabel: "2048 \u00d7 2732px",
+    icon: Tablet,
+    sizeHint: "2048 \u00d7 2732px or 2732 \u00d7 2048px (custom size also supported)",
+  },
+  {
+    key: "tenInch",
+    label: '10" Tablet',
+    sublabel: "2048 \u00d7 2732px",
+    icon: Tablet,
+    sizeHint: "2048 \u00d7 2732px or 2732 \u00d7 2048px (custom size also supported)",
+  },
+];
 
 function SortableScreenshot({
   screenshot,
@@ -128,6 +189,10 @@ function SortableScreenshot({
 
 export default function VersionScreenshotsPage() {
   const params = useParams<{ appId: string; versionId: string }>();
+  const appData = useApp(params.appId);
+  const isAndroid = appData.data?.platform === "android";
+  const devices = isAndroid ? ANDROID_DEVICES : IOS_DEVICES;
+  const defaultDevice = devices[0];
   const detail = useVersionDetail(params.appId, params.versionId);
   const screenshots = useVersionScreenshots(params.appId, params.versionId);
   const deleteScreenshot = useDeleteScreenshot(params.appId, params.versionId);
@@ -137,13 +202,26 @@ export default function VersionScreenshotsPage() {
   );
   const deleteAll = useDeleteAllScreenshots(params.appId, params.versionId);
   const uploadScreenshot = useUploadScreenshot(params.appId, params.versionId);
+  const validateScreenshot = useValidateScreenshot(params.appId);
   const copyScreenshots = useCopyScreenshots(params.appId, params.versionId);
 
+  // Icon assets
+  const iconAssets = useAssets(params.appId, { assetType: "icon" });
+  const uploadIconAsset = useUploadAsset(params.appId);
+  const deleteIconAsset = useDeleteAsset(params.appId);
+  const iconFileInputRef = useRef<HTMLInputElement>(null);
+
   const [selectedLanguage, setSelectedLanguage] = useState<string>("");
+  const [activeDeviceKey, setActiveDeviceKey] = useState<string>("");
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [dimensionWarning, setDimensionWarning] = useState<string | null>(null);
   const [fileQueue, setFileQueue] = useState<File[]>([]);
   const [uploadsInProgress, setUploadsInProgress] = useState(0);
-  const uploadDisplayTypeRef = useRef(IPHONE_65_DISPLAY);
+  const [copyTextToo, setCopyTextToo] = useState(false);
+  const uploadDisplayTypeRef = useRef(defaultDevice.key);
+
+  const currentDeviceKey = activeDeviceKey || defaultDevice.key;
+  const currentDevice = devices.find((d) => d.key === currentDeviceKey) ?? defaultDevice;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const panoramaInputRef = useRef<HTMLInputElement>(null);
   const [panoramaFile, setPanoramaFile] = useState<File | null>(null);
@@ -166,12 +244,12 @@ export default function VersionScreenshotsPage() {
     [detail.data?.localizations],
   );
 
-  // Group screenshots by language, filter iPhone 6.5" only
+  // Group screenshots by language, filtered by active device type
   const { screenshotsByLanguage } = useMemo(() => {
     const byLang = new Map<string, VersionScreenshot[]>();
 
     for (const s of screenshots.data ?? []) {
-      if (s.displayType !== IPHONE_65_DISPLAY) continue;
+      if (s.displayType !== currentDeviceKey) continue;
       if (!byLang.has(s.language)) {
         byLang.set(s.language, []);
       }
@@ -179,7 +257,7 @@ export default function VersionScreenshotsPage() {
     }
 
     return { screenshotsByLanguage: byLang };
-  }, [screenshots.data]);
+  }, [screenshots.data, currentDeviceKey]);
 
   // Localized = languages from version localizations (from ASC)
   const localizedLanguages = versionLanguages;
@@ -195,6 +273,29 @@ export default function VersionScreenshotsPage() {
   );
 
   const screenshotSetId = currentScreenshots[0]?.screenshotSetId ?? "";
+
+  const currentIcon = useMemo(
+    () => (iconAssets.data ?? []).find((a) => a.language === activeLang),
+    [iconAssets.data, activeLang],
+  );
+
+  const handleIconUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !activeLang) return;
+    e.target.value = "";
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("assetType", "icon");
+    formData.append("deviceType", "universal");
+    formData.append("language", activeLang);
+    uploadIconAsset.mutate(formData);
+  };
+
+  const handleIconDelete = () => {
+    if (!currentIcon) return;
+    deleteIconAsset.mutate(currentIcon.id);
+  };
 
   const handleLanguageChange = (lang: string) => {
     setSelectedLanguage(lang);
@@ -233,6 +334,7 @@ export default function VersionScreenshotsPage() {
   const handleChooseFile = (displayType: string) => {
     if (!activeLang) return;
     setUploadError(null);
+    setDimensionWarning(null);
     uploadDisplayTypeRef.current = displayType;
     fileInputRef.current?.click();
   };
@@ -245,7 +347,21 @@ export default function VersionScreenshotsPage() {
     e.target.value = "";
 
     setUploadError(null);
+    setDimensionWarning(null);
     setFileQueue((prev) => [...prev, ...selected]);
+
+    // Pre-validate the first selected file (non-blocking): warn the user about
+    // expected dimensions before they crop/upload. Cropping can still fix a
+    // mismatch, so this is advisory only and never blocks the queue.
+    const displayType = uploadDisplayTypeRef.current;
+    validateScreenshot
+      .mutateAsync({ displayType, file: selected[0] })
+      .then((result) => {
+        setDimensionWarning(buildValidationWarning(result));
+      })
+      .catch(() => {
+        // Validation is best-effort; ignore failures and let upload proceed.
+      });
   };
 
   const advanceQueue = () => {
@@ -257,6 +373,7 @@ export default function VersionScreenshotsPage() {
     crop: { x: number; y: number; width: number; height: number },
   ) => {
     const displayType = uploadDisplayTypeRef.current;
+    setDimensionWarning(null);
     advanceQueue();
 
     // Upload immediately to ASC — use mutateAsync so .finally() fires per-call
@@ -269,15 +386,21 @@ export default function VersionScreenshotsPage() {
         crop,
       })
       .catch((err) => {
-        setUploadError(
-          err instanceof Error ? err.message : "Upload failed",
-        );
+        const dimensionError = getScreenshotDimensionError(err);
+        const message = dimensionError
+          ? buildDimensionMessage(dimensionError)
+          : err instanceof Error
+            ? err.message
+            : "Upload failed";
+        setUploadError(message);
+        if (dimensionError) toast.error(message);
       })
       .finally(() => setUploadsInProgress((n) => n - 1));
   };
 
   const handleCropCancel = () => {
     // Skip this file, move to next
+    setDimensionWarning(null);
     advanceQueue();
   };
 
@@ -308,10 +431,26 @@ export default function VersionScreenshotsPage() {
 
   const handleCopyFrom = (sourceLang: string) => {
     if (!activeLang) return;
-    copyScreenshots.mutate({
-      sourceLanguage: sourceLang,
-      targetLanguage: activeLang,
-    });
+    const withText = copyTextToo;
+    copyScreenshots.mutate(
+      {
+        sourceLanguage: sourceLang,
+        targetLanguage: activeLang,
+        copyLocalizations: withText,
+      },
+      {
+        onSuccess: ({ copied }) => {
+          toast.success(
+            withText
+              ? `Copied ${copied} screenshot(s) and the text metadata from ${sourceLang}`
+              : `Copied ${copied} screenshot(s) from ${sourceLang}`,
+          );
+        },
+        onError: () => {
+          toast.error(`Failed to copy from ${sourceLang}`);
+        },
+      },
+    );
   };
 
   const notLocalizedLanguages = useMemo(
@@ -344,7 +483,7 @@ export default function VersionScreenshotsPage() {
   const hasLanguage = !!activeLang;
 
   return (
-    <div className="space-y-5 p-6">
+    <div className="mx-auto max-w-5xl space-y-5 p-6">
       {/* Hidden file inputs */}
       <input
         ref={fileInputRef}
@@ -378,18 +517,93 @@ export default function VersionScreenshotsPage() {
         </div>
       </div>
 
-      {/* Tabs: iPhone / iPad */}
-      <Tabs defaultValue="iphone">
+      {/* App Icon — only for Android (Google Play manages icons as assets) */}
+      {isAndroid && (
+        <div className="rounded-xl border border-border p-5">
+          <div className="mb-3 flex items-center justify-between">
+            <div>
+              <p className="text-sm font-medium">App Icon</p>
+              <p className="text-xs text-muted-foreground">
+                512 &times; 512px PNG or JPEG
+              </p>
+            </div>
+          </div>
+          <input
+            ref={iconFileInputRef}
+            type="file"
+            accept="image/png,image/jpeg"
+            className="hidden"
+            onChange={handleIconUpload}
+          />
+          {currentIcon ? (
+            <div className="flex items-end gap-4">
+              <img
+                src={currentIcon.url}
+                alt="App Icon"
+                className="h-[128px] w-[128px] rounded-2xl border border-border object-cover"
+              />
+              <div className="flex gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => iconFileInputRef.current?.click()}
+                  disabled={uploadIconAsset.isPending || !hasLanguage}
+                >
+                  {uploadIconAsset.isPending ? (
+                    <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="mr-1.5 h-3.5 w-3.5" />
+                  )}
+                  Replace
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleIconDelete}
+                  disabled={deleteIconAsset.isPending}
+                  className="text-destructive hover:text-destructive"
+                >
+                  <Trash2 className="mr-1.5 h-3.5 w-3.5" />
+                  Delete
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center gap-4">
+              <div className="flex h-[128px] w-[128px] items-center justify-center rounded-2xl border-2 border-dashed border-border text-muted-foreground">
+                <ImageIcon className="h-8 w-8 opacity-30" />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => iconFileInputRef.current?.click()}
+                disabled={uploadIconAsset.isPending || !hasLanguage}
+              >
+                {uploadIconAsset.isPending ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Upload className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Upload Icon
+              </Button>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Device Tabs */}
+      <Tabs
+        defaultValue={defaultDevice.key}
+        onValueChange={(val) => setActiveDeviceKey(val)}
+      >
         <div className="flex items-center justify-between gap-4">
           <TabsList>
-            <TabsTrigger value="iphone" className="gap-1.5">
-              <Smartphone className="h-4 w-4" />
-              iPhone
-            </TabsTrigger>
-            <TabsTrigger value="ipad" className="gap-1.5">
-              <Tablet className="h-4 w-4" />
-              iPad
-            </TabsTrigger>
+            {devices.map((device) => (
+              <TabsTrigger key={device.key} value={device.key} className="gap-1.5">
+                <device.icon className="h-4 w-4" />
+                {device.label}
+              </TabsTrigger>
+            ))}
           </TabsList>
 
           {/* Language selector */}
@@ -424,257 +638,279 @@ export default function VersionScreenshotsPage() {
           </Select>
         </div>
 
-        {/* iPhone Tab */}
-        <TabsContent value="iphone" className="mt-4">
-          <div className="rounded-xl border border-border p-5">
-            <div className="mb-4 flex items-center gap-1.5">
-              <p className="text-sm font-medium">
-                iPhone
-                <br />
-                <span className="text-muted-foreground">
-                  6.5&quot; Display
-                </span>
-              </p>
-              {count > 0 && (
-                <Tooltip delayDuration={0}>
-                  <TooltipTrigger asChild>
-                    <Info className="h-5 w-5 text-muted-foreground/50 hover:text-muted-foreground" />
-                  </TooltipTrigger>
-                  <TooltipContent side="right" className="max-w-xs text-center">
-                    <p>
-                      Drag up to 3 app previews and 10 screenshots here.
-                    </p>
-                    <p className="mt-0.5 text-muted-foreground">
-                      (1242 × 2688px, 2688 × 1242px, 1284 × 2778px or 2778 ×
-                      1284px)
-                    </p>
-                  </TooltipContent>
-                </Tooltip>
-              )}
-            </div>
-
-            {count === 0 && !isUploading && !copyScreenshots.isPending ? (
-              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-14 text-center text-muted-foreground">
-                <p className="text-sm">
-                  Drag up to 3 app previews and 10 screenshots here.
+        {devices.map((device) => (
+          <TabsContent key={device.key} value={device.key} className="mt-4">
+            <div className="rounded-xl border border-border p-5">
+              <div className="mb-4 flex items-center gap-1.5">
+                <p className="text-sm font-medium">
+                  {device.label}
+                  <br />
+                  <span className="text-muted-foreground">
+                    {device.sublabel}
+                  </span>
                 </p>
-                <p className="mt-1 text-xs opacity-60">
-                  (1242 × 2688px, 2688 × 1242px, 1284 × 2778px or 2778 ×
-                  1284px)
-                </p>
-                {languagesWithScreenshots.length > 0 && hasLanguage && (
-                  <div className="mt-4 flex items-center gap-2">
-                    <Copy className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-xs">Copy from:</span>
-                    <Select onValueChange={handleCopyFrom}>
-                      <SelectTrigger className="h-8 w-[160px] text-xs">
-                        <SelectValue placeholder="Select language" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {languagesWithScreenshots.map((lang) => (
-                          <SelectItem key={lang} value={lang}>
-                            {lang}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+                {count > 0 && currentDeviceKey === device.key && (
+                  <Tooltip delayDuration={0}>
+                    <TooltipTrigger asChild>
+                      <Info className="h-5 w-5 text-muted-foreground/50 hover:text-muted-foreground" />
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs text-center">
+                      <p>
+                        Drag up to 3 app previews and {MAX_SCREENSHOTS} screenshots here.
+                      </p>
+                      <p className="mt-0.5 text-muted-foreground">
+                        ({device.sizeHint})
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
                 )}
               </div>
-            ) : copyScreenshots.isPending ? (
-              <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-14 text-center text-muted-foreground">
-                <Loader2 className="h-6 w-6 animate-spin text-primary/50" />
-                <p className="mt-2 text-sm">Copying screenshots...</p>
-              </div>
-            ) : (
-              <DndContext
-                sensors={sensors}
-                collisionDetection={closestCenter}
-                onDragEnd={handleDragEnd}
-              >
-                <SortableContext
-                  items={currentScreenshots.map((s) => s.externalId)}
-                  strategy={horizontalListSortingStrategy}
-                >
-                  <div className="flex gap-3 overflow-x-auto pb-2">
-                    {currentScreenshots.map((s, i) => (
-                      <SortableScreenshot
-                        key={s.externalId}
-                        screenshot={s}
-                        index={i}
-                        onDelete={handleDelete}
-                        isDeleting={deleteScreenshot.isPending}
-                      />
-                    ))}
-                    {isUploading && (
-                      <div className="flex h-[340px] w-[157px] shrink-0 flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary/30">
-                        <Loader2 className="h-6 w-6 animate-spin text-primary/50" />
-                        {uploadsInProgress > 1 && (
-                          <span className="text-xs text-muted-foreground">
-                            {uploadsInProgress} uploading
-                          </span>
-                        )}
-                      </div>
+
+              {currentDeviceKey === device.key ? (
+                <>
+                  {count === 0 && !isUploading && !copyScreenshots.isPending ? (
+                    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-14 text-center text-muted-foreground">
+                      <p className="text-sm">
+                        Drag up to 3 app previews and {MAX_SCREENSHOTS} screenshots here.
+                      </p>
+                      <p className="mt-1 text-xs opacity-60">
+                        ({device.sizeHint})
+                      </p>
+                      {languagesWithScreenshots.length > 0 && hasLanguage && (
+                        <div className="mt-4 flex flex-col items-center gap-2">
+                          <div className="flex items-center gap-2">
+                            <Copy className="h-4 w-4 text-muted-foreground" />
+                            <span className="text-xs">Copy from:</span>
+                            <Select onValueChange={handleCopyFrom}>
+                              <SelectTrigger className="h-8 w-[160px] text-xs">
+                                <SelectValue placeholder="Select language" />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {languagesWithScreenshots.map((lang) => (
+                                  <SelectItem key={lang} value={lang}>
+                                    {lang}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <label className="flex cursor-pointer items-center gap-2 text-xs text-muted-foreground">
+                            <Checkbox
+                              checked={copyTextToo}
+                              onCheckedChange={(v) =>
+                                setCopyTextToo(v === true)
+                              }
+                            />
+                            Skopiuj też teksty (tytuł, opis, słowa kluczowe…)
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  ) : copyScreenshots.isPending ? (
+                    <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-14 text-center text-muted-foreground">
+                      <Loader2 className="h-6 w-6 animate-spin text-primary/50" />
+                      <p className="mt-2 text-sm">Copying screenshots...</p>
+                    </div>
+                  ) : (
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <SortableContext
+                        items={currentScreenshots.map((s) => s.externalId)}
+                        strategy={horizontalListSortingStrategy}
+                      >
+                        <div className="flex gap-3 overflow-x-auto pb-2">
+                          {currentScreenshots.map((s, i) => (
+                            <SortableScreenshot
+                              key={s.externalId}
+                              screenshot={s}
+                              index={i}
+                              onDelete={handleDelete}
+                              isDeleting={deleteScreenshot.isPending}
+                            />
+                          ))}
+                          {isUploading && (
+                            <div className="flex h-[340px] w-[157px] shrink-0 flex-col items-center justify-center gap-2 rounded-lg border-2 border-dashed border-primary/30">
+                              <Loader2 className="h-6 w-6 animate-spin text-primary/50" />
+                              {uploadsInProgress > 1 && (
+                                <span className="text-xs text-muted-foreground">
+                                  {uploadsInProgress} uploading
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      </SortableContext>
+                    </DndContext>
+                  )}
+
+                  {/* Bottom bar */}
+                  <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span>
+                      {count} of {MAX_SCREENSHOTS} Screenshots
+                    </span>
+                    <span className="mx-1">|</span>
+                    <button
+                      type="button"
+                      onClick={() => handleChooseFile(device.key)}
+                      disabled={isUploading || count >= MAX_SCREENSHOTS || !hasLanguage}
+                      className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
+                    >
+                      {isUploading
+                        ? `Uploading${uploadsInProgress > 1 ? ` (${uploadsInProgress})` : ""}...`
+                        : "Choose File"}
+                    </button>
+                    <span className="mx-1">|</span>
+                    <button
+                      type="button"
+                      onClick={() => handlePanoramaChoose(device.key)}
+                      disabled={isUploading || count >= MAX_SCREENSHOTS || !hasLanguage}
+                      className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
+                    >
+                      Upload Panorama
+                    </button>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <button type="button" className="ml-0.5 inline-flex items-center text-muted-foreground hover:text-foreground transition-colors">
+                          <Info className="h-3.5 w-3.5" />
+                        </button>
+                      </PopoverTrigger>
+                      <PopoverContent side="bottom" align="start" className="w-80 p-4">
+                        <p className="mb-3 text-xs font-medium">How panorama splitting works</p>
+                        <svg viewBox="0 0 280 120" className="w-full" aria-label="Panorama split infographic">
+                          <rect x="8" y="20" width="130" height="50" rx="3" className="fill-muted stroke-border" strokeWidth="1" />
+                          <text x="73" y="43" textAnchor="middle" className="fill-muted-foreground" fontSize="7" fontFamily="system-ui">Your wide panorama</text>
+                          <line x1="51" y1="20" x2="51" y2="70" className="stroke-primary" strokeWidth="1" strokeDasharray="3,2" />
+                          <line x1="95" y1="20" x2="95" y2="70" className="stroke-primary" strokeWidth="1" strokeDasharray="3,2" />
+                          <path d="M73 80 L73 92" className="stroke-muted-foreground" strokeWidth="1" markerEnd="url(#arrowhead)" />
+                          <defs>
+                            <marker id="arrowhead" markerWidth="4" markerHeight="6" refX="2" refY="3" orient="auto">
+                              <polygon points="0 0, 4 3, 0 6" className="fill-muted-foreground" />
+                            </marker>
+                          </defs>
+                          <rect x="148" y="14" width="34" height="54" rx="2" className="fill-primary/15 stroke-primary" strokeWidth="1" />
+                          <rect x="190" y="14" width="34" height="54" rx="2" className="fill-primary/15 stroke-primary" strokeWidth="1" />
+                          <rect x="232" y="14" width="34" height="54" rx="2" className="fill-primary/15 stroke-primary" strokeWidth="1" />
+                          <text x="165" y="45" textAnchor="middle" className="fill-primary" fontSize="8" fontFamily="system-ui">1</text>
+                          <text x="207" y="45" textAnchor="middle" className="fill-primary" fontSize="8" fontFamily="system-ui">2</text>
+                          <text x="249" y="45" textAnchor="middle" className="fill-primary" fontSize="8" fontFamily="system-ui">3</text>
+                          <path d="M140 45 L146 45" className="stroke-muted-foreground" strokeWidth="1" markerEnd="url(#arrowhead2)" />
+                          <defs>
+                            <marker id="arrowhead2" markerWidth="6" markerHeight="4" refX="3" refY="2" orient="auto">
+                              <polygon points="0 0, 6 2, 0 4" className="fill-muted-foreground" />
+                            </marker>
+                          </defs>
+                          <text x="207" y="82" textAnchor="middle" className="fill-muted-foreground" fontSize="7" fontFamily="system-ui">Resized to device format</text>
+                        </svg>
+                        <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
+                          Upload a wide panorama image. The system splits it vertically into 2-10 equal parts and uploads each as a separate screenshot.
+                        </p>
+                      </PopoverContent>
+                    </Popover>
+                    {languagesWithScreenshots.length > 0 && count === 0 && hasLanguage && (
+                      <>
+                        <span className="mx-1">|</span>
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              disabled={copyScreenshots.isPending}
+                              className="text-primary hover:underline disabled:text-muted-foreground/50"
+                            >
+                              {copyScreenshots.isPending ? "Copying..." : "Copy from Language"}
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent side="top" align="start" className="w-64 p-2">
+                            <p className="mb-2 text-xs font-medium text-muted-foreground">Copy screenshots from:</p>
+                            {languagesWithScreenshots.map((lang) => (
+                              <button
+                                key={lang}
+                                type="button"
+                                onClick={() => handleCopyFrom(lang)}
+                                className="flex w-full items-center rounded-md px-2 py-1.5 text-sm hover:bg-accent"
+                              >
+                                {lang}
+                              </button>
+                            ))}
+                            <label className="mt-2 flex cursor-pointer items-start gap-2 border-t px-2 pt-2 text-xs text-muted-foreground">
+                              <Checkbox
+                                checked={copyTextToo}
+                                onCheckedChange={(v) => setCopyTextToo(v === true)}
+                                className="mt-0.5"
+                              />
+                              Skopiuj też teksty (tytuł, opis, słowa kluczowe…)
+                            </label>
+                          </PopoverContent>
+                        </Popover>
+                      </>
+                    )}
+                    {count > 0 && (
+                      <>
+                        <span className="mx-1">|</span>
+                        <button
+                          type="button"
+                          onClick={handleDeleteAll}
+                          disabled={deleteAll.isPending}
+                          className="text-primary hover:underline disabled:text-muted-foreground/50"
+                        >
+                          {deleteAll.isPending ? "Deleting..." : "Delete All"}
+                        </button>
+                      </>
                     )}
                   </div>
-                </SortableContext>
-              </DndContext>
-            )}
+                  {dimensionWarning && !uploadError && (
+                    <p className="mt-2 text-xs text-amber-600 dark:text-amber-500">
+                      {dimensionWarning} Możesz to skorygować podczas kadrowania.
+                    </p>
+                  )}
+                  {uploadError && (
+                    <p className="mt-2 text-xs text-destructive">{uploadError}</p>
+                  )}
 
-            {/* Bottom bar — ASC style */}
-            <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span>
-                {count} of {MAX_SCREENSHOTS} Screenshots
-              </span>
-              <span className="mx-1">|</span>
-              <button
-                type="button"
-                onClick={() => handleChooseFile(IPHONE_65_DISPLAY)}
-                disabled={isUploading || count >= MAX_SCREENSHOTS || !hasLanguage}
-                className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
-              >
-                {isUploading
-                  ? `Uploading${uploadsInProgress > 1 ? ` (${uploadsInProgress})` : ""}...`
-                  : "Choose File"}
-              </button>
-              <span className="mx-1">|</span>
-              <button
-                type="button"
-                onClick={() => handlePanoramaChoose(IPHONE_65_DISPLAY)}
-                disabled={isUploading || count >= MAX_SCREENSHOTS || !hasLanguage}
-                className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
-              >
-                Upload Panorama
-              </button>
-              <Popover>
-                <PopoverTrigger asChild>
-                  <button type="button" className="ml-0.5 inline-flex items-center text-muted-foreground hover:text-foreground transition-colors">
-                    <Info className="h-3.5 w-3.5" />
-                  </button>
-                </PopoverTrigger>
-                <PopoverContent side="bottom" align="start" className="w-80 p-4">
-                  <p className="mb-3 text-xs font-medium">How panorama splitting works</p>
-                  <svg viewBox="0 0 280 120" className="w-full" aria-label="Panorama split infographic">
-                    {/* Wide panorama source image */}
-                    <rect x="8" y="20" width="130" height="50" rx="3" className="fill-muted stroke-border" strokeWidth="1" />
-                    <text x="73" y="43" textAnchor="middle" className="fill-muted-foreground" fontSize="7" fontFamily="system-ui">Your wide panorama</text>
-                    {/* Vertical dashed split lines */}
-                    <line x1="51" y1="20" x2="51" y2="70" className="stroke-primary" strokeWidth="1" strokeDasharray="3,2" />
-                    <line x1="95" y1="20" x2="95" y2="70" className="stroke-primary" strokeWidth="1" strokeDasharray="3,2" />
-                    {/* Arrow */}
-                    <path d="M73 80 L73 92" className="stroke-muted-foreground" strokeWidth="1" markerEnd="url(#arrowhead)" />
-                    <defs>
-                      <marker id="arrowhead" markerWidth="4" markerHeight="6" refX="2" refY="3" orient="auto">
-                        <polygon points="0 0, 4 3, 0 6" className="fill-muted-foreground" />
-                      </marker>
-                    </defs>
-                    {/* Result screenshots side by side */}
-                    <rect x="148" y="14" width="34" height="54" rx="2" className="fill-primary/15 stroke-primary" strokeWidth="1" />
-                    <rect x="190" y="14" width="34" height="54" rx="2" className="fill-primary/15 stroke-primary" strokeWidth="1" />
-                    <rect x="232" y="14" width="34" height="54" rx="2" className="fill-primary/15 stroke-primary" strokeWidth="1" />
-                    <text x="165" y="45" textAnchor="middle" className="fill-primary" fontSize="8" fontFamily="system-ui">1</text>
-                    <text x="207" y="45" textAnchor="middle" className="fill-primary" fontSize="8" fontFamily="system-ui">2</text>
-                    <text x="249" y="45" textAnchor="middle" className="fill-primary" fontSize="8" fontFamily="system-ui">3</text>
-                    {/* Arrow from source to results */}
-                    <path d="M140 45 L146 45" className="stroke-muted-foreground" strokeWidth="1" markerEnd="url(#arrowhead2)" />
-                    <defs>
-                      <marker id="arrowhead2" markerWidth="6" markerHeight="4" refX="3" refY="2" orient="auto">
-                        <polygon points="0 0, 6 2, 0 4" className="fill-muted-foreground" />
-                      </marker>
-                    </defs>
-                    {/* Label */}
-                    <text x="207" y="82" textAnchor="middle" className="fill-muted-foreground" fontSize="7" fontFamily="system-ui">Resized to device format</text>
-                  </svg>
-                  <p className="mt-3 text-[11px] leading-relaxed text-muted-foreground">
-                    Upload a wide panorama image. The system splits it vertically into 2–10 equal parts and uploads each as a separate screenshot.
-                  </p>
-                </PopoverContent>
-              </Popover>
-              {languagesWithScreenshots.length > 0 && count === 0 && hasLanguage && (
-                <>
-                  <span className="mx-1">|</span>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <button
-                        type="button"
-                        disabled={copyScreenshots.isPending}
-                        className="text-primary hover:underline disabled:text-muted-foreground/50"
-                      >
-                        {copyScreenshots.isPending ? "Copying..." : "Copy from Language"}
-                      </button>
-                    </PopoverTrigger>
-                    <PopoverContent side="top" align="start" className="w-48 p-2">
-                      <p className="mb-2 text-xs font-medium text-muted-foreground">Copy screenshots from:</p>
-                      {languagesWithScreenshots.map((lang) => (
-                        <button
-                          key={lang}
-                          type="button"
-                          onClick={() => handleCopyFrom(lang)}
-                          className="flex w-full items-center rounded-md px-2 py-1.5 text-sm hover:bg-accent"
-                        >
-                          {lang}
-                        </button>
-                      ))}
-                    </PopoverContent>
-                  </Popover>
+                  {/* Browser screenshot editor (canvas MVP) */}
+                  {hasLanguage && (
+                    <div className="mt-5">
+                      <ScreenshotEditorEntry
+                        appId={params.appId}
+                        versionId={params.versionId}
+                        language={activeLang}
+                        displayType={device.key}
+                      />
+                    </div>
+                  )}
                 </>
-              )}
-              {count > 0 && (
+              ) : (
+                /* Non-active device tab — simple placeholder */
                 <>
-                  <span className="mx-1">|</span>
-                  <button
-                    type="button"
-                    onClick={handleDeleteAll}
-                    disabled={deleteAll.isPending}
-                    className="text-primary hover:underline disabled:text-muted-foreground/50"
-                  >
-                    {deleteAll.isPending ? "Deleting..." : "Delete All"}
-                  </button>
+                  <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-14 text-center text-muted-foreground">
+                    <p className="text-sm">
+                      Drag up to 3 app previews and {MAX_SCREENSHOTS} screenshots here.
+                    </p>
+                    <p className="mt-1 text-xs opacity-60">
+                      ({device.sizeHint})
+                    </p>
+                  </div>
+                  <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
+                    <span>0 of {MAX_SCREENSHOTS} Screenshots</span>
+                    <span className="mx-1">|</span>
+                    <button
+                      type="button"
+                      onClick={() => handleChooseFile(device.key)}
+                      disabled={isUploading || !hasLanguage}
+                      className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
+                    >
+                      Choose File
+                    </button>
+                    <span className="mx-1">|</span>
+                    <span className="text-muted-foreground/50">Delete All</span>
+                  </div>
                 </>
               )}
             </div>
-            {uploadError && (
-              <p className="mt-2 text-xs text-destructive">{uploadError}</p>
-            )}
-          </div>
-        </TabsContent>
-
-        {/* iPad Tab */}
-        <TabsContent value="ipad" className="mt-4">
-          <div className="rounded-xl border border-border p-5">
-            <p className="mb-4 text-sm font-medium">
-              iPad
-              <br />
-              <span className="text-muted-foreground">
-                12.9&quot; or 13&quot; Displays
-              </span>
-            </p>
-            <div className="flex flex-col items-center justify-center rounded-lg border border-dashed border-border py-14 text-center text-muted-foreground">
-              <p className="text-sm">
-                Drag up to 3 app previews and 10 screenshots here for iPad
-                12.9&quot; or 13&quot; Displays.
-              </p>
-              <p className="mt-1 text-xs opacity-60">
-                (2064 × 2752px, 2752 × 2064px, 2048 × 2732px or 2732 ×
-                2048px)
-              </p>
-            </div>
-            <div className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span>0 of 10 Screenshots</span>
-              <span className="mx-1">|</span>
-              <button
-                type="button"
-                onClick={() => handleChooseFile(IPAD_PRO_129_DISPLAY)}
-                disabled={isUploading || !hasLanguage}
-                className="text-primary hover:underline disabled:text-muted-foreground/50 disabled:no-underline"
-              >
-                Choose File
-              </button>
-              <span className="mx-1">|</span>
-              <span className="text-muted-foreground/50">Delete All</span>
-            </div>
-          </div>
-        </TabsContent>
+          </TabsContent>
+        ))}
       </Tabs>
 
       {/* Crop dialog */}

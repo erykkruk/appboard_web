@@ -2,11 +2,14 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { useParams } from "next/navigation";
+import Link from "next/link";
 import {
   Apple,
   ChevronRight,
   Info,
+  Link2,
   Loader2,
+  Lock,
   Store,
 } from "lucide-react";
 import { toast } from "sonner";
@@ -17,6 +20,8 @@ import {
   generateProfileTemplate,
   parseProfileFile,
 } from "@/lib/aso-profile-csv";
+import { FIELD_HINTS } from "@/lib/aso-profile-hints";
+import type { FieldHint } from "@/lib/aso-profile-hints";
 import { downloadFile } from "@/lib/listings-csv";
 
 import { ActionsMenu } from "@/components/actions-menu";
@@ -30,6 +35,14 @@ import {
   CollapsibleTrigger,
 } from "@/components/ui/collapsible";
 
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -41,123 +54,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CharacterCounter } from "@/components/character-counter";
-import { useApp } from "@/hooks/use-apps";
-import { useAsoProfile, useUpdateAsoProfile } from "@/hooks/use-aso-profile";
+import { useApp, useApps } from "@/hooks/use-apps";
+import {
+  useAsoProfile,
+  useCopyFromAsoProfile,
+  useUpdateAsoProfile,
+} from "@/hooks/use-aso-profile";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import type { AsoProfileInput } from "@/lib/types";
-
-type FieldHint = { description: string; example: string };
-
-const FIELD_HINTS: Record<string, FieldHint> = {
-  category: {
-    description: "App category as listed in the store.",
-    example: "Productivity",
-  },
-  oneLiner: {
-    description: "One-sentence tagline that captures what your app does.",
-    example: "Track habits and build better routines",
-  },
-  problem: {
-    description: "What user problem does your app solve?",
-    example: "People struggle to build consistent daily habits",
-  },
-  mainBenefit: {
-    description: "The #1 value proposition for your users.",
-    example: "Build lasting habits with smart reminders",
-  },
-  keyFeatures: {
-    description: "3-7 core features that define your app.",
-    example: "Habit tracking, Streak counter, Reminders",
-  },
-  differentiator: {
-    description: "What makes your app unique vs competitors?",
-    example: "AI-powered suggestions based on lifestyle",
-  },
-  tone: {
-    description: "Communication style used in store listings.",
-    example: "Friendly, Motivating",
-  },
-  brandVoiceExample: {
-    description: "A sentence that captures how your brand speaks.",
-    example: "Small steps today, big changes tomorrow.",
-  },
-  wordsToInclude: {
-    description: "Words your brand should always use.",
-    example: "empower, effortless, smart",
-  },
-  wordsToAvoid: {
-    description: "Words your brand should never use.",
-    example: "cheap, basic, simple",
-  },
-  targetAudience: {
-    description: "Ideal user profile — demographics and interests.",
-    example: "Young professionals 25-35 who want to improve daily routines",
-  },
-  painPoints: {
-    description: "User frustrations your app addresses.",
-    example: "Forgetting habits, Losing motivation after a week",
-  },
-  userLanguage: {
-    description: "How users naturally describe the problem your app solves.",
-    example: "I keep forgetting to do my daily exercises",
-  },
-  competitors: {
-    description: "Links to competitor apps in the stores.",
-    example: "https://apps.apple.com/app/id123456",
-  },
-  competitiveAdvantage: {
-    description: "Your key advantage over competitors.",
-    example: "Only app with AI-generated habit suggestions",
-  },
-  positioning: {
-    description: "How your app is positioned in the market.",
-    example: "The smartest habit tracker for busy professionals",
-  },
-  downloadCount: {
-    description: "Total download count for social proof.",
-    example: "1M+",
-  },
-  awards: {
-    description: "Awards or recognitions your app received.",
-    example: "App of the Day, Best New App 2024",
-  },
-  pressQuotes: {
-    description: "Notable press mentions or reviews.",
-    example: '"The best habit app we\'ve tested" — TechCrunch',
-  },
-  testimonials: {
-    description: "User testimonials or reviews.",
-    example: '"Changed my morning routine completely!" — Sarah K.',
-  },
-  pricingModel: {
-    description: "How your app is monetized.",
-    example: "Freemium",
-  },
-  price: {
-    description: "Pricing details for paid tiers.",
-    example: "$4.99/month, $29.99/year",
-  },
-  freeFeatures: {
-    description: "Features available in the free tier.",
-    example: "3 habits, Basic reminders",
-  },
-  premiumFeatures: {
-    description: "Features exclusive to paid users.",
-    example: "Unlimited habits, AI suggestions, Analytics",
-  },
-  mustIncludeKeywords: {
-    description: "Keywords that must appear in your store listing.",
-    example: "habit tracker, daily routine",
-  },
-  longTailKeywords: {
-    description: "Multi-word keyword phrases to target.",
-    example: "best habit tracker app for beginners",
-  },
-  excludeKeywords: {
-    description: "Keywords to avoid in your store listing.",
-    example: "free, cheap, diet",
-  },
-};
 
 const EMPTY_PROFILE: AsoProfileInput = {
   category: null,
@@ -239,12 +143,14 @@ function MultiInput({
   onChange,
   placeholder,
   hint,
+  disabled,
 }: {
   label: string;
   values: string[];
   onChange: (values: string[]) => void;
   placeholder?: string;
   hint?: FieldHint;
+  disabled?: boolean;
 }) {
   const [input, setInput] = useState("");
 
@@ -266,42 +172,46 @@ function MultiInput({
         <Label className="text-sm">{label}</Label>
         {hint && <FieldTooltip hint={hint} />}
       </div>
-      <div className="flex gap-2">
-        <Input
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") {
-              e.preventDefault();
-              addItem();
-            }
-          }}
-          placeholder={placeholder ?? `Add ${label.toLowerCase()}...`}
-          className="flex-1"
-        />
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          onClick={addItem}
-          disabled={!input.trim()}
-        >
-          Add
-        </Button>
-      </div>
+      {!disabled && (
+        <div className="flex gap-2">
+          <Input
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                addItem();
+              }
+            }}
+            placeholder={placeholder ?? `Add ${label.toLowerCase()}...`}
+            className="flex-1"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addItem}
+            disabled={!input.trim()}
+          >
+            Add
+          </Button>
+        </div>
+      )}
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
           {values.map((item, i) => (
             <Badge
               key={`${item}-${i}`}
               variant="secondary"
-              className="cursor-pointer gap-1 pr-1.5"
-              onClick={() => removeItem(i)}
+              className={disabled ? "" : "cursor-pointer gap-1 pr-1.5"}
+              onClick={disabled ? undefined : () => removeItem(i)}
             >
               {item}
-              <span className="ml-0.5 text-muted-foreground hover:text-foreground">
-                ×
-              </span>
+              {!disabled && (
+                <span className="ml-0.5 text-muted-foreground hover:text-foreground">
+                  ×
+                </span>
+              )}
             </Badge>
           ))}
         </div>
@@ -354,6 +264,7 @@ function TextField({
   multiline = false,
   placeholder,
   hint,
+  disabled,
 }: {
   label: string;
   value: string;
@@ -362,6 +273,7 @@ function TextField({
   multiline?: boolean;
   placeholder?: string;
   hint?: FieldHint;
+  disabled?: boolean;
 }) {
   const Component = multiline ? Textarea : Input;
   return (
@@ -380,6 +292,7 @@ function TextField({
         onChange={(e) => onChange(e.target.value)}
         maxLength={maxLength}
         placeholder={placeholder}
+        disabled={disabled}
         className={multiline ? "min-h-[80px] resize-y" : ""}
       />
     </div>
@@ -402,13 +315,23 @@ export default function AppInformationPage() {
   const profile = useAsoProfile(appId);
   const updateProfile = useUpdateAsoProfile(appId);
 
+  const allApps = useApps();
+  const copyFrom = useCopyFromAsoProfile(appId);
+
+  const isLocked = profile.data?.locked === true;
+  const lockedGroupId = profile.data?.groupId;
+
   const [form, setForm] = useState<AsoProfileInput>(EMPTY_PROFILE);
   const [initialized, setInitialized] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
+  const [showCopyDialog, setShowCopyDialog] = useState(false);
+  const [selectedSourceAppId, setSelectedSourceAppId] = useState<string | null>(
+    null,
+  );
 
   useEffect(() => {
-    if (profile.data !== undefined && !initialized) {
-      setForm(profileToForm(profile.data));
+    if (profile.data?.asoProfile !== undefined && !initialized) {
+      setForm(profileToForm(profile.data.asoProfile));
       setInitialized(true);
     }
   }, [profile.data, initialized]);
@@ -437,7 +360,7 @@ export default function AppInformationPage() {
   const { saveNow } = useAutoSave({
     data: form,
     onSave: (data) => updateProfile.mutateAsync(data),
-    enabled: initialized,
+    enabled: initialized && !isLocked,
   });
 
   const handleExportCsv = useCallback(() => {
@@ -561,6 +484,22 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
     toast.success("AI prompt copied to clipboard");
   }, [app.data]);
 
+  const handleCopyFrom = useCallback(async () => {
+    if (!selectedSourceAppId) return;
+    try {
+      const result = await copyFrom.mutateAsync(selectedSourceAppId);
+      const newForm = profileToForm(result);
+      setForm(newForm);
+      // Sync auto-save baseline so it doesn't trigger a redundant save
+      await saveNow(newForm);
+      setShowCopyDialog(false);
+      setSelectedSourceAppId(null);
+      toast.success("ASO Profile copied successfully");
+    } catch {
+      toast.error("Failed to copy ASO Profile");
+    }
+  }, [selectedSourceAppId, copyFrom, saveNow]);
+
   if (app.isLoading || profile.isLoading) {
     return (
       <div className="mx-auto max-w-3xl space-y-4 p-6">
@@ -609,12 +548,18 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
       onSelect: handleDownloadTemplate,
     },
     {
+      key: "copy-from",
+      label: "Copy From App",
+      icon: "copy",
+      onSelect: () => setShowCopyDialog(true),
+      separatorBefore: true,
+    },
+    {
       key: "import",
       label: "Import",
       icon: "upload",
       disabled: isImporting,
       onSelect: () => {},
-      separatorBefore: true,
     },
   ];
 
@@ -650,12 +595,36 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           </Badge>
 
           {/* Three-dot menu */}
-          <ActionsMenu
-            actions={infoMenuActions}
-            importConfig={{ accept: ".csv,.json", onChange: handleImport }}
-          />
+          {!isLocked && (
+            <ActionsMenu
+              actions={infoMenuActions}
+              importConfig={{ accept: ".csv,.json", onChange: handleImport }}
+            />
+          )}
         </div>
       </div>
+
+      {/* Locked banner */}
+      {isLocked && lockedGroupId && (
+        <div className="flex items-start gap-3 rounded-lg border border-blue-500/30 bg-blue-500/5 p-4">
+          <Lock className="mt-0.5 h-4 w-4 shrink-0 text-blue-500" />
+          <div className="flex-1">
+            <p className="text-sm font-medium text-blue-400">
+              ASO Profile is managed at group level
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              This app&apos;s profile is read-only because the group has shared ASO profile enabled.
+            </p>
+            <Link
+              href={`/groups/${lockedGroupId}/information`}
+              className="mt-2 inline-flex items-center gap-1.5 text-sm font-medium text-blue-400 hover:text-blue-300"
+            >
+              <Link2 className="h-3.5 w-3.5" />
+              Go to group settings
+            </Link>
+          </div>
+        </div>
+      )}
 
       {/* REQUIRED: Core Information */}
       <Card>
@@ -671,6 +640,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             onChange={(v) => set("category", v || null)}
             placeholder="e.g. Productivity, Health & Fitness"
             hint={FIELD_HINTS.category}
+            disabled={isLocked}
           />
           <TextField
             label="One-liner"
@@ -678,6 +648,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             onChange={(v) => set("oneLiner", v || null)}
             placeholder="A short tagline describing your app"
             hint={FIELD_HINTS.oneLiner}
+            disabled={isLocked}
           />
           <TextField
             label="Problem it solves"
@@ -686,6 +657,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             multiline
             placeholder="What problem does your app solve for users?"
             hint={FIELD_HINTS.problem}
+            disabled={isLocked}
           />
           <TextField
             label="Main Benefit"
@@ -694,6 +666,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             multiline
             placeholder="The #1 benefit users get from your app"
             hint={FIELD_HINTS.mainBenefit}
+            disabled={isLocked}
           />
           <MultiInput
             label="Key Features"
@@ -701,6 +674,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             onChange={(v) => set("keyFeatures", v.length ? v : null)}
             placeholder="Add a key feature..."
             hint={FIELD_HINTS.keyFeatures}
+            disabled={isLocked}
           />
           <TextField
             label="Differentiator"
@@ -709,6 +683,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             multiline
             placeholder="What makes your app unique vs competitors?"
             hint={FIELD_HINTS.differentiator}
+            disabled={isLocked}
           />
 
           {/* Tone & Branding */}
@@ -723,6 +698,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
                 onChange={(v) => set("tone", v || null)}
                 placeholder="e.g. Professional, Casual, Playful"
                 hint={FIELD_HINTS.tone}
+                disabled={isLocked}
               />
               <TextField
                 label="Brand Voice Example"
@@ -731,6 +707,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
                 multiline
                 placeholder="Paste a sentence that captures your brand voice"
                 hint={FIELD_HINTS.brandVoiceExample}
+                disabled={isLocked}
               />
               <MultiInput
                 label="Words to Include"
@@ -738,6 +715,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
                 onChange={(v) => set("wordsToInclude", v.length ? v : null)}
                 placeholder="Add a word..."
                 hint={FIELD_HINTS.wordsToInclude}
+                disabled={isLocked}
               />
               <MultiInput
                 label="Words to Avoid"
@@ -745,6 +723,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
                 onChange={(v) => set("wordsToAvoid", v.length ? v : null)}
                 placeholder="Add a word..."
                 hint={FIELD_HINTS.wordsToAvoid}
+                disabled={isLocked}
               />
             </div>
           </div>
@@ -760,6 +739,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           multiline
           placeholder="Who is your ideal user? Demographics, interests..."
           hint={FIELD_HINTS.targetAudience}
+          disabled={isLocked}
         />
         <MultiInput
           label="Pain Points"
@@ -767,6 +747,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("painPoints", v.length ? v : null)}
           placeholder="Add a pain point..."
           hint={FIELD_HINTS.painPoints}
+          disabled={isLocked}
         />
         <TextField
           label="User Language / Tone"
@@ -774,6 +755,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("userLanguage", v || null)}
           placeholder="How do your users talk about this problem?"
           hint={FIELD_HINTS.userLanguage}
+          disabled={isLocked}
         />
       </Section>
 
@@ -784,6 +766,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("competitors", v.length ? v : null)}
           placeholder="App Store or Google Play link..."
           hint={FIELD_HINTS.competitors}
+          disabled={isLocked}
         />
       </Section>
 
@@ -794,6 +777,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("downloadCount", v || null)}
           placeholder="e.g. 1M+, 500K+"
           hint={FIELD_HINTS.downloadCount}
+          disabled={isLocked}
         />
         <MultiInput
           label="Awards"
@@ -801,6 +785,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("awards", v.length ? v : null)}
           placeholder="Add an award..."
           hint={FIELD_HINTS.awards}
+          disabled={isLocked}
         />
         <MultiInput
           label="Press Quotes"
@@ -808,6 +793,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("pressQuotes", v.length ? v : null)}
           placeholder="Add a press quote..."
           hint={FIELD_HINTS.pressQuotes}
+          disabled={isLocked}
         />
         <MultiInput
           label="Testimonials"
@@ -815,6 +801,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("testimonials", v.length ? v : null)}
           placeholder="Add a testimonial..."
           hint={FIELD_HINTS.testimonials}
+          disabled={isLocked}
         />
       </Section>
 
@@ -825,6 +812,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("pricingModel", v || null)}
           placeholder="e.g. Freemium, Subscription, One-time"
           hint={FIELD_HINTS.pricingModel}
+          disabled={isLocked}
         />
         <TextField
           label="Price"
@@ -832,6 +820,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("price", v || null)}
           placeholder="e.g. Free, $4.99/month, $29.99/year"
           hint={FIELD_HINTS.price}
+          disabled={isLocked}
         />
         <MultiInput
           label="Free Features"
@@ -839,6 +828,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("freeFeatures", v.length ? v : null)}
           placeholder="Add a free feature..."
           hint={FIELD_HINTS.freeFeatures}
+          disabled={isLocked}
         />
         <MultiInput
           label="Premium Features"
@@ -846,6 +836,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("premiumFeatures", v.length ? v : null)}
           placeholder="Add a premium feature..."
           hint={FIELD_HINTS.premiumFeatures}
+          disabled={isLocked}
         />
       </Section>
 
@@ -856,6 +847,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("mustIncludeKeywords", v.length ? v : null)}
           placeholder="Add a keyword..."
           hint={FIELD_HINTS.mustIncludeKeywords}
+          disabled={isLocked}
         />
         <MultiInput
           label="Long-tail Keywords"
@@ -863,6 +855,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("longTailKeywords", v.length ? v : null)}
           placeholder="Add a keyword phrase..."
           hint={FIELD_HINTS.longTailKeywords}
+          disabled={isLocked}
         />
         <MultiInput
           label="Exclude Keywords"
@@ -870,6 +863,7 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
           onChange={(v) => set("excludeKeywords", v.length ? v : null)}
           placeholder="Add a keyword to exclude..."
           hint={FIELD_HINTS.excludeKeywords}
+          disabled={isLocked}
         />
       </Section>
 
@@ -931,6 +925,90 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
         </div>
       </Section>
     </div>
+
+      {/* Copy From Dialog */}
+      <Dialog
+        open={showCopyDialog}
+        onOpenChange={(open) => {
+          setShowCopyDialog(open);
+          if (!open) setSelectedSourceAppId(null);
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Copy ASO Profile</DialogTitle>
+            <DialogDescription>
+              Select an app to copy its ASO Profile to{" "}
+              <span className="font-medium text-foreground">
+                {data.name}
+              </span>
+              . This will overwrite the current profile.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-64 space-y-1 overflow-y-auto py-2">
+            {allApps.data
+              ?.filter((a) => a.id !== appId)
+              .map((a) => (
+                <button
+                  key={a.id}
+                  type="button"
+                  className={`flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors ${
+                    selectedSourceAppId === a.id
+                      ? "bg-primary/10 ring-1 ring-primary"
+                      : "hover:bg-muted"
+                  }`}
+                  onClick={() => setSelectedSourceAppId(a.id)}
+                >
+                  {a.iconUrl ? (
+                    <img
+                      src={a.iconUrl}
+                      alt={a.name}
+                      className="h-8 w-8 rounded-lg object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-muted text-xs font-bold text-muted-foreground">
+                      {a.name.slice(0, 2).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{a.name}</p>
+                    <p className="truncate text-xs text-muted-foreground">
+                      {a.bundleId}
+                    </p>
+                  </div>
+                  <Badge variant="outline" className="shrink-0 text-xs">
+                    {a.platform === "ios" ? "iOS" : "Android"}
+                  </Badge>
+                </button>
+              ))}
+            {allApps.data?.filter((a) => a.id !== appId).length === 0 && (
+              <p className="py-4 text-center text-sm text-muted-foreground">
+                No other apps in workspace
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowCopyDialog(false);
+                setSelectedSourceAppId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleCopyFrom}
+              disabled={!selectedSourceAppId || copyFrom.isPending}
+            >
+              {copyFrom.isPending && (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              )}
+              Copy Profile
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </TooltipProvider>
   );
 }

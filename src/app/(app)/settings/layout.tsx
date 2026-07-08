@@ -2,15 +2,26 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Lock, LogOut, MessageSquareText, Settings } from "lucide-react";
+import {
+  CloudCog,
+  CreditCard,
+  Lock,
+  LogOut,
+  MessageSquareText,
+  Settings,
+  ToggleLeft,
+} from "lucide-react";
 
 import { signOut } from "@/lib/auth-client";
 import { cn } from "@/lib/utils";
 
 const NAV_ITEMS = [
   { label: "General", icon: Settings, href: "/settings" },
+  { label: "Features", icon: ToggleLeft, href: "/settings/features" },
   { label: "Prompts", icon: MessageSquareText, href: "/settings/prompts" },
+  { label: "Monetization", icon: CreditCard, href: "/settings/monetization" },
   { label: "Privacy Templates", icon: Lock, href: "/settings/templates" },
+  { label: "Google Play Setup", icon: CloudCog, href: "/settings/google-play-setup" },
 ] as const;
 
 export default function SettingsLayout({

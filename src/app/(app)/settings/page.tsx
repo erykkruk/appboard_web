@@ -16,6 +16,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
+  CardAction,
   CardContent,
   CardDescription,
   CardHeader,
@@ -33,15 +34,53 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
+import { VaultSettingsCard } from "@/components/vault/vault-settings-card";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
 import {
   useDisconnectStore,
   useStores,
+  useSyncAllStores,
   useSyncStore,
 } from "@/hooks/use-stores";
+import { cn } from "@/lib/utils";
 
 const OTHER_VALUE = "__other__";
+
+const STORE_STATUS_BADGES: Record<
+  string,
+  { className: string; label: string }
+> = {
+  connected: { className: "bg-green-500/10 text-green-500", label: "Connected" },
+  disconnected: {
+    className: "bg-muted text-muted-foreground",
+    label: "Disconnected",
+  },
+  error: { className: "bg-red-500/10 text-red-500", label: "Error" },
+};
+
+const PRIMARY_TERRITORIES = [
+  { code: "US", currency: "USD", label: "United States" },
+  { code: "GB", currency: "GBP", label: "United Kingdom" },
+  { code: "DE", currency: "EUR", label: "Germany" },
+  { code: "FR", currency: "EUR", label: "France" },
+  { code: "JP", currency: "JPY", label: "Japan" },
+  { code: "AU", currency: "AUD", label: "Australia" },
+  { code: "CA", currency: "CAD", label: "Canada" },
+  { code: "BR", currency: "BRL", label: "Brazil" },
+  { code: "IN", currency: "INR", label: "India" },
+  { code: "KR", currency: "KRW", label: "South Korea" },
+  { code: "MX", currency: "MXN", label: "Mexico" },
+  { code: "PL", currency: "PLN", label: "Poland" },
+  { code: "SE", currency: "SEK", label: "Sweden" },
+  { code: "CH", currency: "CHF", label: "Switzerland" },
+  { code: "TR", currency: "TRY", label: "Turkey" },
+  { code: "SA", currency: "SAR", label: "Saudi Arabia" },
+  { code: "AE", currency: "AED", label: "UAE" },
+  { code: "SG", currency: "SGD", label: "Singapore" },
+  { code: "HK", currency: "HKD", label: "Hong Kong" },
+  { code: "NO", currency: "NOK", label: "Norway" },
+] as const;
 
 const FLAGSHIP_MODELS = [
   { label: "Gemini 2.0 Flash", value: "google/gemini-2.0-flash-001" },
@@ -142,12 +181,14 @@ export default function SettingsGeneralPage() {
   const [modelRephrase, setModelRephrase] = useState("");
   const [modelResearch, setModelResearch] = useState("");
   const [temperature, setTemperature] = useState(0.7);
+  const [primaryTerritory, setPrimaryTerritory] = useState("US");
 
   const settings = useSettings();
   const updateSettings = useUpdateSettings();
   const stores = useStores();
   const disconnectStore = useDisconnectStore();
   const syncStore = useSyncStore();
+  const syncAllStores = useSyncAllStores();
 
   useEffect(() => {
     if (settings.data) {
@@ -169,6 +210,9 @@ export default function SettingsGeneralPage() {
       if (settings.data.ai_temperature) {
         setTemperature(Number.parseFloat(settings.data.ai_temperature));
       }
+      if (settings.data.primary_territory) {
+        setPrimaryTerritory(settings.data.primary_territory);
+      }
     }
   }, [settings.data]);
 
@@ -188,8 +232,8 @@ export default function SettingsGeneralPage() {
   };
 
   const aiSettingsData = useMemo(
-    () => ({ modelGenerate, modelRephrase, modelResearch, temperature }),
-    [modelGenerate, modelRephrase, modelResearch, temperature],
+    () => ({ modelGenerate, modelRephrase, modelResearch, primaryTerritory, temperature }),
+    [modelGenerate, modelRephrase, modelResearch, primaryTerritory, temperature],
   );
 
   useAutoSave({
@@ -200,6 +244,7 @@ export default function SettingsGeneralPage() {
         ai_model_rephrase: data.modelRephrase || undefined,
         ai_model_research: data.modelResearch || undefined,
         ai_temperature: String(data.temperature),
+        primary_territory: data.primaryTerritory || undefined,
       });
     },
     enabled: !!settings.data,
@@ -209,8 +254,10 @@ export default function SettingsGeneralPage() {
     try {
       await disconnectStore.mutateAsync(storeId);
       toast.success("Store disconnected");
-    } catch {
-      toast.error("Failed to disconnect store");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to disconnect store",
+      );
     }
   };
 
@@ -218,8 +265,20 @@ export default function SettingsGeneralPage() {
     try {
       await syncStore.mutateAsync(storeId);
       toast.success("Store synced");
-    } catch {
-      toast.error("Failed to sync store");
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to sync store");
+    }
+  };
+
+  const handleSyncAll = async () => {
+    try {
+      const result = await syncAllStores.mutateAsync();
+      const storeCount = result.results.length;
+      toast.success(
+        `Synced ${result.totalSynced} app${result.totalSynced !== 1 ? "s" : ""} across ${storeCount} store${storeCount !== 1 ? "s" : ""}`,
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to sync stores");
     }
   };
 
@@ -231,6 +290,23 @@ export default function SettingsGeneralPage() {
           <CardDescription>
             Manage your connected app store accounts.
           </CardDescription>
+          <CardAction>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleSyncAll}
+              disabled={
+                syncAllStores.isPending || !stores.data || stores.data.length === 0
+              }
+            >
+              {syncAllStores.isPending ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="mr-2 h-4 w-4" />
+              )}
+              Sync all
+            </Button>
+          </CardAction>
         </CardHeader>
         <CardContent>
           {stores.isLoading && (
@@ -261,55 +337,77 @@ export default function SettingsGeneralPage() {
 
           {stores.data && stores.data.length > 0 && (
             <div className="space-y-3">
-              {stores.data.map((store) => (
-                <div
-                  key={store.id}
-                  className="flex items-center justify-between rounded-lg border p-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <Badge
-                      variant={
-                        store.type === "google_play" ? "default" : "secondary"
-                      }
-                    >
-                      {store.type === "google_play" ? "GP" : "AS"}
-                    </Badge>
-                    <div>
-                      <p className="text-sm font-medium">{store.name}</p>
-                      {store.lastSyncedAt && (
-                        <p className="text-xs text-muted-foreground">
-                          Last synced:{" "}
-                          {new Date(store.lastSyncedAt).toLocaleString()}
-                        </p>
-                      )}
+              {stores.data.map((store) => {
+                const statusBadge = STORE_STATUS_BADGES[store.status] ?? {
+                  className: "bg-muted text-muted-foreground",
+                  label: store.status,
+                };
+                const isSyncingRow =
+                  syncStore.isPending && syncStore.variables === store.id;
+                const isDisconnectingRow =
+                  disconnectStore.isPending &&
+                  disconnectStore.variables === store.id;
+                return (
+                  <div
+                    key={store.id}
+                    className="flex items-center justify-between rounded-lg border p-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <Badge
+                        variant={
+                          store.type === "google_play" ? "default" : "secondary"
+                        }
+                      >
+                        {store.type === "google_play" ? "GP" : "AS"}
+                      </Badge>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{store.name}</p>
+                          <Badge
+                            className={cn("text-xs", statusBadge.className)}
+                          >
+                            {statusBadge.label}
+                          </Badge>
+                        </div>
+                        {store.lastSyncedAt && (
+                          <p className="text-xs text-muted-foreground">
+                            Last synced:{" "}
+                            {new Date(store.lastSyncedAt).toLocaleString()}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => handleSync(store.id)}
+                        disabled={isSyncingRow || syncAllStores.isPending}
+                      >
+                        {isSyncingRow ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-destructive"
+                        onClick={() => handleDisconnect(store.id)}
+                        disabled={isDisconnectingRow}
+                      >
+                        {isDisconnectingRow ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
                     </div>
                   </div>
-                  <div className="flex gap-1">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8"
-                      onClick={() => handleSync(store.id)}
-                      disabled={syncStore.isPending}
-                    >
-                      {syncStore.isPending ? (
-                        <Loader2 className="h-4 w-4 animate-spin" />
-                      ) : (
-                        <RefreshCw className="h-4 w-4" />
-                      )}
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive"
-                      onClick={() => handleDisconnect(store.id)}
-                      disabled={disconnectStore.isPending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
 
@@ -340,6 +438,8 @@ export default function SettingsGeneralPage() {
           </div>
         </CardContent>
       </Card>
+
+      <VaultSettingsCard />
 
       <Card>
         <CardHeader>
@@ -454,6 +554,31 @@ export default function SettingsGeneralPage() {
               <span>Precise</span>
               <span>Creative</span>
             </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-2">
+            <div>
+              <Label className="text-sm font-medium" htmlFor="primary-territory">
+                Primary Currency Territory
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Displayed as the main price in monetization plans and previews.
+              </p>
+            </div>
+            <Select value={primaryTerritory} onValueChange={setPrimaryTerritory}>
+              <SelectTrigger id="primary-territory">
+                <SelectValue placeholder="US (USD)" />
+              </SelectTrigger>
+              <SelectContent>
+                {PRIMARY_TERRITORIES.map((t) => (
+                  <SelectItem key={t.code} value={t.code}>
+                    {t.code} — {t.currency} ({t.label})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
         </CardContent>

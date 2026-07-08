@@ -29,3 +29,9 @@ export function useUpdateAgeRating(appId: string) {
     },
   });
 }
+
+export function useGenerateAgeRating(appId: string) {
+  return useMutation({
+    mutationFn: () => api.ageRating.generate(appId),
+  });
+}

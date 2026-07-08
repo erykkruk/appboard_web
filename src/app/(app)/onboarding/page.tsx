@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   ArrowLeft,
@@ -26,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useConnectStore } from "@/hooks/use-stores";
+import { ApiError } from "@/lib/api";
 import type { StoreType } from "@/lib/types";
 
 const TOTAL_STEPS = 4;
@@ -164,15 +166,14 @@ function GooglePlayCredentials({
             <li>Generate a JSON key for the Service Account</li>
             <li>Grant the Service Account access in Google Play Console</li>
           </ol>
-          <a
-            href="https://developers.google.com/android-publisher/getting_started#using_a_service_account"
+          <Link
+            href="/settings/google-play-setup/guide"
             target="_blank"
-            rel="noopener noreferrer"
             className="inline-flex items-center gap-1 text-sm text-primary underline underline-offset-4"
           >
             Full setup guide
             <ExternalLink className="h-3 w-3" />
-          </a>
+          </Link>
         </CardContent>
       </Card>
 
@@ -183,7 +184,7 @@ function GooglePlayCredentials({
         <Textarea
           id="sa-json"
           placeholder="Paste your Service Account JSON here or upload a .json file..."
-          className="min-h-[200px] font-mono text-xs"
+          className="h-[200px] max-h-[200px] [field-sizing:fixed] overflow-y-auto font-mono text-xs"
           value={serviceAccountJson}
           onChange={(e) => onJsonChange(e.target.value)}
         />
@@ -290,7 +291,7 @@ function AppStoreCredentials({
         <Textarea
           id="private-key"
           placeholder="Paste your .p8 private key content here..."
-          className="min-h-[150px] font-mono text-xs"
+          className="h-[150px] max-h-[150px] [field-sizing:fixed] overflow-y-auto font-mono text-xs"
           value={privateKey}
           onChange={(e) => onPrivateKeyChange(e.target.value)}
         />
@@ -324,7 +325,7 @@ function ConnectingStep() {
   );
 }
 
-function SuccessStep() {
+function SuccessStep({ syncedApps, warnings }: { syncedApps: number; warnings: string[] }) {
   const router = useRouter();
 
   return (
@@ -332,8 +333,23 @@ function SuccessStep() {
       <CheckCircle2 className="mb-4 h-12 w-12 text-green-500" />
       <h3 className="text-lg font-semibold">Connected!</h3>
       <p className="mt-2 text-sm text-muted-foreground">
-        Your store has been connected successfully. Apps have been synced.
+        Your store has been connected successfully.{" "}
+        {syncedApps > 0
+          ? `${syncedApps} app${syncedApps !== 1 ? "s" : ""} synced.`
+          : "No apps were found during sync."}
       </p>
+      {warnings.length > 0 && (
+        <div className="mt-4 w-full max-w-md space-y-2">
+          {warnings.map((warning) => (
+            <div
+              key={warning}
+              className="rounded-lg border border-yellow-500/20 bg-yellow-500/5 p-3 text-left text-xs text-yellow-200"
+            >
+              {warning}
+            </div>
+          ))}
+        </div>
+      )}
       <Button className="mt-6" onClick={() => router.push("/dashboard")}>
         Go to Dashboard
       </Button>
@@ -346,6 +362,7 @@ export default function OnboardingPage() {
   const [step, setStep] = useState(1);
   const [storeType, setStoreType] = useState<StoreType | null>(null);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
+  const [connectResult, setConnectResult] = useState<{ syncedApps: number; warnings: string[] } | null>(null);
 
   const [accountName, setAccountName] = useState("");
   const [serviceAccountJson, setServiceAccountJson] = useState("");
@@ -384,7 +401,6 @@ export default function OnboardingPage() {
 
   const handleConnect = async () => {
     if (!storeType) return;
-    setStep(3);
 
     const name = accountName.trim() || (storeType === "google_play" ? "Google Play" : "App Store");
 
@@ -393,19 +409,30 @@ export default function OnboardingPage() {
       try {
         credentials = JSON.parse(serviceAccountJson);
       } catch {
-        credentials = { type: "mock", mock: true };
+        toast.error("Invalid JSON — please check the credentials format");
+        return;
       }
     } else {
       credentials = { keyId, issuerId, privateKey };
     }
 
+    setStep(3);
     try {
-      await connectStore.mutateAsync({ name, type: storeType, credentials });
+      const result = await connectStore.mutateAsync({ name, type: storeType, credentials });
+      setConnectResult({ syncedApps: result.syncedApps, warnings: result.warnings });
       setStep(4);
-      toast.success("Store connected successfully!");
-    } catch {
+      toast.success(`Store connected! ${result.syncedApps} app${result.syncedApps !== 1 ? "s" : ""} synced.`);
+    } catch (err) {
       setStep(2);
-      toast.error("Failed to connect store. Please check your credentials.");
+      if (err instanceof ApiError && err.status === 423) {
+        toast.error("Unlock your vault to save credentials, then retry.");
+      } else {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Failed to connect store. Please check your credentials.",
+        );
+      }
     }
   };
 
@@ -498,7 +525,7 @@ export default function OnboardingPage() {
         )}
 
         {step === 3 && <ConnectingStep />}
-        {step === 4 && <SuccessStep />}
+        {step === 4 && <SuccessStep syncedApps={connectResult?.syncedApps ?? 0} warnings={connectResult?.warnings ?? []} />}
 
         {step === 2 && (
           <div className="mt-6 flex justify-between">

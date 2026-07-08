@@ -1,0 +1,687 @@
+"use client";
+
+import { Languages, Loader2, Save, Upload } from "lucide-react";
+import { useCallback, useMemo, useRef, useState } from "react";
+import { toast } from "sonner";
+
+import { Button } from "@/components/ui/button";
+import {
+	Dialog,
+	DialogContent,
+	DialogHeader,
+	DialogTitle,
+} from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import {
+	useCreateScreenshotScene,
+	useUpdateScreenshotScene,
+} from "@/hooks/use-screenshot-scenes";
+import {
+	useUploadScreenshot,
+	useVersionScreenshots,
+} from "@/hooks/use-publishing";
+import { getScreenshotDimensionError } from "@/lib/api";
+import {
+	dedupeFontFamily,
+	registerCustomFont,
+	sanitizeFontFamilyName,
+} from "@/lib/scene-fonts";
+import {
+	createDefaultAnnotation,
+	createDefaultScene,
+	createImageAnnotation,
+	getDisplayTypeLabel,
+	getTargetDimensions,
+} from "@/lib/screenshot-editor";
+import { buildDimensionMessage } from "@/lib/screenshot-validation";
+import type {
+	SceneAnnotation,
+	SceneAnnotationType,
+	SceneData,
+	SceneTextLayer,
+	ScreenshotScene,
+	VersionScreenshot,
+} from "@/lib/types";
+
+import { LayersPanel, PropertiesPanel } from "./editor-panels";
+import type { RenderImages } from "./render-scene";
+import { SceneCanvas, type SceneCanvasHandle } from "./scene-canvas";
+import { SceneLocalizationDialog } from "./scene-localization-dialog";
+import { useSceneImages } from "./use-scene-images";
+
+interface ScreenshotEditorDialogProps {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	appId: string;
+	versionId: string;
+	language: string;
+	displayType: string;
+	/** Existing scene to reopen, or null to start a fresh scene. */
+	editingScene?: ScreenshotScene | null;
+}
+
+function readFileAsDataUrl(file: File): Promise<string> {
+	return new Promise((resolve, reject) => {
+		const reader = new FileReader();
+		reader.onload = () => resolve(reader.result as string);
+		reader.onerror = () => reject(reader.error);
+		reader.readAsDataURL(file);
+	});
+}
+
+/** Decode an image source just to read its natural aspect (height / width). */
+function readImageAspect(src: string): Promise<number> {
+	return new Promise((resolve) => {
+		const img = new Image();
+		img.onload = () =>
+			resolve(
+				img.naturalWidth > 0 ? img.naturalHeight / img.naturalWidth : 1,
+			);
+		img.onerror = () => resolve(1);
+		img.src = src;
+	});
+}
+
+let textLayerSeq = 0;
+function nextTextLayerId(): string {
+	textLayerSeq += 1;
+	return `text-${Date.now()}-${textLayerSeq}`;
+}
+
+let annotationSeq = 0;
+function nextAnnotationId(): string {
+	annotationSeq += 1;
+	return `ann-${Date.now()}-${annotationSeq}`;
+}
+
+export function ScreenshotEditorDialog({
+	open,
+	onOpenChange,
+	appId,
+	versionId,
+	language,
+	displayType,
+	editingScene,
+}: ScreenshotEditorDialogProps) {
+	const [scene, setScene] = useState<SceneData>(
+		() => editingScene?.scene ?? createDefaultScene(displayType),
+	);
+	const [sceneName, setSceneName] = useState(
+		() => editingScene?.name ?? "Nowa scena",
+	);
+	const [sceneId, setSceneId] = useState<string | null>(
+		editingScene?.id ?? null,
+	);
+	const [selectedLayerId, setSelectedLayerId] = useState<string | null>(
+		"__device",
+	);
+	const [screenshotSrc, setScreenshotSrc] = useState<string | undefined>(
+		editingScene?.scene.screenshot?.url,
+	);
+	const [localizeOpen, setLocalizeOpen] = useState(false);
+	const [pickerOpen, setPickerOpen] = useState(false);
+
+	const canvasRef = useRef<SceneCanvasHandle>(null);
+	const bgFileRef = useRef<HTMLInputElement>(null);
+	const screenshotFileRef = useRef<HTMLInputElement>(null);
+	const imageLayerFileRef = useRef<HTMLInputElement>(null);
+	// Annotation id whose image is being replaced; null = add a new image layer.
+	const imageLayerTargetRef = useRef<string | null>(null);
+	const fontFileRef = useRef<HTMLInputElement>(null);
+	// Text layer that requested the font upload; its family is set on success.
+	const fontTargetRef = useRef<string | null>(null);
+
+	const createScene = useCreateScreenshotScene(appId);
+	const updateScene = useUpdateScreenshotScene(appId);
+	const uploadScreenshot = useUploadScreenshot(appId, versionId);
+	// Screenshots already uploaded for this app/version (incl. panorama splits),
+	// so the editor can reuse them as the device screenshot from the DB.
+	const existingScreenshots = useVersionScreenshots(appId, versionId);
+
+	const loaded = useSceneImages(scene, screenshotSrc);
+	// Wrap each decoded image with its natural pixel dimensions so the renderer's
+	// fit math is correct regardless of the element's layout size.
+	const renderImages = useMemo<RenderImages>(
+		() => ({
+			background: loaded.background
+				? {
+						source: loaded.background.element,
+						width: loaded.background.width,
+						height: loaded.background.height,
+					}
+				: undefined,
+			screenshot: loaded.screenshot
+				? {
+						source: loaded.screenshot.element,
+						width: loaded.screenshot.width,
+						height: loaded.screenshot.height,
+					}
+				: undefined,
+			annotations: loaded.annotations
+				? Object.fromEntries(
+						Object.entries(loaded.annotations).map(([id, img]) => [
+							id,
+							{
+								source: img.element,
+								width: img.width,
+								height: img.height,
+							},
+						]),
+					)
+				: undefined,
+		}),
+		[loaded.background, loaded.screenshot, loaded.annotations],
+	);
+	const [target0, target1] = useMemo(
+		() => getTargetDimensions(displayType),
+		[displayType],
+	);
+
+	const patchScene = useCallback((patch: Partial<SceneData>) => {
+		setScene((prev) => ({ ...prev, ...patch }));
+	}, []);
+
+	const patchTextLayer = useCallback(
+		(id: string, patch: Partial<SceneTextLayer>) => {
+			setScene((prev) => ({
+				...prev,
+				textLayers: prev.textLayers.map((l) =>
+					l.id === id ? { ...l, ...patch } : l,
+				),
+			}));
+		},
+		[],
+	);
+
+	const moveTextLayer = useCallback((id: string, x: number, y: number) => {
+		setScene((prev) => ({
+			...prev,
+			textLayers: prev.textLayers.map((l) =>
+				l.id === id ? { ...l, x, y } : l,
+			),
+		}));
+	}, []);
+
+	const addTextLayer = useCallback(() => {
+		const id = nextTextLayerId();
+		setScene((prev) => ({
+			...prev,
+			textLayers: [
+				...prev.textLayers,
+				{
+					id,
+					text: "Nowy napis",
+					x: 0.5,
+					y: 0.2,
+					fontFamily: "Inter, system-ui, sans-serif",
+					fontSize: Math.round(prev.height * 0.035),
+					color: "#ffffff",
+					align: "center",
+					weight: 600,
+				},
+			],
+		}));
+		setSelectedLayerId(id);
+	}, []);
+
+	const deleteTextLayer = useCallback(
+		(id: string) => {
+			setScene((prev) => ({
+				...prev,
+				textLayers: prev.textLayers.filter((l) => l.id !== id),
+			}));
+			if (selectedLayerId === id) setSelectedLayerId(null);
+		},
+		[selectedLayerId],
+	);
+
+	const patchAnnotation = useCallback(
+		(id: string, patch: Partial<SceneAnnotation>) => {
+			setScene((prev) => ({
+				...prev,
+				annotations: (prev.annotations ?? []).map((a) =>
+					a.id === id ? ({ ...a, ...patch } as SceneAnnotation) : a,
+				),
+			}));
+		},
+		[],
+	);
+
+	const moveAnnotation = useCallback((id: string, x: number, y: number) => {
+		setScene((prev) => ({
+			...prev,
+			annotations: (prev.annotations ?? []).map((a) =>
+				a.id === id ? { ...a, x, y } : a,
+			),
+		}));
+	}, []);
+
+	const moveCalloutTarget = useCallback(
+		(id: string, targetX: number, targetY: number) => {
+			setScene((prev) => ({
+				...prev,
+				annotations: (prev.annotations ?? []).map((a) =>
+					a.id === id && a.type === "callout"
+						? { ...a, targetX, targetY }
+						: a,
+				),
+			}));
+		},
+		[],
+	);
+
+	const addAnnotation = useCallback((type: SceneAnnotationType) => {
+		const id = nextAnnotationId();
+		setScene((prev) => ({
+			...prev,
+			annotations: [
+				...(prev.annotations ?? []),
+				createDefaultAnnotation(type, prev, id),
+			],
+		}));
+		setSelectedLayerId(id);
+	}, []);
+
+	const deleteAnnotation = useCallback(
+		(id: string) => {
+			setScene((prev) => ({
+				...prev,
+				annotations: (prev.annotations ?? []).filter((a) => a.id !== id),
+			}));
+			if (selectedLayerId === id) setSelectedLayerId(null);
+		},
+		[selectedLayerId],
+	);
+
+	const moveDevice = useCallback((offsetX: number, offsetY: number) => {
+		setScene((prev) =>
+			prev.device
+				? { ...prev, device: { ...prev.device, offsetX, offsetY } }
+				: prev,
+		);
+	}, []);
+
+	const handleAddImageLayer = useCallback(() => {
+		imageLayerTargetRef.current = null;
+		imageLayerFileRef.current?.click();
+	}, []);
+
+	const handleReplaceAnnotationImage = useCallback((id: string) => {
+		imageLayerTargetRef.current = id;
+		imageLayerFileRef.current?.click();
+	}, []);
+
+	const handleImageLayerFile = async (
+		e: React.ChangeEvent<HTMLInputElement>,
+	) => {
+		const file = e.target.files?.[0];
+		e.target.value = "";
+		if (!file) return;
+		const dataUrl = await readFileAsDataUrl(file);
+		const aspect = await readImageAspect(dataUrl);
+		const targetId = imageLayerTargetRef.current;
+		imageLayerTargetRef.current = null;
+		if (targetId) {
+			setScene((prev) => ({
+				...prev,
+				annotations: (prev.annotations ?? []).map((a) =>
+					a.id === targetId && a.type === "image"
+						? { ...a, url: dataUrl, aspect }
+						: a,
+				),
+			}));
+			return;
+		}
+		const id = nextAnnotationId();
+		setScene((prev) => ({
+			...prev,
+			annotations: [
+				...(prev.annotations ?? []),
+				createImageAnnotation(id, dataUrl, aspect),
+			],
+		}));
+		setSelectedLayerId(id);
+	};
+
+	const handleUploadFont = useCallback(() => {
+		fontTargetRef.current = selectedLayerId;
+		fontFileRef.current?.click();
+	}, [selectedLayerId]);
+
+	const handleFontFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		e.target.value = "";
+		if (!file) return;
+		try {
+			const dataUrl = await readFileAsDataUrl(file);
+			const family = dedupeFontFamily(
+				sanitizeFontFamilyName(file.name),
+				(scene.customFonts ?? []).map((f) => f.family),
+			);
+			const font = { dataUrl, family };
+			// Register up front so the canvas can draw with the new family
+			// immediately after the state update.
+			await registerCustomFont(font);
+			const targetId = fontTargetRef.current;
+			fontTargetRef.current = null;
+			setScene((prev) => ({
+				...prev,
+				customFonts: [...(prev.customFonts ?? []), font],
+				textLayers: targetId
+					? prev.textLayers.map((l) =>
+							l.id === targetId ? { ...l, fontFamily: family } : l,
+						)
+					: prev.textLayers,
+			}));
+			toast.success(`Font "${family}" added`);
+		} catch {
+			toast.error("Failed to load the font file");
+		}
+	};
+
+	const handleBackgroundFile = async (
+		e: React.ChangeEvent<HTMLInputElement>,
+	) => {
+		const file = e.target.files?.[0];
+		e.target.value = "";
+		if (!file) return;
+		const dataUrl = await readFileAsDataUrl(file);
+		patchScene({ background: { type: "image", value: dataUrl } });
+	};
+
+	const handleScreenshotFile = async (
+		e: React.ChangeEvent<HTMLInputElement>,
+	) => {
+		const file = e.target.files?.[0];
+		e.target.value = "";
+		if (!file) return;
+		const dataUrl = await readFileAsDataUrl(file);
+		setScreenshotSrc(dataUrl);
+		patchScene({
+			screenshot: { ...scene.screenshot, url: dataUrl },
+		});
+	};
+
+	const handlePickExistingScreenshot = useCallback(
+		(shot: VersionScreenshot) => {
+			setScreenshotSrc(shot.url);
+			setScene((prev) => ({
+				...prev,
+				screenshot: {
+					...prev.screenshot,
+					assetId: shot.externalId,
+					url: shot.url,
+				},
+			}));
+			setPickerOpen(false);
+		},
+		[],
+	);
+
+	const handleSave = async () => {
+		try {
+			if (sceneId) {
+				await updateScene.mutateAsync({
+					sceneId,
+					data: { name: sceneName, scene },
+				});
+			} else {
+				const created = await createScene.mutateAsync({
+					displayType,
+					language,
+					name: sceneName,
+					scene,
+				});
+				setSceneId(created.id);
+			}
+			toast.success("Scena zapisana");
+		} catch {
+			toast.error("Nie udało się zapisać sceny");
+		}
+	};
+
+	const handleExportUpload = async () => {
+		const blob = await canvasRef.current?.exportPng();
+		if (!blob) {
+			toast.error(
+				"Nie można wyeksportować — obraz pochodzi ze zdalnego źródła bez nagłówków CORS. Wgraj plik lokalnie.",
+			);
+			return;
+		}
+		const [w, h] = [target0, target1];
+		const file = new File([blob], `scene-${language}-${displayType}.png`, {
+			type: "image/png",
+		});
+		try {
+			await uploadScreenshot.mutateAsync({ displayType, file, language });
+			toast.success(`Wgrano screenshot ${w}×${h}px`);
+		} catch (err) {
+			const dimErr = getScreenshotDimensionError(err);
+			if (dimErr) {
+				toast.error(buildDimensionMessage(dimErr));
+			} else {
+				toast.error("Nie udało się wgrać screenshotu");
+			}
+		}
+	};
+
+	const isSaving = createScene.isPending || updateScene.isPending;
+	const isUploading = uploadScreenshot.isPending;
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent
+				showCloseButton={false}
+				className="flex h-[92vh] w-[96vw] max-w-[96vw] flex-col gap-0 overflow-hidden p-0 sm:max-w-[96vw]"
+			>
+				<DialogHeader className="flex flex-row items-center justify-between gap-4 border-b border-border px-4 py-3">
+					<div className="flex flex-1 items-center gap-3">
+						<DialogTitle className="shrink-0">Edytor screenshotów</DialogTitle>
+						<Input
+							value={sceneName}
+							onChange={(e) => setSceneName(e.target.value)}
+							className="max-w-xs"
+							placeholder="Nazwa sceny"
+						/>
+						<span className="text-sm text-muted-foreground">
+							{getDisplayTypeLabel(displayType)} · {language} · {target0}×
+							{target1}px
+						</span>
+					</div>
+					<div className="flex items-center gap-2">
+						<Button
+							variant="outline"
+							onClick={() => setLocalizeOpen(true)}
+							disabled={
+								scene.textLayers.length === 0 &&
+								!(scene.annotations ?? []).some((a) => a.type !== "image")
+							}
+						>
+							<Languages className="h-4 w-4" />
+							Warianty językowe
+						</Button>
+						<Button
+							variant="outline"
+							onClick={handleSave}
+							disabled={isSaving}
+						>
+							{isSaving ? (
+								<Loader2 className="h-4 w-4 animate-spin" />
+							) : (
+								<Save className="h-4 w-4" />
+							)}
+							Zapisz
+						</Button>
+						<Button onClick={handleExportUpload} disabled={isUploading}>
+							{isUploading ? (
+								<Loader2 className="h-4 w-4 animate-spin" />
+							) : (
+								<Upload className="h-4 w-4" />
+							)}
+							Eksportuj i wgraj
+						</Button>
+						<Button variant="ghost" onClick={() => onOpenChange(false)}>
+							Zamknij
+						</Button>
+					</div>
+				</DialogHeader>
+
+				<div className="flex min-h-0 flex-1">
+					<LayersPanel
+						scene={scene}
+						selectedLayerId={selectedLayerId}
+						onSelectLayer={setSelectedLayerId}
+						onAddText={addTextLayer}
+						onDeleteText={deleteTextLayer}
+						onAddAnnotation={addAnnotation}
+						onAddImage={handleAddImageLayer}
+						onDeleteAnnotation={deleteAnnotation}
+					/>
+
+					<div className="flex min-w-0 flex-1 items-center justify-center bg-muted/30 p-6">
+						<SceneCanvas
+							ref={canvasRef}
+							scene={scene}
+							images={renderImages}
+							selectedLayerId={selectedLayerId}
+							onSelectLayer={setSelectedLayerId}
+							onMoveLayer={moveTextLayer}
+							onMoveAnnotation={moveAnnotation}
+							onMoveCalloutTarget={moveCalloutTarget}
+							onMoveDevice={moveDevice}
+						/>
+					</div>
+
+					<PropertiesPanel
+						scene={scene}
+						selectedLayerId={selectedLayerId}
+						onPatchScene={patchScene}
+						onPatchTextLayer={patchTextLayer}
+						onPatchAnnotation={patchAnnotation}
+						onPickBackgroundImage={() => bgFileRef.current?.click()}
+						onPickScreenshot={() => screenshotFileRef.current?.click()}
+						onPickExistingScreenshot={() => setPickerOpen(true)}
+						onUploadFont={handleUploadFont}
+						onReplaceAnnotationImage={handleReplaceAnnotationImage}
+						onDeleteAnnotation={deleteAnnotation}
+					/>
+				</div>
+
+				<input
+					ref={bgFileRef}
+					type="file"
+					accept="image/*"
+					className="hidden"
+					onChange={handleBackgroundFile}
+				/>
+				<input
+					ref={screenshotFileRef}
+					type="file"
+					accept="image/*"
+					className="hidden"
+					onChange={handleScreenshotFile}
+				/>
+				<input
+					ref={imageLayerFileRef}
+					type="file"
+					accept="image/*"
+					className="hidden"
+					onChange={handleImageLayerFile}
+				/>
+				<input
+					ref={fontFileRef}
+					type="file"
+					accept=".ttf,.otf,.woff,.woff2"
+					className="hidden"
+					onChange={handleFontFile}
+				/>
+
+				{localizeOpen && (
+					<SceneLocalizationDialog
+						open={localizeOpen}
+						onOpenChange={setLocalizeOpen}
+						appId={appId}
+						versionId={versionId}
+						sourceScene={scene}
+						sourceName={sceneName}
+						sourceLanguage={language}
+						displayType={displayType}
+					/>
+				)}
+
+				<ExistingScreenshotPicker
+					open={pickerOpen}
+					onOpenChange={setPickerOpen}
+					screenshots={existingScreenshots.data ?? []}
+					loading={existingScreenshots.isLoading}
+					displayType={displayType}
+					onPick={handlePickExistingScreenshot}
+				/>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+/**
+ * Picker for screenshots already uploaded to the store (including panorama
+ * splits). Prefers screenshots for the current device size, falling back to all
+ * of them, so a user can reuse an existing image as the device screenshot.
+ */
+function ExistingScreenshotPicker({
+	open,
+	onOpenChange,
+	screenshots,
+	loading,
+	displayType,
+	onPick,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	screenshots: VersionScreenshot[];
+	loading: boolean;
+	displayType: string;
+	onPick: (shot: VersionScreenshot) => void;
+}) {
+	const sameDevice = screenshots.filter((s) => s.displayType === displayType);
+	const list = sameDevice.length > 0 ? sameDevice : screenshots;
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="max-w-2xl">
+				<DialogHeader>
+					<DialogTitle>Wybierz z wgranych screenshotów</DialogTitle>
+				</DialogHeader>
+				{loading ? (
+					<div className="flex items-center justify-center py-12 text-muted-foreground">
+						<Loader2 className="h-5 w-5 animate-spin" />
+					</div>
+				) : list.length === 0 ? (
+					<p className="py-12 text-center text-sm text-muted-foreground">
+						Brak wgranych screenshotów dla tej aplikacji.
+					</p>
+				) : (
+					<div className="grid max-h-[60vh] grid-cols-3 gap-3 overflow-y-auto p-1 sm:grid-cols-4">
+						{list.map((shot) => (
+							<button
+								key={shot.externalId}
+								type="button"
+								onClick={() => onPick(shot)}
+								className="group flex flex-col items-center gap-1 rounded-lg border border-border p-1.5 transition-colors hover:border-primary hover:bg-accent/40"
+							>
+								{/* Plain <img>: asset URLs are remote (CDN); next/image not used here. */}
+								<img
+									src={shot.url}
+									alt={shot.language}
+									className="h-40 w-full rounded object-contain"
+								/>
+								<span className="text-[10px] text-muted-foreground">
+									{shot.language}
+								</span>
+							</button>
+						))}
+					</div>
+				)}
+			</DialogContent>
+		</Dialog>
+	);
+}

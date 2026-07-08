@@ -2,9 +2,12 @@ import type {
 	AgeRating,
 	AgeRatingInput,
 	AgeRatingPreset,
+	AiChatMessage,
 	AiResponse,
 	App,
 	AppAiPrompt,
+	AppGroup,
+	AppGroupMember,
 	AppReviewDetail,
 	AppVersion,
 	AsoProfile,
@@ -12,27 +15,60 @@ import type {
 	Asset,
 	CategoriesData,
 	ConnectStoreData,
+	ConnectStoreResponse,
+	CreateGroupInput,
+	CreatePurchaseInput,
+	CreateSubscriptionInput,
 	DraftReplyRequest,
+	FeaturesResponse,
 	GenerateDescriptionRequest,
 	GenerateListingFieldRequest,
+	GeneratePurchaseFieldRequest,
 	GeneratePrivacyRequest,
 	GenerateReleaseNotesRequest,
 	GlobalPromptEntry,
+	GroupAsoProfile,
+	MonetizationPlan,
+	QuickActionFocusContext,
+	GroupAsoProfileInput,
+	GroupLocalization,
 	HistoryEntry,
+	InAppPurchase,
 	Listing,
+	ListingDiff,
+	PlatformCapabilities,
 	PrivacyDeclaration,
 	PrivacyDeclarationInput,
 	PrivacyTemplate,
 	PublishingOverview,
 	PublishLocalizationsResult,
 	PublishResult,
+	PushPreview,
+	PurchaseSyncResult,
+	ResearchAnalysis,
+	ResearchAppMeta,
+	ResearchCompareResult,
+	ResearchKeywordPosition,
+	ResearchMarketSnapshot,
+	ResearchReview,
+	ResearchScrapeResult,
+	ResearchSearchScope,
+	ResearchStoreKind,
+	ResearchSuggestion,
+	ResearchVisualAnalysis,
 	Review,
+	ReviewInfo,
 	ReviewStats,
+	ScreenshotDimensionErrorData,
+	ScreenshotScene,
+	ScreenshotValidationResult,
+	SceneData,
 	SettingRow,
 	Settings,
 	SplitPreviewResult,
 	SplitUploadResult,
 	Store,
+	SubscriptionGroup,
 	SuggestCategoryRequest,
 	SuggestCategoryResponse,
 	SuggestKeywordsRequest,
@@ -42,10 +78,12 @@ import type {
 	UpdateCategoriesInput,
 	UpdateCopyrightResult,
 	UpdateLocalizationResult,
+	UpdatePurchaseInput,
 	VersionDetail,
 	VersionInfo,
 	VersionScreenshot,
 } from "./types";
+import type { VaultParams, VaultSetupPayload } from "./vault-crypto";
 
 const API_URL = "";
 
@@ -78,6 +116,14 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 			await fetch("/api/auth/sign-out", { method: "POST" }).catch(() => {});
 			window.location.href = "/login";
 			throw new ApiError(401, "UNAUTHORIZED");
+		}
+		if (res.status === 423 && typeof window !== "undefined") {
+			// Vault locked — let the VaultProvider prompt for the passphrase.
+			window.dispatchEvent(new CustomEvent("vault-locked"));
+		}
+		if (res.status === 428 && typeof window !== "undefined") {
+			// Vault not configured — store credentials require an E2EE vault.
+			window.dispatchEvent(new CustomEvent("vault-required"));
 		}
 		const error = await res.json().catch(() => ({ code: "UNKNOWN" }));
 		throw new ApiError(res.status, error.code, error.data);
@@ -115,6 +161,11 @@ export const api = {
 				body: JSON.stringify(data),
 				method: "POST",
 			}),
+		generatePurchaseField: (data: GeneratePurchaseFieldRequest) =>
+			fetchApi<AiResponse>("/api/ai/generate-purchase-field", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}),
 		generateReleaseNotes: (data: GenerateReleaseNotesRequest) =>
 			fetchApi<AiResponse>("/api/ai/generate-release-notes", {
 				body: JSON.stringify(data),
@@ -131,7 +182,10 @@ export const api = {
 				method: "POST",
 			}),
 		translate: (data: TranslateRequest) =>
-			fetchApi<AiResponse>("/api/ai/translate", {
+			fetchApi<{
+				model: string;
+				translations: Record<string, string>;
+			}>("/api/ai/translate", {
 				body: JSON.stringify(data),
 				method: "POST",
 			}),
@@ -143,9 +197,216 @@ export const api = {
 				body: JSON.stringify(data),
 				method: "POST",
 			}),
+		territories: () =>
+			fetchApi<{
+				territories: Array<{
+					code: string;
+					currency: string;
+					name: string;
+				}>;
+			}>("/api/ai/territories").then((r) => r.territories),
+		quickAction: (data: {
+			appId: string;
+			instruction: string;
+			focusContext?: QuickActionFocusContext;
+			territories?: string[];
+		}) =>
+			fetchApi<{ explanation: string; plan: MonetizationPlan | null }>(
+				"/api/ai/purchase-quick-action",
+				{
+					body: JSON.stringify(data),
+					method: "POST",
+				},
+			),
+		monetizationExecute: (
+			appId: string,
+			plan: {
+				deletes?: string[];
+				groupDeletes?: string[];
+				edits?: Array<{
+					localizations?: Array<{
+						description?: string;
+						language: string;
+						name?: string;
+					}>;
+					name?: string;
+					prices?: Array<{
+						currency: string;
+						price: string;
+						territory: string;
+					}>;
+					purchaseId: string;
+				}>;
+				groupEdits?: Array<{
+					groupId: string;
+					name?: string;
+				}>;
+				groups?: Array<{
+					id?: string;
+					name: string;
+					subscriptions: Array<{
+						duration: string;
+						localizations?: Array<{
+							description?: string;
+							language: string;
+							name?: string;
+						}>;
+						name: string;
+						prices?: Array<{
+							currency: string;
+							price: string;
+							territory: string;
+						}>;
+						productId: string;
+					}>;
+				}>;
+				purchases?: Array<{
+					localizations?: Array<{
+						description?: string;
+						language: string;
+						name?: string;
+					}>;
+					name: string;
+					prices?: Array<{
+						currency: string;
+						price: string;
+						territory: string;
+					}>;
+					productId: string;
+					productType: string;
+				}>;
+			},
+		) =>
+			fetchApi<{
+				results: {
+					created: Array<{ id: string; name: string; type: string }>;
+					deleted: string[];
+					edited: Array<{ id: string; name: string }>;
+					failed: Array<{ error: string; item: string }>;
+				};
+			}>("/api/ai/monetization-execute", {
+				body: JSON.stringify({ appId, plan }),
+				method: "POST",
+			}).then((r) => r.results),
+		chatHistory: (appId: string, chatType: string) =>
+			fetchApi<{ messages: AiChatMessage[] }>(
+				`/api/ai/chat-history?${toQuery({ appId, chatType })}`,
+			).then((r) => r.messages),
+		addChatMessage: (data: {
+			appId: string;
+			chatType: string;
+			content: string;
+			role: "assistant" | "user";
+		}) =>
+			fetchApi<{ message: AiChatMessage }>("/api/ai/chat-history", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}).then((r) => r.message),
+		clearChatHistory: (appId: string, chatType: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/ai/chat-history?${toQuery({ appId, chatType })}`,
+				{ method: "DELETE" },
+			),
+	},
+
+	appGroups: {
+		addMember: (groupId: string, appId: string) =>
+			fetchApi<{ member: AppGroupMember }>(
+				`/api/app-groups/${groupId}/members`,
+				{
+					body: JSON.stringify({ appId }),
+					method: "POST",
+				},
+			).then((r) => r.member),
+		create: (data: { name: string; iconUrl?: string }) =>
+			fetchApi<{ appGroup: AppGroup }>("/api/app-groups", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}).then((r) => r.appGroup),
+		delete: (groupId: string) =>
+			fetchApi<{ success: boolean }>(`/api/app-groups/${groupId}`, {
+				method: "DELETE",
+			}),
+		generateListings: (
+			groupId: string,
+			data: {
+				fields?: string[];
+				sourceLanguage?: string;
+				translateToOthers?: boolean;
+			} = {},
+		) =>
+			fetchApi<{
+				results: {
+					appId: string;
+					appName: string;
+					errors: { field: string; message: string }[];
+					generated: Record<string, string>;
+					platform: string;
+					translation?: { error?: string; translated?: number };
+				}[];
+				sourceLanguage: string;
+			}>(`/api/app-groups/${groupId}/generate-listings`, {
+				body: JSON.stringify(data),
+				method: "POST",
+			}),
+		get: (groupId: string) =>
+			fetchApi<{ appGroup: AppGroup }>(`/api/app-groups/${groupId}`).then(
+				(r) => r.appGroup,
+			),
+		list: () =>
+			fetchApi<{ appGroups: AppGroup[] }>("/api/app-groups").then(
+				(r) => r.appGroups,
+			),
+		removeMember: (groupId: string, appId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/app-groups/${groupId}/members/${appId}`,
+				{ method: "DELETE" },
+			),
+		reorderGroups: (groupIds: string[]) =>
+			fetchApi<{ success: boolean }>("/api/app-groups/reorder", {
+				body: JSON.stringify({ groupIds }),
+				method: "PUT",
+			}),
+		reorderMembers: (groupId: string, appIds: string[]) =>
+			fetchApi<{ success: boolean }>(
+				`/api/app-groups/${groupId}/reorder`,
+				{
+					body: JSON.stringify({ appIds }),
+					method: "PUT",
+				},
+			),
+		update: (groupId: string, data: { name?: string; iconUrl?: string | null; useSharedProfile?: boolean }) =>
+			fetchApi<{ appGroup: AppGroup }>(`/api/app-groups/${groupId}`, {
+				body: JSON.stringify(data),
+				method: "PUT",
+			}).then((r) => r.appGroup),
+		getAsoProfile: (groupId: string) =>
+			fetchApi<{ asoProfile: GroupAsoProfile | null; useSharedProfile: boolean }>(
+				`/api/app-groups/${groupId}/aso-profile`,
+			),
+		updateAsoProfile: (groupId: string, data: GroupAsoProfileInput) =>
+			fetchApi<{ asoProfile: GroupAsoProfile }>(
+				`/api/app-groups/${groupId}/aso-profile`,
+				{
+					body: JSON.stringify(data),
+					method: "PUT",
+				},
+			).then((r) => r.asoProfile),
+		enableSharedProfile: (groupId: string, sourceAppId?: string | null) =>
+			fetchApi<{ asoProfile: GroupAsoProfile | null; useSharedProfile: boolean }>(
+				`/api/app-groups/${groupId}/aso-profile/enable`,
+				{
+					body: JSON.stringify({ sourceAppId: sourceAppId ?? null }),
+					method: "POST",
+				},
+			),
 	},
 
 	apps: {
+		capabilities: (appId: string) =>
+			fetchApi<{ capabilities: PlatformCapabilities }>(
+				`/api/apps/${appId}/capabilities`,
+			).then((r) => r.capabilities),
 		get: (appId: string) =>
 			fetchApi<{ app: App }>(`/api/apps/${appId}`).then((r) => r.app),
 		list: (params?: { platform?: string; storeId?: string }) =>
@@ -154,11 +415,160 @@ export const api = {
 			),
 	},
 
+	purchases: {
+		capabilities: (appId: string) =>
+			fetchApi<{ reason?: string; supported: boolean }>(
+				`/api/apps/${appId}/purchases/capabilities`,
+			),
+		list: (appId: string) =>
+			fetchApi<{ purchases: InAppPurchase[] }>(
+				`/api/apps/${appId}/purchases`,
+			).then((r) => r.purchases),
+		get: (appId: string, purchaseId: string) =>
+			fetchApi<{ purchase: InAppPurchase }>(
+				`/api/apps/${appId}/purchases/${purchaseId}`,
+			).then((r) => r.purchase),
+		create: (appId: string, data: CreatePurchaseInput) =>
+			fetchApi<{ purchase: InAppPurchase }>(
+				`/api/apps/${appId}/purchases`,
+				{ body: JSON.stringify(data), method: "POST" },
+			).then((r) => r.purchase),
+		update: (appId: string, purchaseId: string, data: UpdatePurchaseInput) =>
+			fetchApi<{ purchase: InAppPurchase }>(
+				`/api/apps/${appId}/purchases/${purchaseId}`,
+				{ body: JSON.stringify(data), method: "PATCH" },
+			).then((r) => r.purchase),
+		delete: (appId: string, purchaseId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/purchases/${purchaseId}`,
+				{ method: "DELETE" },
+			),
+		sync: (appId: string) =>
+			fetchApi<PurchaseSyncResult>(
+				`/api/apps/${appId}/purchases/sync`,
+				{ method: "POST" },
+			),
+		subscriptionGroups: (appId: string) =>
+			fetchApi<{ groups: SubscriptionGroup[] }>(
+				`/api/apps/${appId}/subscription-groups`,
+			).then((r) => r.groups),
+		subscriptionGroup: (appId: string, groupId: string) =>
+			fetchApi<{ group: SubscriptionGroup }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}`,
+			).then((r) => r.group),
+		createGroup: (appId: string, data: CreateGroupInput) =>
+			fetchApi<{ group: SubscriptionGroup }>(
+				`/api/apps/${appId}/subscription-groups`,
+				{ body: JSON.stringify(data), method: "POST" },
+			).then((r) => r.group),
+		createSubscription: (appId: string, groupId: string, data: CreateSubscriptionInput) =>
+			fetchApi<{ purchase: InAppPurchase }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/subscriptions`,
+				{ body: JSON.stringify(data), method: "POST" },
+			).then((r) => r.purchase),
+		updateGroup: (appId: string, groupId: string, data: { name?: string }) =>
+			fetchApi<{ group: SubscriptionGroup }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}`,
+				{ body: JSON.stringify(data), method: "PATCH" },
+			).then((r) => r.group),
+		deleteGroup: (appId: string, groupId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}`,
+				{ method: "DELETE" },
+			),
+
+		// Group localizations
+		groupLocalizations: (appId: string, groupId: string) =>
+			fetchApi<{ localizations: GroupLocalization[] }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/localizations`,
+			).then((r) => r.localizations),
+		upsertGroupLocalizations: (appId: string, groupId: string, localizations: Array<{ language: string; name?: string | null; description?: string | null }>) =>
+			fetchApi<{ localizations: GroupLocalization[] }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/localizations`,
+				{ body: JSON.stringify({ localizations }), method: "PUT" },
+			).then((r) => r.localizations),
+		deleteGroupLocalization: (appId: string, groupId: string, language: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/localizations/${language}`,
+				{ method: "DELETE" },
+			),
+
+		// Group availability
+		groupAvailability: (appId: string, groupId: string) =>
+			fetchApi<{ territories: string[] }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/availability`,
+			).then((r) => r.territories),
+		updateGroupAvailability: (appId: string, groupId: string, territories: string[]) =>
+			fetchApi<{ territories: string[] }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/availability`,
+				{ body: JSON.stringify({ territories }), method: "PUT" },
+			).then((r) => r.territories),
+
+		// Group review info
+		groupReviewInfo: (appId: string, groupId: string) =>
+			fetchApi<{ reviewInfo: ReviewInfo | null }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/review-info`,
+			).then((r) => r.reviewInfo),
+		updateGroupReviewInfo: (appId: string, groupId: string, data: { reviewNotes?: string | null; screenshotUrl?: string | null }) =>
+			fetchApi<{ reviewInfo: ReviewInfo }>(
+				`/api/apps/${appId}/subscription-groups/${groupId}/review-info`,
+				{ body: JSON.stringify(data), method: "PUT" },
+			).then((r) => r.reviewInfo),
+
+		// Purchase availability
+		purchaseAvailability: (appId: string, purchaseId: string) =>
+			fetchApi<{ territories: string[] | null }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/availability`,
+			).then((r) => r.territories),
+		updatePurchaseAvailability: (appId: string, purchaseId: string, territories: string[] | null) =>
+			fetchApi<{ territories: string[] | null }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/availability`,
+				{ body: JSON.stringify({ territories }), method: "PUT" },
+			).then((r) => r.territories),
+
+		// Purchase review info
+		purchaseReviewInfo: (appId: string, purchaseId: string) =>
+			fetchApi<{ reviewInfo: ReviewInfo | null }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/review-info`,
+			).then((r) => r.reviewInfo),
+		updatePurchaseReviewInfo: (appId: string, purchaseId: string, data: { reviewNotes?: string | null; screenshotUrl?: string | null; useGroupDefault?: boolean }) =>
+			fetchApi<{ reviewInfo: ReviewInfo }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/review-info`,
+				{ body: JSON.stringify(data), method: "PUT" },
+			).then((r) => r.reviewInfo),
+
+		// Effective localizations
+		effectiveLocalizations: (appId: string, purchaseId: string) =>
+			fetchApi<{ localizations: GroupLocalization[]; source: string; useGroupLocalizations: boolean }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/effective-localizations`,
+			),
+		updateUseGroupLocalizations: (appId: string, purchaseId: string, useGroupLocalizations: boolean) =>
+			fetchApi<{ localizations: GroupLocalization[]; source: string; useGroupLocalizations: boolean }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/use-group-localizations`,
+				{ body: JSON.stringify({ useGroupLocalizations }), method: "PUT" },
+			),
+
+		// Family sharing
+		updateFamilySharing: (appId: string, purchaseId: string, familySharable: boolean) =>
+			fetchApi<{ purchase: InAppPurchase }>(
+				`/api/apps/${appId}/purchases/${purchaseId}/family-sharing`,
+				{ body: JSON.stringify({ familySharable }), method: "PATCH" },
+			).then((r) => r.purchase),
+	},
+
 	asoProfile: {
-		get: (appId: string) =>
-			fetchApi<{ asoProfile: AsoProfile | null }>(
-				`/api/apps/${appId}/aso-profile`,
+		copyFrom: (appId: string, sourceAppId: string) =>
+			fetchApi<{ asoProfile: AsoProfile }>(
+				`/api/apps/${appId}/aso-profile/copy-from`,
+				{
+					body: JSON.stringify({ sourceAppId }),
+					method: "POST",
+				},
 			).then((r) => r.asoProfile),
+		get: (appId: string) =>
+			fetchApi<{ asoProfile: AsoProfile | null; locked?: boolean; groupId?: string }>(
+				`/api/apps/${appId}/aso-profile`,
+			),
 		update: (appId: string, data: AsoProfileInput) =>
 			fetchApi<{ asoProfile: AsoProfile }>(`/api/apps/${appId}/aso-profile`, {
 				body: JSON.stringify(data),
@@ -195,6 +605,15 @@ export const api = {
 			}).then((r) => r.asset),
 	},
 
+	features: {
+		get: () => fetchApi<FeaturesResponse>("/api/features"),
+		update: (data: Record<string, boolean>) =>
+			fetchApi<{ features: Record<string, boolean> }>("/api/features", {
+				body: JSON.stringify(data),
+				method: "PATCH",
+			}).then((r) => r.features),
+	},
+
 	history: {
 		list: (appId: string, params?: { language?: string; field?: string }) =>
 			fetchApi<{ history: HistoryEntry[] }>(
@@ -211,6 +630,10 @@ export const api = {
 			fetchApi<CategoriesData>(
 				`/api/apps/${appId}/listings/categories`,
 			),
+		diffs: (appId: string) =>
+			fetchApi<{ diffs: ListingDiff[] }>(
+				`/api/apps/${appId}/listings/diffs`,
+			).then((r) => r.diffs),
 		get: (appId: string, language: string) =>
 			fetchApi<{ draft: Listing | null; remote: Listing | null }>(
 				`/api/apps/${appId}/listings/${language}`,
@@ -227,7 +650,14 @@ export const api = {
 			fetchApi<{ synced: number }>(`/api/apps/${appId}/listings/sync`, {
 				method: "POST",
 			}),
-		update: (appId: string, language: string, data: Partial<Listing>) =>
+		update: (
+			appId: string,
+			language: string,
+			data: Partial<Listing> & {
+				doNotTranslateFields?: string[];
+				translationInstructions?: string;
+			},
+		) =>
 			fetchApi<{ listing: Listing }>(
 				`/api/apps/${appId}/listings/${language}`,
 				{
@@ -286,13 +716,16 @@ export const api = {
 				},
 			),
 		createVersion: (appId: string, versionString: string) =>
-			fetchApi<{ version: { versionString: string; state: string } }>(
-				`/api/apps/${appId}/publishing/create-version`,
-				{
-					body: JSON.stringify({ versionString }),
-					method: "POST",
-				},
-			).then((r) => r.version),
+			fetchApi<{
+				version: {
+					copiedLanguages: string[];
+					state: string;
+					versionString: string;
+				};
+			}>(`/api/apps/${appId}/publishing/create-version`, {
+				body: JSON.stringify({ versionString }),
+				method: "POST",
+			}).then((r) => r.version),
 		deleteAllScreenshots: (appId: string, screenshotSetId: string) =>
 			fetchApi<{ deleted: number }>(
 				`/api/apps/${appId}/publishing/screenshot-sets/${screenshotSetId}`,
@@ -319,6 +752,17 @@ export const api = {
 			),
 		overview: (appId: string) =>
 			fetchApi<PublishingOverview>(`/api/apps/${appId}/publishing/overview`),
+		pushPreview: (appId: string) =>
+			fetchApi<PushPreview>(`/api/apps/${appId}/publishing/push-preview`),
+		validateScreenshot: (appId: string, displayType: string, file: File) => {
+			const formData = new FormData();
+			formData.append("file", file);
+			formData.append("displayType", displayType);
+			return fetchApi<ScreenshotValidationResult>(
+				`/api/apps/${appId}/publishing/screenshots/validate`,
+				{ body: formData, headers: {}, method: "POST" },
+			);
+		},
 		previewScreenshot: (
 			appId: string,
 			displayType: string,
@@ -393,6 +837,8 @@ export const api = {
 				promotionalText: string;
 				marketingUrl: string;
 				supportUrl: string;
+				shortDescription: string;
+				fullDescription: string;
 			}>,
 		) =>
 			fetchApi<UpdateLocalizationResult>(
@@ -455,6 +901,7 @@ export const api = {
 			sourceLanguage: string,
 			targetLanguage: string,
 			displayType?: string,
+			copyLocalizations?: boolean,
 		) =>
 			fetchApi<{ copied: number }>(
 				`/api/apps/${appId}/publishing/screenshots/copy`,
@@ -464,6 +911,7 @@ export const api = {
 						targetLanguage,
 						versionId,
 						...(displayType ? { displayType } : {}),
+						...(copyLocalizations ? { copyLocalizations: true } : {}),
 					}),
 					method: "POST",
 				},
@@ -519,6 +967,21 @@ export const api = {
 				{ body: formData, headers: {}, method: "POST" },
 			);
 		},
+		publishSettings: (appId: string) =>
+			fetchApi<{ publishMode: string; publishScheduledAt: string | null }>(
+				`/api/apps/${appId}/publishing/settings`,
+			),
+		updatePublishSettings: (
+			appId: string,
+			data: { publishMode: string; publishScheduledAt?: string },
+		) =>
+			fetchApi<{ publishMode: string; publishScheduledAt: string | null }>(
+				`/api/apps/${appId}/publishing/settings`,
+				{
+					body: JSON.stringify(data),
+					method: "PUT",
+				},
+			),
 		version: (appId: string) =>
 			fetchApi<{ version: VersionInfo | null }>(
 				`/api/apps/${appId}/publishing/version`,
@@ -535,6 +998,86 @@ export const api = {
 			fetchApi<{ versions: AppVersion[]; source?: "live" | "cache" }>(
 				`/api/apps/${appId}/publishing/versions`,
 			).then((r) => r.versions),
+	},
+
+	research: {
+		analyze: (body: {
+			deep?: boolean;
+			meta: ResearchAppMeta[];
+			model?: string;
+			reviews: ResearchReview[];
+		}) =>
+			fetchApi<{ analysis: ResearchAnalysis; model: string }>(
+				"/api/research/analyze",
+				{ body: JSON.stringify(body), method: "POST" },
+			),
+		compare: (body: {
+			competitor: { id: string; store: ResearchStoreKind };
+			country: string;
+			model?: string;
+			ourMeta: ResearchAppMeta;
+			ourReviews: ResearchReview[];
+		}) =>
+			fetchApi<ResearchCompareResult>("/api/research/compare", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}),
+		competitors: (body: {
+			country: string;
+			developer?: string;
+			genre?: string;
+			id: string;
+			store: ResearchStoreKind;
+			title: string;
+		}) =>
+			fetchApi<{ competitors: ResearchSuggestion[] }>(
+				"/api/research/competitors",
+				{ body: JSON.stringify(body), method: "POST" },
+			).then((r) => r.competitors),
+		keywords: (body: {
+			appstoreId?: string;
+			country: string;
+			keywords: string[];
+			playstoreId?: string;
+		}) =>
+			fetchApi<{ positions: ResearchKeywordPosition[] }>(
+				"/api/research/keywords",
+				{ body: JSON.stringify(body), method: "POST" },
+			).then((r) => r.positions),
+		markets: (body: {
+			id: string;
+			markets?: string[];
+			store: ResearchStoreKind;
+		}) =>
+			fetchApi<{ snapshots: ResearchMarketSnapshot[] }>(
+				"/api/research/markets",
+				{ body: JSON.stringify(body), method: "POST" },
+			).then((r) => r.snapshots),
+		scrape: (body: {
+			country?: string;
+			deep?: boolean;
+			id?: string;
+			store?: ResearchStoreKind;
+			url?: string;
+		}) =>
+			fetchApi<ResearchScrapeResult>("/api/research/scrape", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}),
+		search: (body: {
+			country: string;
+			scope?: ResearchSearchScope;
+			term: string;
+		}) =>
+			fetchApi<{ suggestions: ResearchSuggestion[] }>("/api/research/search", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}).then((r) => r.suggestions),
+		visual: (body: { meta: ResearchAppMeta; model?: string }) =>
+			fetchApi<{ model: string; visual: ResearchVisualAnalysis }>(
+				"/api/research/visual",
+				{ body: JSON.stringify(body), method: "POST" },
+			).then((r) => r.visual),
 	},
 
 	reviews: {
@@ -564,6 +1107,50 @@ export const api = {
 			fetchApi<{ synced: number }>(`/api/apps/${appId}/reviews/sync`, {
 				method: "POST",
 			}),
+	},
+
+	screenshotScenes: {
+		list: (appId: string) =>
+			fetchApi<{ scenes: ScreenshotScene[] }>(
+				`/api/apps/${appId}/screenshot-scenes`,
+			).then((r) => r.scenes),
+		get: (appId: string, sceneId: string) =>
+			fetchApi<{ scene: ScreenshotScene }>(
+				`/api/apps/${appId}/screenshot-scenes/${sceneId}`,
+			).then((r) => r.scene),
+		create: (
+			appId: string,
+			data: {
+				language: string;
+				displayType: string;
+				name: string;
+				scene: SceneData;
+				sortOrder?: number;
+			},
+		) =>
+			fetchApi<{ scene: ScreenshotScene }>(
+				`/api/apps/${appId}/screenshot-scenes`,
+				{ body: JSON.stringify(data), method: "POST" },
+			).then((r) => r.scene),
+		update: (
+			appId: string,
+			sceneId: string,
+			data: Partial<{
+				name: string;
+				scene: SceneData;
+				sortOrder: number;
+				assetId: string | null;
+			}>,
+		) =>
+			fetchApi<{ scene: ScreenshotScene }>(
+				`/api/apps/${appId}/screenshot-scenes/${sceneId}`,
+				{ body: JSON.stringify(data), method: "PUT" },
+			).then((r) => r.scene),
+		delete: (appId: string, sceneId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/screenshot-scenes/${sceneId}`,
+				{ method: "DELETE" },
+			),
 	},
 
 	settings: {
@@ -610,6 +1197,44 @@ export const api = {
 			fetchApi<void>(`/api/settings/prompts/${mode}/${field}`, {
 				method: "DELETE",
 			}),
+		getMonetizationPrompts: () =>
+			fetchApi<{ prompts: Record<string, GlobalPromptEntry> }>(
+				"/api/settings/monetization-prompts",
+			).then((r) => r.prompts),
+		getMonetizationPromptDefaults: () =>
+			fetchApi<{ defaults: Record<string, string> }>(
+				"/api/settings/monetization-prompts/defaults",
+			).then((r) => r.defaults),
+		setMonetizationPrompt: (field: string, prompt: string) =>
+			fetchApi<void>(`/api/settings/monetization-prompts/${field}`, {
+				body: JSON.stringify({ prompt }),
+				method: "PUT",
+			}),
+		deleteMonetizationPrompt: (field: string) =>
+			fetchApi<void>(`/api/settings/monetization-prompts/${field}`, {
+				method: "DELETE",
+			}),
+		getPurchasePrompts: () =>
+			fetchApi<{ prompts: Record<string, GlobalPromptEntry> }>(
+				"/api/settings/purchase-prompts",
+			).then((r) => r.prompts),
+		getPurchasePromptDefaults: () =>
+			fetchApi<{ defaults: Record<string, string> }>(
+				"/api/settings/purchase-prompts/defaults",
+			).then((r) => r.defaults),
+		setPurchasePrompt: (mode: string, field: string, prompt: string) =>
+			fetchApi<void>(`/api/settings/purchase-prompts/${mode}/${field}`, {
+				body: JSON.stringify({ prompt }),
+				method: "PUT",
+			}),
+		deletePurchasePrompt: (mode: string, field: string) =>
+			fetchApi<void>(`/api/settings/purchase-prompts/${mode}/${field}`, {
+				method: "DELETE",
+			}),
+		getMonetizationGuide: () =>
+			fetchApi<{ sections: Array<{ id: string; title: string; content: string }> }>(
+				"/api/settings/monetization-guide",
+			).then((r) => r.sections),
 	},
 
 	appAiPrompts: {
@@ -646,13 +1271,22 @@ export const api = {
 				`/api/apps/${appId}/privacy-declaration/publish`,
 				{ method: "POST" },
 			),
-		templates: () =>
+		templates: (platform?: "ios" | "android") =>
 			fetchApi<{ templates: PrivacyTemplate[] }>(
-				"/api/privacy-templates",
+				`/api/privacy-templates${platform ? `?platform=${platform}` : ""}`,
 			).then((r) => r.templates),
 	},
 
 	ageRating: {
+		generate: (appId: string) =>
+			fetchApi<{
+				appleQuestionnaire: Record<string, string>;
+				appleRating: string;
+				googleQuestionnaire: Record<string, string | boolean>;
+				model: string;
+				presetId: string;
+				reasoning: string;
+			}>(`/api/apps/${appId}/age-rating/generate`, { method: "POST" }),
 		get: (appId: string) =>
 			fetchApi<{ ageRating: AgeRating | null }>(
 				`/api/apps/${appId}/age-rating`,
@@ -680,10 +1314,10 @@ export const api = {
 
 	stores: {
 		connect: (data: ConnectStoreData) =>
-			fetchApi<{ store: Store }>("/api/stores/connect", {
+			fetchApi<ConnectStoreResponse>("/api/stores/connect", {
 				body: JSON.stringify(data),
 				method: "POST",
-			}).then((r) => r.store),
+			}),
 		disconnect: (id: string) =>
 			fetchApi<void>(`/api/stores/${id}`, { method: "DELETE" }),
 		list: () =>
@@ -692,7 +1326,58 @@ export const api = {
 			fetchApi<{ synced: number }>(`/api/stores/${id}/sync`, {
 				method: "POST",
 			}),
+		syncAll: () =>
+			fetchApi<{
+				results: { storeId: string; storeName: string; synced: number }[];
+				totalSynced: number;
+			}>("/api/stores/sync-all", { method: "POST" }),
+	},
+	vault: {
+		changePassphrase: (body: VaultParams) =>
+			fetchApi<{ changed: boolean }>("/api/vault/change-passphrase", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}),
+		lock: () =>
+			fetchApi<{ locked: boolean }>("/api/vault/lock", { method: "POST" }),
+		params: () => fetchApi<VaultParams>("/api/vault/params"),
+		reset: () =>
+			fetchApi<{ reset: boolean }>("/api/vault/reset", { method: "POST" }),
+		setup: (body: VaultSetupPayload) =>
+			fetchApi<{ migrated: number }>("/api/vault/setup", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}),
+		status: () =>
+			fetchApi<{ exists: boolean; unlocked: boolean }>("/api/vault/status"),
+		unlock: (dek: string) =>
+			fetchApi<{ unlocked: boolean }>("/api/vault/unlock", {
+				body: JSON.stringify({ dek }),
+				method: "POST",
+			}),
 	},
 };
 
-export { ApiError };
+/**
+ * Narrow a caught error to the structured dimension-validation payload the
+ * backend sends with code "INVALID_SCREENSHOT_DIMENSIONS" (HTTP 422). Returns
+ * the typed `data` so callers can build an actionable message, or `null` for
+ * any other error.
+ */
+function getScreenshotDimensionError(
+	err: unknown,
+): ScreenshotDimensionErrorData | null {
+	if (
+		err instanceof ApiError &&
+		err.code === "INVALID_SCREENSHOT_DIMENSIONS" &&
+		err.data &&
+		typeof err.data === "object" &&
+		"providedDimensions" in err.data &&
+		"supportedDimensions" in err.data
+	) {
+		return err.data as ScreenshotDimensionErrorData;
+	}
+	return null;
+}
+
+export { ApiError, getScreenshotDimensionError };

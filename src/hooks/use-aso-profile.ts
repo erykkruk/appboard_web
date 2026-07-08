@@ -22,3 +22,14 @@ export function useUpdateAsoProfile(appId: string) {
     },
   });
 }
+
+export function useCopyFromAsoProfile(appId: string) {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (sourceAppId: string) =>
+      api.asoProfile.copyFrom(appId, sourceAppId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["aso-profile", appId] });
+    },
+  });
+}

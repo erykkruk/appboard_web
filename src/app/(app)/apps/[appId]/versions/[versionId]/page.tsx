@@ -2,6 +2,7 @@
 
 import {
 	AlertCircle,
+	Clock,
 	Download,
 	Globe,
 	Info,
@@ -45,11 +46,31 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import {
+	Sheet,
+	SheetContent,
+	SheetDescription,
+	SheetHeader,
+	SheetTitle,
+} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { ActionsMenu } from "@/components/actions-menu";
 import type { ActionsMenuAction } from "@/components/actions-menu";
+import { DiffBadge, FieldDiffPanel } from "@/components/diff";
+import { HistoryTimeline } from "@/components/history/history-timeline";
+import {
+	LocalizationPipelineDialog,
+	type PipelineLanguage,
+} from "@/components/listings/localization-pipeline-dialog";
+import {
+	type TranslatableField,
+	TranslationSettings,
+} from "@/components/listings/translation-settings";
 import { useApp } from "@/hooks/use-apps";
 import { useAutoSave } from "@/hooks/use-auto-save";
+import { useCapabilities } from "@/hooks/use-capabilities";
+import { useHistory, useRollback } from "@/hooks/use-history";
+import { useListingDiffs } from "@/hooks/use-listing-diffs";
 import {
 	useSyncVersions,
 	useUpdateCopyright,
@@ -92,6 +113,7 @@ const STATE_LABELS: Record<string, string> = {
 };
 
 const EDITABLE_STATES = new Set([
+	"ACTIVE",
 	"PREPARE_FOR_SUBMISSION",
 	"DEVELOPER_REJECTED",
 	"REJECTED",
@@ -102,7 +124,9 @@ const WHATS_NEW_EDITABLE_STATES = new Set(["DEVELOPER_REJECTED", "REJECTED"]);
 const AI_FIELDS: ListingFieldName[] = [
 	"title",
 	"subtitle",
+	"shortDescription",
 	"description",
+	"fullDescription",
 	"keywords",
 	"promotionalText",
 	"whatsNew",
@@ -135,8 +159,23 @@ const FIELDS: FieldConfig[] = [
 		placeholder: "A brief summary",
 	},
 	{
+		key: "shortDescription",
+		label: "Short Description",
+		maxLength: 80,
+		placeholder: "A brief summary of your app",
+	},
+	{
 		key: "description",
 		label: "Description",
+		maxLength: 4000,
+		minLength: 10,
+		multiline: true,
+		placeholder: "A detailed description of your app",
+		rows: 8,
+	},
+	{
+		key: "fullDescription",
+		label: "Full Description",
 		maxLength: 4000,
 		minLength: 10,
 		multiline: true,
@@ -252,6 +291,7 @@ export default function VersionDetailPage() {
 	const params = useParams<{ appId: string; versionId: string }>();
 	const detail = useVersionDetail(params.appId, params.versionId);
 	const appData = useApp(params.appId);
+	const capabilities = useCapabilities(params.appId);
 	const updateLoc = useUpdateLocalization(params.appId, params.versionId);
 	const updateCopyright = useUpdateCopyright(params.appId, params.versionId);
 	const syncVersions = useSyncVersions(params.appId);
@@ -279,6 +319,7 @@ export default function VersionDetailPage() {
 	const [isSuggestingCategory, setIsSuggestingCategory] = useState(false);
 	const [saveAttempted, setSaveAttempted] = useState(false);
 	const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+	const [localizationDialogOpen, setLocalizationDialogOpen] = useState(false);
 	const [generateScope, setGenerateScope] = useState<
 		"current" | "all"
 	>("current");
@@ -294,8 +335,100 @@ export default function VersionDetailPage() {
 		availableCategories: { id: string; name: string }[];
 	} | null>(null);
 
+	// Diff + history state
+	const [expandedDiffs, setExpandedDiffs] = useState<Set<string>>(new Set());
+	const [historyOpen, setHistoryOpen] = useState(false);
+	const diffsQuery = useListingDiffs(params.appId);
+	const historyQuery = useHistory(params.appId, { enabled: historyOpen });
+	const rollbackMutation = useRollback(params.appId);
+
+	const getDiffForField = useCallback(
+		(
+			language: string,
+			field: string,
+		): { oldValue: string | null; newValue: string | null } | null => {
+			const diffs = diffsQuery.data ?? [];
+			const languageDiff = diffs.find((d) => d.language === language);
+			if (!languageDiff) return null;
+			const fieldDiff = languageDiff.fields.find((f) => f.field === field);
+			if (!fieldDiff) return null;
+			return { oldValue: fieldDiff.oldValue, newValue: fieldDiff.newValue };
+		},
+		[diffsQuery.data],
+	);
+
+	const toggleDiff = useCallback((language: string, field: string) => {
+		const key = `${language}:${field}`;
+		setExpandedDiffs((prev) => {
+			const next = new Set(prev);
+			if (next.has(key)) {
+				next.delete(key);
+			} else {
+				next.add(key);
+			}
+			return next;
+		});
+	}, []);
+
+	const handleHistoryRollback = useCallback(
+		async (entryId: string) => {
+			try {
+				await rollbackMutation.mutateAsync(entryId);
+				toast.success("Rollback applied");
+			} catch {
+				toast.error("Failed to rollback change");
+			}
+		},
+		[rollbackMutation],
+	);
+
+	const rollbackPendingId = rollbackMutation.isPending
+		? (rollbackMutation.variables ?? null)
+		: null;
+
 
 	const localizations = detail.data?.localizations ?? [];
+
+	// Filter fields based on platform capabilities
+	const capData = capabilities.data;
+	const isFieldEnabled = useCallback(
+		(fieldKey: string) =>
+			!capData || capData.listings.fields.includes(fieldKey),
+		[capData],
+	);
+
+	const visibleFields = useMemo(
+		() => FIELDS.filter((f) => isFieldEnabled(f.key)),
+		[isFieldEnabled],
+	);
+
+	const visibleAiFields = useMemo(
+		() => AI_FIELDS.filter((f) => isFieldEnabled(f)),
+		[isFieldEnabled],
+	);
+
+	// AI fields (with labels) eligible for the per-language "Do Not Translate" toggles.
+	const translatableFields = useMemo<TranslatableField[]>(
+		() =>
+			visibleAiFields.map((key) => ({
+				key,
+				label: FIELDS.find((f) => f.key === key)?.label ?? key,
+			})),
+		[visibleAiFields],
+	);
+
+	// Languages offered by the localization pipeline panel, with persistence ids.
+	const pipelineLanguages = useMemo<PipelineLanguage[]>(
+		() =>
+			localizations
+				.map((loc) => ({
+					label: getLanguageLabel(loc.language),
+					language: loc.language,
+					localizationId: loc.localizationId,
+				}))
+				.sort((a, b) => a.language.localeCompare(b.language)),
+		[localizations],
+	);
 
 	// Sync copyright from server data
 	useEffect(() => {
@@ -456,7 +589,7 @@ export default function VersionDetailPage() {
 	// Validation for all visible fields (selected language + overrides)
 	const fieldErrors = useMemo(() => {
 		const errors: Record<string, string | null> = {};
-		for (const field of FIELDS) {
+		for (const field of visibleFields) {
 			const lang =
 				fieldLangOverrides[field.key] || selectedLanguage;
 			const value = allFormData[lang]?.[field.key] ?? "";
@@ -474,6 +607,7 @@ export default function VersionDetailPage() {
 		selectedLanguage,
 		isWhatsNewEditable,
 		saveAttempted,
+		visibleFields,
 	]);
 
 	const hasValidationErrors = useMemo(
@@ -525,7 +659,7 @@ export default function VersionDetailPage() {
 
 		setIsGeneratingAll(true);
 
-		const fieldsToGenerate = AI_FIELDS.filter(
+		const fieldsToGenerate = visibleAiFields.filter(
 			(field) => !(field === "whatsNew" && !isWhatsNewEditable),
 		);
 
@@ -641,6 +775,7 @@ export default function VersionDetailPage() {
 		localizations,
 		params.appId,
 		selectedLanguage,
+		visibleAiFields,
 	]);
 
 	const handleTranslateAllFromLanguage = useCallback(async () => {
@@ -648,7 +783,7 @@ export default function VersionDetailPage() {
 
 		const sourceData = allFormData[selectedLanguage] ?? {};
 		const fields: Record<string, string> = {};
-		for (const f of AI_FIELDS) {
+		for (const f of visibleAiFields) {
 			const val = sourceData[f];
 			if (val?.trim()) {
 				fields[f] = val;
@@ -723,6 +858,7 @@ export default function VersionDetailPage() {
 		localizations,
 		params.appId,
 		selectedLanguage,
+		visibleAiFields,
 	]);
 
 	const handleTranslateFieldToAll = useCallback(
@@ -799,6 +935,58 @@ export default function VersionDetailPage() {
 		[allFormData, appData.data, localizations, params.appId],
 	);
 
+	// --- Localization pipeline wiring ---
+
+	// Snapshot of the AI-translatable field values for a given language, used as
+	// the pipeline source. Empty fields are dropped so the AI only translates
+	// content that actually exists.
+	const getPipelineSourceFields = useCallback(
+		(language: string): Record<string, string> => {
+			const data = allFormData[language] ?? {};
+			const fields: Record<string, string> = {};
+			for (const f of visibleAiFields) {
+				const value = data[f];
+				if (value?.trim()) {
+					fields[f] = value;
+				}
+			}
+			return fields;
+		},
+		[allFormData, visibleAiFields],
+	);
+
+	// Persist a reviewed pipeline result into a target language draft and mirror
+	// it back into the editor state so the saved values are visible immediately.
+	const handleSavePipelineLanguage = useCallback(
+		async (localizationId: string, resultFields: Record<string, string>) => {
+			const loc = localizations.find(
+				(l) => l.localizationId === localizationId,
+			);
+			if (!loc) return;
+
+			const data: Record<string, string> = {};
+			for (const [key, value] of Object.entries(resultFields)) {
+				if (key === "whatsNew" && !isWhatsNewEditable) continue;
+				if (value?.trim()) {
+					data[key] = value;
+				}
+			}
+			if (Object.keys(data).length === 0) return;
+
+			await updateLoc.mutateAsync({ data, localizationId });
+
+			setAllFormData((prev) => ({
+				...prev,
+				[loc.language]: { ...prev[loc.language], ...data },
+			}));
+			setAllOriginalData((prev) => ({
+				...prev,
+				[loc.language]: { ...prev[loc.language], ...data },
+			}));
+		},
+		[isWhatsNewEditable, localizations, updateLoc],
+	);
+
 	// Auto-save all changed localizations
 	const autoSaveListings = useCallback(async () => {
 		if (!hasAnyChanges) return;
@@ -806,7 +994,7 @@ export default function VersionDetailPage() {
 		// Validate all languages that have changes
 		for (const lang of Object.keys(allChangedByLang)) {
 			const langData = allFormData[lang] ?? {};
-			const hasErrors = FIELDS.some((f) => {
+			const hasErrors = visibleFields.some((f) => {
 				const val = langData[f.key] ?? "";
 				return getFieldError(f, val, isWhatsNewEditable, true) !== null;
 			});
@@ -842,6 +1030,7 @@ export default function VersionDetailPage() {
 		isWhatsNewEditable,
 		localizations,
 		updateLoc,
+		visibleFields,
 	]);
 
 	useAutoSave({
@@ -1004,7 +1193,7 @@ export default function VersionDetailPage() {
 
 	const { versionString } = detail.data;
 	const isFromCache = detail.data.source === "cache";
-	const hasAnyContent = AI_FIELDS.some((f) => !!formData[f]);
+	const hasAnyContent = visibleAiFields.some((f) => !!formData[f]);
 
 	const sortedLocalizations = localizations
 		.slice()
@@ -1030,6 +1219,17 @@ export default function VersionDetailPage() {
 						icon: "languages" as const,
 						disabled: isTranslatingAll || isGeneratingAll || !!generatingField,
 						onSelect: handleTranslateAllFromLanguage,
+					},
+				]
+			: []),
+		...(isEditable && localizations.length > 1
+			? [
+					{
+						key: "localization-pipeline",
+						label: "Lokalizacja (pipeline)",
+						icon: "languages" as const,
+						disabled: isTranslatingAll || isGeneratingAll || !!generatingField,
+						onSelect: () => setLocalizationDialogOpen(true),
 					},
 				]
 			: []),
@@ -1079,7 +1279,7 @@ export default function VersionDetailPage() {
 	];
 
 	return (
-		<div className="p-6 space-y-6">
+		<div className="mx-auto max-w-3xl space-y-6 p-6">
 			{/* Cache banner */}
 			{isFromCache && (
 				<div className="flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-2.5 text-sm text-yellow-200">
@@ -1146,6 +1346,17 @@ export default function VersionDetailPage() {
 							</SelectContent>
 						</Select>
 					)}
+
+					{/* History button */}
+					<Button
+						className="h-9 gap-2"
+						onClick={() => setHistoryOpen(true)}
+						size="sm"
+						variant="outline"
+					>
+						<Clock className="h-3.5 w-3.5" />
+						History
+					</Button>
 
 						{/* Three-dot menu */}
 					<ActionsMenu
@@ -1229,8 +1440,8 @@ export default function VersionDetailPage() {
 				</AlertDialogContent>
 			</AlertDialog>
 
-			{/* Copyright (version-level, not language-dependent) */}
-			<div className="max-w-2xl space-y-1.5">
+			{/* Copyright (version-level, not language-dependent, iOS only) */}
+			{(!capData || capData.publishing.hasVersions) && <div className="max-w-2xl space-y-1.5">
 				<div className="flex items-center justify-between">
 					<Label className="text-sm font-medium" htmlFor="copyright">
 						Copyright
@@ -1265,10 +1476,11 @@ export default function VersionDetailPage() {
 						Exceeds maximum of 255 characters
 					</p>
 				)}
-			</div>
+			</div>}
 
-			{/* Categories (app-level, not language-dependent) */}
-			{categoriesData &&
+			{/* Categories (app-level, not language-dependent, iOS only) */}
+			{(!capData || capData.categories.supported) &&
+				categoriesData &&
 				categoriesData.availableCategories.length > 0 && (
 					<div className="max-w-2xl space-y-3">
 						<div className="flex items-center justify-between">
@@ -1381,7 +1593,7 @@ export default function VersionDetailPage() {
 				</p>
 			) : (
 				<div className="max-w-2xl space-y-6">
-					{FIELDS.map((field) => {
+					{visibleFields.map((field) => {
 						const activeLang =
 							fieldLangOverrides[field.key] ||
 							selectedLanguage;
@@ -1397,11 +1609,17 @@ export default function VersionDetailPage() {
 							(field.key === "whatsNew" &&
 								!isWhatsNewEditable);
 						const hasError = !!error;
-						const isAiField = AI_FIELDS.includes(
+						const isAiField = visibleAiFields.includes(
 							field.key as ListingFieldName,
 						);
 						const isFieldGenerating =
 							generatingField === field.key;
+						const fieldDiff = getDiffForField(
+							activeLang,
+							field.key,
+						);
+						const diffKey = `${activeLang}:${field.key}`;
+						const isDiffExpanded = expandedDiffs.has(diffKey);
 
 						return (
 							<div
@@ -1501,6 +1719,17 @@ export default function VersionDetailPage() {
 										>
 											{field.label}
 										</Label>
+										{fieldDiff && (
+											<DiffBadge
+												originalValue={fieldDiff.oldValue}
+												onClick={() =>
+													toggleDiff(
+														activeLang,
+														field.key,
+													)
+												}
+											/>
+										)}
 										{/* Per-field language chips */}
 										{localizations.length > 1 && (
 											<div className="flex gap-1 overflow-x-auto scrollbar-thin">
@@ -1625,9 +1854,29 @@ export default function VersionDetailPage() {
 											{field.hint}
 										</p>
 									)}
+
+								{/* Diff panel */}
+								{fieldDiff && isDiffExpanded && (
+									<FieldDiffPanel
+										oldValue={fieldDiff.oldValue}
+										newValue={fieldDiff.newValue}
+									/>
+								)}
 							</div>
 						);
 					})}
+
+					{/* Per-language translation settings (DNT toggles + instructions) */}
+					{localizations.length > 1 &&
+						translatableFields.length > 0 && (
+							<TranslationSettings
+								appId={params.appId}
+								disabled={!isEditable}
+								fields={translatableFields}
+								key={selectedLanguage}
+								language={selectedLanguage}
+							/>
+						)}
 
 					{/* AI confirmation dialog */}
 					<AlertDialog
@@ -1678,6 +1927,41 @@ export default function VersionDetailPage() {
 					</AlertDialog>
 				</div>
 			)}
+
+			{/* Localization pipeline panel */}
+			{localizations.length > 1 && translatableFields.length > 0 && (
+				<LocalizationPipelineDialog
+					appId={params.appId}
+					appName={appData.data?.name ?? "App"}
+					fields={translatableFields}
+					getSourceFields={getPipelineSourceFields}
+					languages={pipelineLanguages}
+					onOpenChange={setLocalizationDialogOpen}
+					onSaveLanguage={handleSavePipelineLanguage}
+					open={localizationDialogOpen}
+					platform={appData.data?.platform ?? "ios"}
+				/>
+			)}
+
+			{/* History sheet */}
+			<Sheet open={historyOpen} onOpenChange={setHistoryOpen}>
+				<SheetContent className="flex w-full flex-col gap-0 p-0 sm:max-w-md">
+					<SheetHeader className="border-b border-border">
+						<SheetTitle>Change History</SheetTitle>
+						<SheetDescription>
+							Review and rollback previous listing changes.
+						</SheetDescription>
+					</SheetHeader>
+					<div className="min-h-0 flex-1">
+						<HistoryTimeline
+							entries={historyQuery.data ?? []}
+							isLoading={historyQuery.isLoading}
+							onRollback={handleHistoryRollback}
+							rollbackPendingId={rollbackPendingId}
+						/>
+					</div>
+				</SheetContent>
+			</Sheet>
 		</div>
 	);
 }

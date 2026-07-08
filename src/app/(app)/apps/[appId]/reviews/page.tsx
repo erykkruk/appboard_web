@@ -256,7 +256,7 @@ export default function ReviewsManager() {
   const syncReviews = useSyncReviews(appId);
 
   return (
-    <div className="p-6">
+    <div className="mx-auto max-w-4xl p-6">
       {stats.isLoading && (
         <div className="mb-6 grid gap-4 md:grid-cols-2">
           <Skeleton className="h-40 rounded-xl" />

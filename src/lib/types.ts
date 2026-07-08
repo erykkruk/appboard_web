@@ -9,6 +9,12 @@ export interface Store {
 	lastSyncedAt: string | null;
 }
 
+export interface ConnectStoreResponse {
+	store: Store;
+	syncedApps: number;
+	warnings: string[];
+}
+
 export type Platform = "android" | "ios";
 
 export interface App {
@@ -40,9 +46,12 @@ export interface Listing {
 	whatsNew: string;
 	keywords: string;
 	promoText: string;
+	videoUrl: string;
 	source: string;
 	isDirty: boolean;
-	[key: string]: string | boolean;
+	doNotTranslateFields: string[] | null;
+	translationInstructions: string | null;
+	[key: string]: string | string[] | boolean | null;
 }
 
 export interface Asset {
@@ -94,6 +103,44 @@ export interface HistoryEntry {
 	newValue?: string;
 	publishedAt?: string;
 	createdAt: string;
+}
+
+export type FeatureKey =
+	| "LISTINGS"
+	| "SCREENSHOTS"
+	| "PUBLISHING"
+	| "REVIEWS"
+	| "AI"
+	| "PURCHASES"
+	| "ASO_PROFILE"
+	| "AGE_RATING"
+	| "PRIVACY"
+	| "HISTORY"
+	| "GROUPS"
+	| "MONETIZATION_CHAT";
+
+export interface FeatureDefinition {
+	key: FeatureKey;
+	name: string;
+	description: string;
+	defaultEnabled: boolean;
+	dependsOn?: FeatureKey[];
+}
+
+export interface FeaturesResponse {
+	definitions: FeatureDefinition[];
+	features: Record<FeatureKey, boolean>;
+}
+
+export interface ListingDiffField {
+	field: string;
+	oldValue: string | null;
+	newValue: string | null;
+}
+
+export interface ListingDiff {
+	language: string;
+	fields: ListingDiffField[];
 }
 
 export interface AsoProfile {
@@ -155,6 +202,7 @@ export interface Settings {
 	ai_model_rephrase?: string;
 	ai_model_research?: string;
 	ai_temperature?: string;
+	primary_territory?: string;
 	[key: string]: string | undefined;
 }
 
@@ -179,8 +227,7 @@ export interface SettingRow {
 
 export interface TranslateRequest {
 	text: string;
-	sourceLang: string;
-	targetLangs: string[];
+	targetLanguages: string[];
 }
 
 export interface TranslateLocalizationRequest {
@@ -218,6 +265,7 @@ export interface GenerateReleaseNotesRequest {
 export interface GeneratePrivacyRequest {
 	appName: string;
 	description: string;
+	platform?: "ios" | "android";
 }
 
 export type ListingFieldName =
@@ -225,9 +273,33 @@ export type ListingFieldName =
 	| "subtitle"
 	| "shortDescription"
 	| "description"
+	| "fullDescription"
 	| "keywords"
 	| "promotionalText"
 	| "whatsNew";
+
+export type PurchaseFieldName =
+	| "purchaseName"
+	| "purchaseDescription"
+	| "reviewNotes"
+	| "productId"
+	| "groupName"
+	| "groupDescription";
+
+export interface GeneratePurchaseFieldRequest {
+	appId: string;
+	field: PurchaseFieldName;
+	context: {
+		appName: string;
+		productType?: string;
+		productName?: string;
+		groupName?: string;
+		duration?: string;
+		bundleId?: string;
+	};
+	currentValue?: string;
+	language?: string;
+}
 
 export interface GenerateListingFieldRequest {
 	appId: string;
@@ -257,9 +329,59 @@ export interface PublishingOverview {
 	} | null;
 }
 
+export interface PushPreview {
+	ageRating: {
+		appleRating?: string | null;
+		configured: boolean;
+		googleRating?: string | null;
+		presetId?: string;
+	};
+	assets: {
+		added: number;
+		count: number;
+		removed: number;
+	};
+	categories: {
+		primaryCategory: string | null;
+		secondaryCategory: string | null;
+	} | null;
+	isIos: boolean;
+	listings: {
+		changes: { language: string; fields: string[] }[];
+		count: number;
+	};
+	privacy: {
+		configured: boolean;
+		dataCollectionCount?: number;
+		templateId?: string;
+		trackingEnabled?: boolean;
+	};
+	purchases: {
+		groupCount: number;
+		localizationCount: number;
+		priceCount: number;
+		purchaseCount: number;
+	};
+	version: {
+		isEditable: boolean;
+		state: string;
+		suggestedVersion: string | null;
+		versionString: string;
+	} | null;
+}
+
+export interface PublishReportItem {
+	kind: "asset" | "listing" | "localization";
+	ref: string;
+	status: "published" | "failed";
+	error?: string;
+}
+
 export interface PublishResult {
 	listings: { published: number };
 	assets: { published: number };
+	versionLocalizations?: { published: number; errors?: string[] };
+	report?: PublishReportItem[];
 }
 
 export interface VersionInfo {
@@ -286,6 +408,8 @@ export interface VersionLocalization {
 	promotionalText?: string;
 	marketingUrl?: string;
 	supportUrl?: string;
+	shortDescription?: string;
+	fullDescription?: string;
 	isDirty?: boolean;
 }
 
@@ -351,12 +475,214 @@ export interface VersionScreenshot {
 	height: number | null;
 }
 
+// Screenshot dimension validation (pre-upload /validate endpoint response)
+export interface ScreenshotValidationResult {
+	displayType: string;
+	displayTypeName: string;
+	providedDimensions: [number, number];
+	supportedDimensions: [number, number][];
+	suggestion: string;
+	valid: boolean;
+}
+
+// Shape of `ApiError.data` when an upload fails with code
+// "INVALID_SCREENSHOT_DIMENSIONS" (HTTP 422). Mirrors the backend error payload.
+export interface ScreenshotDimensionErrorData {
+	displayType: string;
+	displayTypeName: string;
+	info: string;
+	providedDimensions: [number, number];
+	suggestion: string;
+	supportedDimensions: [number, number][];
+}
+
+// Screenshot editor scene (browser-based canvas editor).
+// `SceneData` mirrors the backend `jsonb` shape stored per scene — the frontend
+// owns rendering/export, the backend persists this object intact.
+export type SceneBackgroundType = "color" | "gradient" | "image";
+export type SceneTextAlign = "left" | "center" | "right";
+export type SceneScreenshotFit = "cover" | "contain";
+/** How a background image fills the canvas. Superset of {@link SceneScreenshotFit}. */
+export type SceneBackgroundFit = "cover" | "contain" | "stretch";
+export type SceneDeviceFrame = "iphone" | "android" | "none";
+/** Device frame body color. Defaults per platform (iPhone→silver, Android→black). */
+export type SceneDeviceColor = "black" | "silver";
+
+export interface SceneBackground {
+	type: SceneBackgroundType;
+	value: string;
+	gradient?: { from: string; to: string; angle: number };
+	/** Image fill mode (image type only). Defaults to "cover". */
+	fit?: SceneBackgroundFit;
+	/**
+	 * Focal offsets (-1..1, default 0) used in "cover" mode to pick which part
+	 * of the image survives the crop (poor-man's crop panning).
+	 */
+	offsetX?: number;
+	offsetY?: number;
+}
+
+export interface SceneDevice {
+	frame: SceneDeviceFrame;
+	scale: number;
+	offsetX: number;
+	offsetY: number;
+	rotation?: number;
+	/** Frame body color. Defaults to silver for iPhone, black for Android. */
+	color?: SceneDeviceColor;
+}
+
+export interface SceneScreenshot {
+	assetId?: string;
+	url?: string;
+	fit?: SceneScreenshotFit;
+}
+
+export interface SceneTextLayer {
+	id: string;
+	text: string;
+	x: number;
+	y: number;
+	fontFamily: string;
+	fontSize: number;
+	color: string;
+	align: SceneTextAlign;
+	weight?: number;
+	/** Optional background color drawn as a rounded panel behind the text. */
+	bg?: string;
+	/**
+	 * When true, this layer's text is kept verbatim across language variants
+	 * (e.g. brand names, prices). Persisted inside the opaque `jsonb` scene, so
+	 * no backend migration is needed.
+	 */
+	doNotTranslate?: boolean;
+}
+
+export type SceneAnnotationType = "callout" | "badge" | "label";
+
+/**
+ * Properties shared by every annotation variant. Positions (`x`/`y`) are
+ * normalized (0..1) fractions of the scene, mirroring {@link SceneTextLayer},
+ * so annotations survive a change of target dimensions. Color/font props are
+ * named consistently with text layers (`color` = text color, `fontSize`,
+ * `weight`) for a uniform properties panel.
+ */
+interface SceneAnnotationBase {
+	id: string;
+	text: string;
+	/** Normalized (0..1) anchor position of the annotation box. */
+	x: number;
+	y: number;
+	fontSize: number;
+	/** Text color. */
+	color: string;
+	/** Background fill color of the pill/bubble/label. */
+	bg: string;
+	weight?: number;
+	fontFamily?: string;
+	/**
+	 * When true, the text is kept verbatim across language variants (e.g. a "NEW"
+	 * badge or a brand name). Persisted in the opaque `jsonb` scene — no backend
+	 * migration needed. Mirrors {@link SceneTextLayer.doNotTranslate}.
+	 */
+	doNotTranslate?: boolean;
+}
+
+/** A text bubble with a pointer/tail aimed at a target point on the scene. */
+export interface SceneCalloutAnnotation extends SceneAnnotationBase {
+	type: "callout";
+	/** Normalized (0..1) point the tail points toward. */
+	targetX: number;
+	targetY: number;
+}
+
+/** A pill-shaped badge with text. */
+export interface SceneBadgeAnnotation extends SceneAnnotationBase {
+	type: "badge";
+}
+
+/** A simple text label with an optional background. */
+export interface SceneLabelAnnotation extends SceneAnnotationBase {
+	type: "label";
+	/** When false, the label is drawn without a background fill. */
+	showBackground?: boolean;
+}
+
+/**
+ * A user-uploaded image layer (logo, sticker, arrow…). Unlike text annotations
+ * it has no text/font props; `width` is a normalized (0..1) fraction of the
+ * scene width and the height follows the image's natural aspect ratio.
+ */
+export interface SceneImageAnnotation {
+	type: "image";
+	id: string;
+	/** Normalized (0..1) center position of the image box. */
+	x: number;
+	y: number;
+	/** Normalized (0..1) width as a fraction of scene width. */
+	width: number;
+	/** Image source: dataURL (uploaded) or remote URL. */
+	url: string;
+	/** 0..1 opacity, default 1. */
+	opacity?: number;
+	/** Rotation in degrees, default 0. */
+	rotation?: number;
+	/**
+	 * Natural aspect ratio (height / width), captured at upload time so the
+	 * hit-test box matches the rendered box before the image is decoded.
+	 */
+	aspect?: number;
+}
+
+/** Text-bearing annotation variants (everything except image layers). */
+export type SceneTextAnnotation =
+	| SceneCalloutAnnotation
+	| SceneBadgeAnnotation
+	| SceneLabelAnnotation;
+
+export type SceneAnnotation = SceneTextAnnotation | SceneImageAnnotation;
+
+/** A custom font uploaded by the user, embedded in the scene as a dataURL. */
+export interface SceneCustomFont {
+	family: string;
+	dataUrl: string;
+}
+
+export interface SceneData {
+	width: number;
+	height: number;
+	background: SceneBackground;
+	device?: SceneDevice;
+	screenshot?: SceneScreenshot;
+	textLayers: SceneTextLayer[];
+	annotations?: SceneAnnotation[];
+	/** User-uploaded fonts referenced by text layers/annotations. */
+	customFonts?: SceneCustomFont[];
+}
+
+export interface ScreenshotScene {
+	id: string;
+	appId: string;
+	assetId: string | null;
+	displayType: string;
+	language: string;
+	name: string;
+	scene: SceneData;
+	sortOrder: number;
+	createdAt: string;
+	updatedAt: string;
+}
+
 // Privacy Declaration
 export interface DataCollectionItem {
 	category: string;
+	collected?: boolean;
 	dataType: string;
+	ephemeral?: boolean;
 	linked: boolean;
 	purposes: string[];
+	required?: boolean;
+	shared?: boolean;
 	tracking: boolean;
 }
 
@@ -365,6 +691,8 @@ export interface PrivacyDeclaration {
 	appId: string;
 	templateId: string;
 	dataCollections: DataCollectionItem[] | null;
+	gpDeletionMechanism: boolean;
+	gpEncryptedInTransit: boolean;
 	privacyPolicyUrl: string | null;
 	trackingEnabled: boolean;
 	trackingDomains: string[] | null;
@@ -375,6 +703,8 @@ export interface PrivacyDeclaration {
 export interface PrivacyDeclarationInput {
 	templateId: string;
 	dataCollections?: DataCollectionItem[];
+	gpDeletionMechanism?: boolean;
+	gpEncryptedInTransit?: boolean;
 	privacyPolicyUrl?: string | null;
 	trackingEnabled?: boolean;
 	trackingDomains?: string[] | null;
@@ -384,6 +714,7 @@ export interface PrivacyTemplate {
 	id: string;
 	name: string;
 	description: string;
+	platform: "ios" | "android";
 	dataCollections: DataCollectionItem[];
 }
 
@@ -463,6 +794,71 @@ export interface SuggestCategoryResponse {
 	model: string;
 }
 
+// App Groups
+export interface AppGroupMember {
+	id: string;
+	appId: string;
+	sortOrder: number;
+	app: {
+		id: string;
+		name: string;
+		platform: Platform;
+		iconUrl: string | null;
+		bundleId: string;
+	};
+}
+
+export interface AppGroup {
+	id: string;
+	name: string;
+	iconUrl: string | null;
+	sortOrder: number;
+	useSharedProfile: boolean;
+	workspaceId: string;
+	createdAt: string;
+	updatedAt: string;
+	members: AppGroupMember[];
+}
+
+export interface GroupAsoProfile {
+	id: string;
+	groupId: string;
+	createdAt: string;
+	updatedAt: string;
+	category: string | null;
+	differentiator: string | null;
+	keyFeatures: string[] | null;
+	mainBenefit: string | null;
+	oneLiner: string | null;
+	problem: string | null;
+	painPoints: string[] | null;
+	targetAudience: string | null;
+	userLanguage: string | null;
+	competitiveAdvantage: string | null;
+	competitors: string[] | null;
+	positioning: string | null;
+	brandVoiceExample: string | null;
+	tone: string | null;
+	wordsToAvoid: string[] | null;
+	wordsToInclude: string[] | null;
+	awards: string[] | null;
+	downloadCount: string | null;
+	pressQuotes: string[] | null;
+	testimonials: string[] | null;
+	freeFeatures: string[] | null;
+	premiumFeatures: string[] | null;
+	price: string | null;
+	pricingModel: string | null;
+	excludeKeywords: string[] | null;
+	longTailKeywords: string[] | null;
+	mustIncludeKeywords: string[] | null;
+}
+
+export type GroupAsoProfileInput = Omit<
+	GroupAsoProfile,
+	"id" | "groupId" | "createdAt" | "updatedAt"
+>;
+
 export interface SplitPreviewResult {
 	availableSizes: { height: number; width: number }[];
 	originalWidth: number;
@@ -479,6 +875,213 @@ export interface SplitPreviewResult {
 export interface SplitUploadResult {
 	screenshots: VersionScreenshot[];
 	count: number;
+}
+
+export interface PlatformCapabilities {
+	listings: {
+		fields: string[];
+		maxLengths: Record<string, number>;
+	};
+	publishing: {
+		hasVersions: boolean;
+		hasTracks: boolean;
+		hasReviewSubmission: boolean;
+	};
+	ageRating: { supported: boolean };
+	categories: { supported: boolean };
+	privacy: { supported: boolean };
+	reviews: { supported: boolean; canReply: boolean };
+	assets: {
+		types: string[];
+		screenshotDevices: string[];
+	};
+}
+
+// Group Localizations & Review Info
+export interface GroupLocalization {
+	id: string;
+	groupId: string;
+	language: string;
+	name: string | null;
+	description: string | null;
+}
+
+export interface ReviewInfo {
+	id: string;
+	reviewNotes: string | null;
+	screenshotUrl: string | null;
+	useGroupDefault?: boolean;
+}
+
+// In-App Purchases & Subscriptions
+export interface PurchaseLocalization {
+	id: string;
+	purchaseId: string;
+	language: string;
+	name: string | null;
+	description: string | null;
+	externalId: string | null;
+	syncedAt: string | null;
+}
+
+export interface PurchasePrice {
+	id: string;
+	purchaseId: string;
+	territory: string;
+	currency: string;
+	price: string;
+	externalId: string | null;
+	syncedAt: string | null;
+}
+
+export interface InAppPurchase {
+	id: string;
+	appId: string;
+	externalId: string;
+	productId: string;
+	name: string;
+	productType: string;
+	status: string;
+	duration: string | null;
+	groupId: string | null;
+	familySharable: boolean;
+	availableTerritories: string[] | null;
+	reviewInfo: ReviewInfo | null;
+	syncedAt: string | null;
+	localizations: PurchaseLocalization[];
+	prices: PurchasePrice[];
+}
+
+export interface SubscriptionGroup {
+	id: string;
+	appId: string;
+	externalId: string;
+	name: string;
+	localizations: GroupLocalization[];
+	availableTerritories: string[] | null;
+	reviewInfo: ReviewInfo | null;
+	syncedAt: string | null;
+	subscriptions: InAppPurchase[];
+}
+
+export interface PurchaseSyncResult {
+	syncedGroups: number;
+	syncedSubscriptions: number;
+	syncedIaps: number;
+}
+
+export interface CreatePurchaseInput {
+	name: string;
+	productId: string;
+	productType: string;
+	localizations?: { language: string; name?: string; description?: string }[];
+	prices?: { territory: string; currency: string; price: string }[];
+}
+
+export interface UpdatePurchaseInput {
+	name?: string;
+	localizations?: { language: string; name?: string; description?: string }[];
+	prices?: { territory: string; currency: string; price: string }[];
+}
+
+export interface CreateGroupInput {
+	name: string;
+}
+
+export interface CreateSubscriptionInput {
+	name: string;
+	productId: string;
+	duration: string;
+	localizations?: { language: string; name?: string; description?: string }[];
+	prices?: { territory: string; currency: string; price: string }[];
+}
+
+export interface AiChatMessage {
+	appId: string;
+	chatType: string;
+	content: string;
+	createdAt: string;
+	id: string;
+	role: "assistant" | "user";
+	sortOrder: number;
+	updatedAt: string;
+	workspaceId: string;
+}
+
+// AI Quick Action
+export interface MonetizationPlan {
+	deletes?: string[];
+	groupDeletes?: string[];
+	edits?: Array<{
+		localizations?: Array<{
+			description?: string;
+			language: string;
+			name?: string;
+		}>;
+		name?: string;
+		prices?: Array<{ currency: string; price: string; territory: string }>;
+		purchaseId: string;
+	}>;
+	groupEdits?: Array<{
+		availability?: string[];
+		groupId: string;
+		localizations?: Array<{
+			description?: string;
+			language: string;
+			name?: string;
+		}>;
+		name?: string;
+		reviewNotes?: string;
+	}>;
+	groups?: Array<{
+		availability?: string[];
+		id?: string;
+		localizations?: Array<{
+			description?: string;
+			language: string;
+			name?: string;
+		}>;
+		name: string;
+		reviewNotes?: string;
+		subscriptions: Array<{
+			duration: string;
+			localizations?: Array<{
+				description?: string;
+				language: string;
+				name?: string;
+			}>;
+			name: string;
+			prices?: Array<{ currency: string; price: string; territory: string }>;
+			productId: string;
+		}>;
+	}>;
+	purchases?: Array<{
+		localizations?: Array<{
+			description?: string;
+			language: string;
+			name?: string;
+		}>;
+		name: string;
+		prices?: Array<{ currency: string; price: string; territory: string }>;
+		productId: string;
+		productType: string;
+	}>;
+}
+
+export interface QuickActionFocusContext {
+	duration?: string;
+	groupName?: string;
+	id: string;
+	localizations?: Array<{
+		description?: string;
+		language: string;
+		name?: string;
+	}>;
+	name: string;
+	prices?: Array<{ currency: string; price: string; territory: string }>;
+	productId?: string;
+	productType?: string;
+	type: "group" | "purchase";
 }
 
 export const APP_STORE_LANGUAGES = [
@@ -522,3 +1125,146 @@ export const APP_STORE_LANGUAGES = [
 	{ label: "Ukrainian", locale: "uk" },
 	{ label: "Vietnamese", locale: "vi" },
 ] as const;
+
+// ============ Research (ASO Review Analyzer) ============
+
+export type ResearchStoreKind = "appstore" | "playstore";
+
+export type ResearchSearchScope = "appstore" | "both" | "playstore";
+
+export interface ResearchSuggestion {
+	developer: string;
+	icon?: string;
+	id: string;
+	rating?: number;
+	store: ResearchStoreKind;
+	title: string;
+	url: string;
+}
+
+export interface ResearchAppMeta {
+	adSupported?: boolean;
+	contentRating?: string;
+	country: string;
+	description?: string;
+	developer: string;
+	downloads?: string;
+	free?: boolean;
+	genre?: string;
+	iapRange?: string;
+	icon?: string;
+	id: string;
+	lastUpdate?: string;
+	minInstalls?: number;
+	offersIAP?: boolean;
+	price?: string;
+	rating?: number;
+	ratingsCount?: number;
+	released?: string;
+	reviewsCount?: number;
+	screenshots?: string[];
+	store: ResearchStoreKind;
+	summary?: string;
+	title: string;
+	url: string;
+	version?: string;
+}
+
+export interface ResearchReview {
+	date?: string;
+	stars: number;
+	store: ResearchStoreKind;
+	text: string;
+	title?: string;
+	version?: string;
+}
+
+export interface ResearchHeuristicBucket {
+	count: number;
+	id: string;
+	label: string;
+	quotes: string[];
+}
+
+export interface ResearchHeuristics {
+	buckets: ResearchHeuristicBucket[];
+	byStars: Record<string, number>;
+	negative: number;
+	negativeShare: number;
+	total: number;
+}
+
+export interface ResearchScrapeResult {
+	heuristics: ResearchHeuristics;
+	meta: ResearchAppMeta;
+	reviews: ResearchReview[];
+}
+
+export type ResearchSeverity = "high" | "low" | "medium";
+
+export interface ResearchAnalysisCategory {
+	count: number;
+	id: string;
+	insight: string;
+	quotes: string[];
+	severity: ResearchSeverity;
+}
+
+export interface ResearchAnalysisFeature {
+	insight: string;
+	mentions: number;
+	name: string;
+}
+
+export interface ResearchAsoKeyword {
+	keyword: string;
+	reason: string;
+}
+
+export interface ResearchAnalysis {
+	asoKeywords: ResearchAsoKeyword[];
+	categories: ResearchAnalysisCategory[];
+	featuresHated: ResearchAnalysisFeature[];
+	featuresLoved: ResearchAnalysisFeature[];
+	metadataTips: string[];
+	quickWins: string[];
+	sentiment: { negative: number; neutral: number; positive: number };
+	summary: string;
+	topIrritations: string[];
+}
+
+export interface ResearchKeywordPosition {
+	appstore?: number | null;
+	keyword: string;
+	playstore?: number | null;
+}
+
+export interface ResearchMarketSnapshot {
+	country: string;
+	devReplyRate?: number;
+	error?: string;
+	negativeShare?: number;
+	rating?: number;
+	ratingsCount?: number;
+}
+
+export interface ResearchVisualAnalysis {
+	conversionTips: string[];
+	iconVerdict: string;
+	screenshotFindings: string[];
+}
+
+export interface ResearchComparison {
+	featureGaps: string[];
+	theyDoBetter: string[];
+	verdict: string;
+	weDoBetter: string[];
+}
+
+export interface ResearchCompareResult {
+	comparison?: ResearchComparison;
+	compHeuristics: ResearchHeuristics;
+	compMeta: ResearchAppMeta;
+	compReviews: ResearchReview[];
+	model?: string;
+}

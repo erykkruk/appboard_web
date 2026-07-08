@@ -3,13 +3,18 @@
 import Link from "next/link";
 import { usePathname, useParams, useRouter } from "next/navigation";
 import {
+  AlertTriangle,
   ChevronDown,
+  Clock,
+  CreditCard,
   FileText,
   Globe,
   Image,
+  ImagePlus,
   Info,
   LayoutDashboard,
   Loader2,
+  type LucideIcon,
   Plus,
   RefreshCw,
   Rocket,
@@ -32,26 +37,40 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { PushPreviewDialog } from "@/components/push-preview-dialog";
 import { useApp } from "@/hooks/use-apps";
+import { useFeatures } from "@/hooks/use-features";
 import { api } from "@/lib/api";
 import { useCreateVersion, useVersions } from "@/hooks/use-publishing";
+import type { FeatureKey } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const NAV_ITEMS = [
+type NavItem = {
+  label: string;
+  icon: LucideIcon;
+  suffix: string;
+  iosOnly?: boolean;
+  featureKey?: FeatureKey;
+};
+
+const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, suffix: "/dashboard" },
   { label: "Information", icon: Info, suffix: "/information" },
-  { label: "Publish", icon: Rocket, suffix: "/publish" },
-  { label: "Reviews", icon: Star, suffix: "/reviews" },
+  { label: "Publish", icon: Rocket, suffix: "/publish", featureKey: "PUBLISHING" },
+  { label: "Purchases", icon: CreditCard, suffix: "/purchases", featureKey: "PURCHASES" },
+  { label: "Reviews", icon: Star, suffix: "/reviews", featureKey: "REVIEWS" },
+  { label: "History", icon: Clock, suffix: "/history", featureKey: "HISTORY" },
   { label: "Settings", icon: Settings, suffix: "/settings" },
-] as const;
+];
 
-const VERSION_NAV_ITEMS = [
+const VERSION_NAV_ITEMS: NavItem[] = [
   { label: "Languages", icon: Globe, suffix: "/languages" },
-  { label: "Listings", icon: FileText, suffix: "" },
-  { label: "Previews & Screenshots", icon: Image, suffix: "/screenshots" },
-  { label: "App Review", icon: ShieldCheck, suffix: "/review" },
-  { label: "Age Rating", icon: ShieldAlert, suffix: "/age-rating" },
-] as const;
+  { label: "Listings", icon: FileText, suffix: "", featureKey: "LISTINGS" },
+  { label: "Previews & Screenshots", icon: Image, suffix: "/screenshots", featureKey: "SCREENSHOTS" },
+  { label: "Store Graphics", icon: ImagePlus, suffix: "/graphics", featureKey: "SCREENSHOTS" },
+  { label: "App Review", icon: ShieldCheck, suffix: "/review", iosOnly: true },
+  { label: "Age Rating", icon: ShieldAlert, suffix: "/age-rating", iosOnly: true, featureKey: "AGE_RATING" },
+];
 
 const STATE_BAR_COLORS: Record<string, string> = {
   PREPARE_FOR_SUBMISSION: "bg-yellow-400",
@@ -73,12 +92,20 @@ export default function AppLayout({
   const currentPath = usePathname();
   const router = useRouter();
   const app = useApp(appId);
+  const { data: featuresData } = useFeatures();
+  const features = featuresData?.features;
   const versions = useVersions(appId);
+
+  const isFeatureAllowed = (featureKey?: FeatureKey) => {
+    if (!featureKey) return true;
+    if (!features) return true;
+    return features[featureKey] ?? true;
+  };
   const createVersion = useCreateVersion(appId);
   const [newVersion, setNewVersion] = useState("");
   const [showNewVersion, setShowNewVersion] = useState(false);
   const [isSyncing, setIsSyncing] = useState(false);
-  const [isPushing, setIsPushing] = useState(false);
+  const [showPushPreview, setShowPushPreview] = useState(false);
   const queryClient = useQueryClient();
 
   const basePath = `/apps/${appId}`;
@@ -86,6 +113,8 @@ export default function AppLayout({
   const versionList = versions.data ?? [];
   const draftVersion = versionList.find((v) => v.isEditable);
   const isIos = app.data?.platform === "ios";
+
+  const isGpDraftApp = !isIos && app.data?.status === "draft";
 
   // Detect version from URL
   const versionMatch = currentPath.match(/\/versions\/([^/]+)/);
@@ -104,12 +133,12 @@ export default function AppLayout({
 
   // Auto-select draft (or first) version when none remembered yet
   useEffect(() => {
-    if (!isIos || versionList.length === 0 || rememberedVersionId) return;
+    if (versionList.length === 0 || rememberedVersionId) return;
     const target = draftVersion ?? versionList[0];
     if (target) {
       setRememberedVersionId(target.id);
     }
-  }, [isIos, versionList, rememberedVersionId, draftVersion]);
+  }, [versionList, rememberedVersionId, draftVersion]);
 
   const selectedVersionId = rememberedVersionId;
   const selectedVersion = versionList.find((v) => v.id === selectedVersionId);
@@ -117,8 +146,10 @@ export default function AppLayout({
   const handleCreateVersion = async () => {
     if (!newVersion.trim()) return;
     try {
-      await createVersion.mutateAsync(newVersion.trim());
-      toast.success(`Version ${newVersion.trim()} created`);
+      const result = await createVersion.mutateAsync(newVersion.trim());
+      const langCount = result?.copiedLanguages?.length ?? 0;
+      const langMsg = langCount > 0 ? ` with ${langCount} languages` : "";
+      toast.success(`Version ${newVersion.trim()} created${langMsg}`);
       setNewVersion("");
       setShowNewVersion(false);
     } catch {
@@ -129,23 +160,35 @@ export default function AppLayout({
   const handleSyncAll = useCallback(async () => {
     setIsSyncing(true);
     try {
-      const results = await Promise.allSettled([
+      const syncTasks = [
         api.listings.sync(appId),
         api.assets.sync(appId),
         api.reviews.sync(appId),
-        api.publishing.syncVersions(appId),
-      ]);
+        api.purchases.sync(appId),
+      ];
 
-      const failed = results.filter((r) => r.status === "rejected").length;
+      // Version sync is iOS/App Store only
+      if (isIos) {
+        syncTasks.push(api.publishing.syncVersions(appId));
+      }
+
+      const results = await Promise.allSettled(syncTasks);
+
+      const errors = results
+        .filter((r): r is PromiseRejectedResult => r.status === "rejected")
+        .map((r) => (r.reason as Error)?.message ?? String(r.reason));
 
       queryClient.invalidateQueries({ queryKey: ["listings", appId] });
       queryClient.invalidateQueries({ queryKey: ["assets", appId] });
       queryClient.invalidateQueries({ queryKey: ["reviews", appId] });
+      queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
       queryClient.invalidateQueries({ queryKey: ["publishing", appId] });
       queryClient.invalidateQueries({ queryKey: ["apps"] });
 
-      if (failed > 0) {
-        toast.warning(`Synced with ${failed} error(s)`);
+      if (errors.length > 0) {
+        for (const msg of errors) {
+          toast.error(msg);
+        }
       } else {
         toast.success("Everything synced");
       }
@@ -154,31 +197,7 @@ export default function AppLayout({
     } finally {
       setIsSyncing(false);
     }
-  }, [appId, queryClient]);
-
-  const handlePushToStore = useCallback(async () => {
-    setIsPushing(true);
-    try {
-      const results = await Promise.allSettled([
-        api.listings.publish(appId),
-        api.listings.publishCategories(appId),
-        api.ageRating.publish(appId),
-        api.privacyDeclaration.publish(appId),
-      ]);
-
-      const failed = results.filter((r) => r.status === "rejected").length;
-
-      if (failed > 0) {
-        toast.warning(`Pushed with ${failed} error(s)`);
-      } else {
-        toast.success("Pushed to store");
-      }
-    } catch {
-      toast.error("Push failed");
-    } finally {
-      setIsPushing(false);
-    }
-  }, [appId]);
+  }, [appId, isIos, queryClient]);
 
   const lastSyncedAt = app.data?.lastSyncedAt;
 
@@ -194,7 +213,10 @@ export default function AppLayout({
 
         <nav className="flex-1 overflow-y-auto px-2 py-3">
           <div className="space-y-0.5">
-            {NAV_ITEMS.map((item) => {
+            {NAV_ITEMS
+              .filter((item) => !item.iosOnly || isIos)
+              .filter((item) => isFeatureAllowed(item.featureKey))
+              .map((item) => {
               const href = `${basePath}${item.suffix}`;
               const isActive =
                 currentPath.startsWith(href) && !isVersionPage;
@@ -332,7 +354,9 @@ export default function AppLayout({
                 {/* Version sub-navigation */}
                 {selectedVersionId && (
                   <div className="mt-1 space-y-0.5">
-                    {VERSION_NAV_ITEMS.map((item) => {
+                    {VERSION_NAV_ITEMS
+                      .filter((item) => isFeatureAllowed(item.featureKey))
+                      .map((item) => {
                       const href = `${basePath}/versions/${selectedVersionId}${item.suffix}`;
                       const isActive =
                         item.suffix === ""
@@ -359,23 +383,81 @@ export default function AppLayout({
               </div>
             </>
           )}
+
+          {/* Content navigation — Google Play (no version selector) */}
+          {!isIos && selectedVersionId && (
+            <>
+              <div className="mx-3 my-3 h-px bg-border" />
+              <div className="space-y-0.5">
+                {VERSION_NAV_ITEMS
+                  .filter((item) => !item.iosOnly)
+                  .filter((item) => isFeatureAllowed(item.featureKey))
+                  .map((item) => {
+                    const href = `${basePath}/versions/${selectedVersionId}${item.suffix}`;
+                    const isActive =
+                      item.suffix === ""
+                        ? currentPath === `${basePath}/versions/${selectedVersionId}`
+                        : currentPath.startsWith(href);
+                    return (
+                      <Link
+                        key={item.label}
+                        href={href}
+                        className={cn(
+                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
+                          isActive
+                            ? "bg-primary text-primary-foreground"
+                            : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
+                        )}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        {item.label}
+                      </Link>
+                    );
+                  })}
+              </div>
+            </>
+          )}
         </nav>
 
         <div className="border-t border-border px-2 py-3 space-y-2">
+          {isGpDraftApp && (
+            <Link
+              href={`${basePath}/setup`}
+              className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-2 transition-colors hover:bg-amber-500/10"
+            >
+              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
+              <div className="min-w-0">
+                <p className="text-[11px] font-medium leading-tight text-amber-500">
+                  Setup required
+                </p>
+                <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                  App not yet published on GP. Click for details.
+                </p>
+              </div>
+            </Link>
+          )}
           <Button
             variant="outline"
             size="sm"
             className="w-full justify-center gap-2 text-muted-foreground"
-            onClick={handlePushToStore}
-            disabled={isPushing}
+            onClick={() => setShowPushPreview(true)}
+            disabled={isGpDraftApp}
           >
-            {isPushing ? (
-              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Upload className="h-3.5 w-3.5" />
-            )}
-            {isPushing ? "Pushing..." : `Push to ${isIos ? "App Store" : "Google Play"}`}
+            <Upload className="h-3.5 w-3.5" />
+            {isIos ? "Push to App Store" : "Push as Draft"}
           </Button>
+          <PushPreviewDialog
+            appId={appId}
+            isIos={isIos}
+            open={showPushPreview}
+            onOpenChange={setShowPushPreview}
+            onComplete={() => {
+              queryClient.invalidateQueries({ queryKey: ["apps"] });
+              queryClient.invalidateQueries({ queryKey: ["listings", appId] });
+              queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
+              queryClient.invalidateQueries({ queryKey: ["publishing", appId] });
+            }}
+          />
           <Button
             variant="outline"
             size="sm"
