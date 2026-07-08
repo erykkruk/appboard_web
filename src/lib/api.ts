@@ -45,6 +45,17 @@ import type {
 	PublishResult,
 	PushPreview,
 	PurchaseSyncResult,
+	ResearchAnalysis,
+	ResearchAppMeta,
+	ResearchCompareResult,
+	ResearchKeywordPosition,
+	ResearchMarketSnapshot,
+	ResearchReview,
+	ResearchScrapeResult,
+	ResearchSearchScope,
+	ResearchStoreKind,
+	ResearchSuggestion,
+	ResearchVisualAnalysis,
 	Review,
 	ReviewInfo,
 	ReviewStats,
@@ -109,6 +120,10 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 		if (res.status === 423 && typeof window !== "undefined") {
 			// Vault locked — let the VaultProvider prompt for the passphrase.
 			window.dispatchEvent(new CustomEvent("vault-locked"));
+		}
+		if (res.status === 428 && typeof window !== "undefined") {
+			// Vault not configured — store credentials require an E2EE vault.
+			window.dispatchEvent(new CustomEvent("vault-required"));
 		}
 		const error = await res.json().catch(() => ({ code: "UNKNOWN" }));
 		throw new ApiError(res.status, error.code, error.data);
@@ -311,6 +326,28 @@ export const api = {
 		delete: (groupId: string) =>
 			fetchApi<{ success: boolean }>(`/api/app-groups/${groupId}`, {
 				method: "DELETE",
+			}),
+		generateListings: (
+			groupId: string,
+			data: {
+				fields?: string[];
+				sourceLanguage?: string;
+				translateToOthers?: boolean;
+			} = {},
+		) =>
+			fetchApi<{
+				results: {
+					appId: string;
+					appName: string;
+					errors: { field: string; message: string }[];
+					generated: Record<string, string>;
+					platform: string;
+					translation?: { error?: string; translated?: number };
+				}[];
+				sourceLanguage: string;
+			}>(`/api/app-groups/${groupId}/generate-listings`, {
+				body: JSON.stringify(data),
+				method: "POST",
 			}),
 		get: (groupId: string) =>
 			fetchApi<{ appGroup: AppGroup }>(`/api/app-groups/${groupId}`).then(
@@ -963,6 +1000,86 @@ export const api = {
 			).then((r) => r.versions),
 	},
 
+	research: {
+		analyze: (body: {
+			deep?: boolean;
+			meta: ResearchAppMeta[];
+			model?: string;
+			reviews: ResearchReview[];
+		}) =>
+			fetchApi<{ analysis: ResearchAnalysis; model: string }>(
+				"/api/research/analyze",
+				{ body: JSON.stringify(body), method: "POST" },
+			),
+		compare: (body: {
+			competitor: { id: string; store: ResearchStoreKind };
+			country: string;
+			model?: string;
+			ourMeta: ResearchAppMeta;
+			ourReviews: ResearchReview[];
+		}) =>
+			fetchApi<ResearchCompareResult>("/api/research/compare", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}),
+		competitors: (body: {
+			country: string;
+			developer?: string;
+			genre?: string;
+			id: string;
+			store: ResearchStoreKind;
+			title: string;
+		}) =>
+			fetchApi<{ competitors: ResearchSuggestion[] }>(
+				"/api/research/competitors",
+				{ body: JSON.stringify(body), method: "POST" },
+			).then((r) => r.competitors),
+		keywords: (body: {
+			appstoreId?: string;
+			country: string;
+			keywords: string[];
+			playstoreId?: string;
+		}) =>
+			fetchApi<{ positions: ResearchKeywordPosition[] }>(
+				"/api/research/keywords",
+				{ body: JSON.stringify(body), method: "POST" },
+			).then((r) => r.positions),
+		markets: (body: {
+			id: string;
+			markets?: string[];
+			store: ResearchStoreKind;
+		}) =>
+			fetchApi<{ snapshots: ResearchMarketSnapshot[] }>(
+				"/api/research/markets",
+				{ body: JSON.stringify(body), method: "POST" },
+			).then((r) => r.snapshots),
+		scrape: (body: {
+			country?: string;
+			deep?: boolean;
+			id?: string;
+			store?: ResearchStoreKind;
+			url?: string;
+		}) =>
+			fetchApi<ResearchScrapeResult>("/api/research/scrape", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}),
+		search: (body: {
+			country: string;
+			scope?: ResearchSearchScope;
+			term: string;
+		}) =>
+			fetchApi<{ suggestions: ResearchSuggestion[] }>("/api/research/search", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}).then((r) => r.suggestions),
+		visual: (body: { meta: ResearchAppMeta; model?: string }) =>
+			fetchApi<{ model: string; visual: ResearchVisualAnalysis }>(
+				"/api/research/visual",
+				{ body: JSON.stringify(body), method: "POST" },
+			).then((r) => r.visual),
+	},
+
 	reviews: {
 		list: (
 			appId: string,
@@ -1209,6 +1326,11 @@ export const api = {
 			fetchApi<{ synced: number }>(`/api/stores/${id}/sync`, {
 				method: "POST",
 			}),
+		syncAll: () =>
+			fetchApi<{
+				results: { storeId: string; storeName: string; synced: number }[];
+				totalSynced: number;
+			}>("/api/stores/sync-all", { method: "POST" }),
 	},
 	vault: {
 		changePassphrase: (body: VaultParams) =>

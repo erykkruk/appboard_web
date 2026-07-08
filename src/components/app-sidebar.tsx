@@ -25,6 +25,7 @@ import {
   ChevronRight,
   FolderOpen,
   Loader2,
+  Microscope,
   Pencil,
   Plus,
   RefreshCw,
@@ -1529,8 +1530,26 @@ export function AppSidebar() {
         </DndContext>
       </div>
 
-      {/* Bottom: Settings + Version */}
+      {/* Bottom: Research + Settings + Version */}
       <div className="mt-2 flex flex-col items-center gap-2">
+        <Tooltip delayDuration={0}>
+          <TooltipTrigger asChild>
+            <Link
+              href="/research"
+              className={cn(
+                "flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
+                currentPath.startsWith("/research")
+                  ? "bg-primary text-primary-foreground"
+                  : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
+              )}
+            >
+              <Microscope className="h-5 w-5" />
+            </Link>
+          </TooltipTrigger>
+          <TooltipContent side="right" sideOffset={8}>
+            Research
+          </TooltipContent>
+        </Tooltip>
         <Tooltip delayDuration={0}>
           <TooltipTrigger asChild>
             <Link

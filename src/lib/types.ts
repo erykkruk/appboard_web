@@ -502,12 +502,24 @@ export interface ScreenshotDimensionErrorData {
 export type SceneBackgroundType = "color" | "gradient" | "image";
 export type SceneTextAlign = "left" | "center" | "right";
 export type SceneScreenshotFit = "cover" | "contain";
+/** How a background image fills the canvas. Superset of {@link SceneScreenshotFit}. */
+export type SceneBackgroundFit = "cover" | "contain" | "stretch";
 export type SceneDeviceFrame = "iphone" | "android" | "none";
+/** Device frame body color. Defaults per platform (iPhone→silver, Android→black). */
+export type SceneDeviceColor = "black" | "silver";
 
 export interface SceneBackground {
 	type: SceneBackgroundType;
 	value: string;
 	gradient?: { from: string; to: string; angle: number };
+	/** Image fill mode (image type only). Defaults to "cover". */
+	fit?: SceneBackgroundFit;
+	/**
+	 * Focal offsets (-1..1, default 0) used in "cover" mode to pick which part
+	 * of the image survives the crop (poor-man's crop panning).
+	 */
+	offsetX?: number;
+	offsetY?: number;
 }
 
 export interface SceneDevice {
@@ -516,6 +528,8 @@ export interface SceneDevice {
 	offsetX: number;
 	offsetY: number;
 	rotation?: number;
+	/** Frame body color. Defaults to silver for iPhone, black for Android. */
+	color?: SceneDeviceColor;
 }
 
 export interface SceneScreenshot {
@@ -534,6 +548,8 @@ export interface SceneTextLayer {
 	color: string;
 	align: SceneTextAlign;
 	weight?: number;
+	/** Optional background color drawn as a rounded panel behind the text. */
+	bg?: string;
 	/**
 	 * When true, this layer's text is kept verbatim across language variants
 	 * (e.g. brand names, prices). Persisted inside the opaque `jsonb` scene, so
@@ -592,10 +608,45 @@ export interface SceneLabelAnnotation extends SceneAnnotationBase {
 	showBackground?: boolean;
 }
 
-export type SceneAnnotation =
+/**
+ * A user-uploaded image layer (logo, sticker, arrow…). Unlike text annotations
+ * it has no text/font props; `width` is a normalized (0..1) fraction of the
+ * scene width and the height follows the image's natural aspect ratio.
+ */
+export interface SceneImageAnnotation {
+	type: "image";
+	id: string;
+	/** Normalized (0..1) center position of the image box. */
+	x: number;
+	y: number;
+	/** Normalized (0..1) width as a fraction of scene width. */
+	width: number;
+	/** Image source: dataURL (uploaded) or remote URL. */
+	url: string;
+	/** 0..1 opacity, default 1. */
+	opacity?: number;
+	/** Rotation in degrees, default 0. */
+	rotation?: number;
+	/**
+	 * Natural aspect ratio (height / width), captured at upload time so the
+	 * hit-test box matches the rendered box before the image is decoded.
+	 */
+	aspect?: number;
+}
+
+/** Text-bearing annotation variants (everything except image layers). */
+export type SceneTextAnnotation =
 	| SceneCalloutAnnotation
 	| SceneBadgeAnnotation
 	| SceneLabelAnnotation;
+
+export type SceneAnnotation = SceneTextAnnotation | SceneImageAnnotation;
+
+/** A custom font uploaded by the user, embedded in the scene as a dataURL. */
+export interface SceneCustomFont {
+	family: string;
+	dataUrl: string;
+}
 
 export interface SceneData {
 	width: number;
@@ -605,6 +656,8 @@ export interface SceneData {
 	screenshot?: SceneScreenshot;
 	textLayers: SceneTextLayer[];
 	annotations?: SceneAnnotation[];
+	/** User-uploaded fonts referenced by text layers/annotations. */
+	customFonts?: SceneCustomFont[];
 }
 
 export interface ScreenshotScene {
@@ -1072,3 +1125,146 @@ export const APP_STORE_LANGUAGES = [
 	{ label: "Ukrainian", locale: "uk" },
 	{ label: "Vietnamese", locale: "vi" },
 ] as const;
+
+// ============ Research (ASO Review Analyzer) ============
+
+export type ResearchStoreKind = "appstore" | "playstore";
+
+export type ResearchSearchScope = "appstore" | "both" | "playstore";
+
+export interface ResearchSuggestion {
+	developer: string;
+	icon?: string;
+	id: string;
+	rating?: number;
+	store: ResearchStoreKind;
+	title: string;
+	url: string;
+}
+
+export interface ResearchAppMeta {
+	adSupported?: boolean;
+	contentRating?: string;
+	country: string;
+	description?: string;
+	developer: string;
+	downloads?: string;
+	free?: boolean;
+	genre?: string;
+	iapRange?: string;
+	icon?: string;
+	id: string;
+	lastUpdate?: string;
+	minInstalls?: number;
+	offersIAP?: boolean;
+	price?: string;
+	rating?: number;
+	ratingsCount?: number;
+	released?: string;
+	reviewsCount?: number;
+	screenshots?: string[];
+	store: ResearchStoreKind;
+	summary?: string;
+	title: string;
+	url: string;
+	version?: string;
+}
+
+export interface ResearchReview {
+	date?: string;
+	stars: number;
+	store: ResearchStoreKind;
+	text: string;
+	title?: string;
+	version?: string;
+}
+
+export interface ResearchHeuristicBucket {
+	count: number;
+	id: string;
+	label: string;
+	quotes: string[];
+}
+
+export interface ResearchHeuristics {
+	buckets: ResearchHeuristicBucket[];
+	byStars: Record<string, number>;
+	negative: number;
+	negativeShare: number;
+	total: number;
+}
+
+export interface ResearchScrapeResult {
+	heuristics: ResearchHeuristics;
+	meta: ResearchAppMeta;
+	reviews: ResearchReview[];
+}
+
+export type ResearchSeverity = "high" | "low" | "medium";
+
+export interface ResearchAnalysisCategory {
+	count: number;
+	id: string;
+	insight: string;
+	quotes: string[];
+	severity: ResearchSeverity;
+}
+
+export interface ResearchAnalysisFeature {
+	insight: string;
+	mentions: number;
+	name: string;
+}
+
+export interface ResearchAsoKeyword {
+	keyword: string;
+	reason: string;
+}
+
+export interface ResearchAnalysis {
+	asoKeywords: ResearchAsoKeyword[];
+	categories: ResearchAnalysisCategory[];
+	featuresHated: ResearchAnalysisFeature[];
+	featuresLoved: ResearchAnalysisFeature[];
+	metadataTips: string[];
+	quickWins: string[];
+	sentiment: { negative: number; neutral: number; positive: number };
+	summary: string;
+	topIrritations: string[];
+}
+
+export interface ResearchKeywordPosition {
+	appstore?: number | null;
+	keyword: string;
+	playstore?: number | null;
+}
+
+export interface ResearchMarketSnapshot {
+	country: string;
+	devReplyRate?: number;
+	error?: string;
+	negativeShare?: number;
+	rating?: number;
+	ratingsCount?: number;
+}
+
+export interface ResearchVisualAnalysis {
+	conversionTips: string[];
+	iconVerdict: string;
+	screenshotFindings: string[];
+}
+
+export interface ResearchComparison {
+	featureGaps: string[];
+	theyDoBetter: string[];
+	verdict: string;
+	weDoBetter: string[];
+}
+
+export interface ResearchCompareResult {
+	comparison?: ResearchComparison;
+	compHeuristics: ResearchHeuristics;
+	compMeta: ResearchAppMeta;
+	compReviews: ResearchReview[];
+	model?: string;
+}
