@@ -103,7 +103,13 @@ export function PushPreviewDialog({
     try {
       switch (section) {
         case "listings":
-          await api.listings.publish(appId);
+          // App Store listing content lives in per-version localizations, not
+          // the `listings` table — push those; Google Play uses listings.publish.
+          if (isIos) {
+            await api.publishing.publishAllLocalizations(appId);
+          } else {
+            await api.listings.publish(appId);
+          }
           break;
         case "categories":
           await api.listings.publishCategories(appId);
@@ -119,7 +125,7 @@ export function PushPreviewDialog({
     } catch {
       setStatuses((prev) => ({ ...prev, [section]: "error" }));
     }
-  }, [appId]);
+  }, [appId, isIos]);
 
   const pushAll = useCallback(async () => {
     setIsPushingAll(true);

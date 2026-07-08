@@ -797,6 +797,11 @@ export const api = {
 				`/api/apps/${appId}/publishing/versions/${versionId}/publish-localizations`,
 				{ method: "POST" },
 			),
+		publishAllLocalizations: (appId: string) =>
+			fetchApi<PublishLocalizationsResult>(
+				`/api/apps/${appId}/publishing/publish-localizations`,
+				{ method: "POST" },
+			),
 		reorderScreenshots: (
 			appId: string,
 			screenshotSetId: string,

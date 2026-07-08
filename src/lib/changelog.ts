@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.6",
+    serverVersion: "0.6.3",
+    date: "2026-07-08",
+    changes: [
+      "App Store: 'Push to App Store' now actually pushes your version localization edits (title, description, keywords, what's new…) — previously it only handled Google Play and silently pushed nothing for iOS",
+      "Pending changes: the push preview now shows dirty App Store version-localization edits, not just Google Play listing changes",
+    ],
+  },
+  {
     version: "0.6.5",
     serverVersion: "0.6.2",
     date: "2026-07-08",
