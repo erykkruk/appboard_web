@@ -15,6 +15,7 @@ import {
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { StoreLogo } from "@/components/store-logo";
 import { StoreAccessReport } from "@/components/stores/store-access-report";
 import { StoreCapabilitiesPicker } from "@/components/stores/store-capabilities-picker";
 import { Badge } from "@/components/ui/badge";
@@ -557,13 +558,12 @@ export default function SettingsGeneralPage() {
                     className="flex items-center justify-between rounded-lg border p-3"
                   >
                     <div className="flex items-center gap-3">
-                      <Badge
-                        variant={
-                          store.type === "google_play" ? "default" : "secondary"
-                        }
-                      >
-                        {store.type === "google_play" ? "GP" : "AS"}
-                      </Badge>
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
+                        <StoreLogo
+                          type={store.type}
+                          className="h-5 w-5 text-foreground"
+                        />
+                      </div>
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="text-sm font-medium">{store.name}</p>

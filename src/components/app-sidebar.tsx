@@ -18,10 +18,11 @@ import {
 } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 import {
-  Apple,
   Check,
   ChevronDown,
   ChevronRight,
+  Eye,
+  EyeOff,
   FolderOpen,
   Loader2,
   Microscope,
@@ -36,6 +37,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { StoreLogo } from "@/components/store-logo";
 import { VersionDialog } from "@/components/version-dialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -81,11 +83,6 @@ import {
 import { useSession } from "@/lib/auth-client";
 import type { App, AppGroup } from "@/lib/types";
 import { cn } from "@/lib/utils";
-
-const STORE_ICONS: Record<string, typeof Apple> = {
-  app_store: Apple,
-  google_play: Store,
-};
 
 const APP_COLORS = [
   "#e11d48", "#db2777", "#c026d3", "#9333ea", "#7c3aed", "#4f46e5",
@@ -173,6 +170,61 @@ function useFavorites() {
   );
 
   return { favorites, toggle, isFavorite };
+}
+
+function useHiddenApps() {
+  const [hidden, setHidden] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    try {
+      const stored = localStorage.getItem("appboard:hidden-apps");
+      if (stored) setHidden(new Set(JSON.parse(stored)));
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const toggle = useCallback((appId: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(appId)) {
+        next.delete(appId);
+      } else {
+        next.add(appId);
+      }
+      localStorage.setItem("appboard:hidden-apps", JSON.stringify([...next]));
+      return next;
+    });
+  }, []);
+
+  const isHidden = useCallback(
+    (appId: string) => hidden.has(appId),
+    [hidden],
+  );
+
+  return { hidden, toggle, isHidden };
+}
+
+function useShowHidden() {
+  const [showHidden, setShowHidden] = useState(false);
+
+  useEffect(() => {
+    try {
+      setShowHidden(localStorage.getItem("appboard:show-hidden") === "true");
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const toggle = useCallback(() => {
+    setShowHidden((prev) => {
+      const next = !prev;
+      localStorage.setItem("appboard:show-hidden", String(next));
+      return next;
+    });
+  }, []);
+
+  return { showHidden, toggle };
 }
 
 function useItemOrder(storageKey: string, ids: string[]) {
@@ -278,6 +330,8 @@ interface AppIconProps {
   size?: "sm" | "md";
   isFavorite: boolean;
   onToggleFavorite: () => void;
+  isHidden: boolean;
+  onToggleHidden: () => void;
   groups: AppGroup[];
   appGroup: { id: string; name: string } | null;
   onAddToGroup: (groupId: string) => void;
@@ -294,6 +348,8 @@ function AppIcon({
   size = "md",
   isFavorite,
   onToggleFavorite,
+  isHidden,
+  onToggleHidden,
   groups,
   appGroup,
   onAddToGroup,
@@ -302,8 +358,8 @@ function AppIcon({
   badgeType = "platform",
 }: AppIconProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const PlatformIcon = app.platform === "ios" ? Apple : Store;
-  const sizeClass = size === "sm" ? "h-8 w-8" : "h-10 w-10";
+  const storeType = app.platform === "ios" ? "app_store" : "google_play";
+  const sizeClass = size === "sm" ? "h-8 w-8" : "h-11 w-11";
   const badgeClass = size === "sm" ? "h-4 w-4" : "h-5 w-5";
   const badgeIconClass = size === "sm" ? "h-2.5 w-2.5" : "h-3.5 w-3.5";
 
@@ -327,7 +383,7 @@ function AppIcon({
           <DropdownMenu open={menuOpen} onOpenChange={(open) => { if (!open) setMenuOpen(false); }}>
             <DropdownMenuTrigger asChild>
               <div
-                className="relative"
+                className={cn("relative", isHidden && "opacity-40")}
                 onGotPointerCapture={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
               >
                 <Link
@@ -352,7 +408,7 @@ function AppIcon({
                   {badgeType === "star" ? (
                     <Star className={cn("fill-yellow-500 text-yellow-500", badgeIconClass)} />
                   ) : (
-                    <PlatformIcon className={cn("text-muted-foreground", badgeIconClass)} />
+                    <StoreLogo type={storeType} className={cn("text-muted-foreground", badgeIconClass)} />
                   )}
                 </div>
               </div>
@@ -371,6 +427,11 @@ function AppIcon({
               <DropdownMenuItem onSelect={() => { onToggleFavorite(); setMenuOpen(false); }}>
                 <Star className={cn("h-4 w-4", isFavorite && "fill-yellow-500 text-yellow-500")} />
                 {isFavorite ? "Remove from Favorites" : "Add to Favorites"}
+              </DropdownMenuItem>
+
+              <DropdownMenuItem onSelect={() => { onToggleHidden(); setMenuOpen(false); }}>
+                {isHidden ? <Eye className="h-4 w-4" /> : <EyeOff className="h-4 w-4" />}
+                {isHidden ? "Unhide app" : "Hide app"}
               </DropdownMenuItem>
 
               <DropdownMenuSeparator />
@@ -640,7 +701,7 @@ function GroupHeader({
                     setMenuOpen(true);
                   }}
                   className={cn(
-                    "flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white transition-all select-none overflow-hidden",
+                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white transition-all select-none overflow-hidden",
                     hasActiveApp && !isCollapsed &&
                       "ring-2 ring-primary/50 ring-offset-1 ring-offset-[#111111]",
                   )}
@@ -1033,6 +1094,8 @@ export function AppSidebar() {
   const [newGroupNameInput, setNewGroupNameInput] = useState("");
   const { getColor, setColor } = useAppColors();
   const { favorites, toggle: toggleFavorite, isFavorite } = useFavorites();
+  const { hidden, toggle: toggleHidden, isHidden } = useHiddenApps();
+  const { showHidden, toggle: toggleShowHidden } = useShowHidden();
   const { collapsed, toggle: toggleCollapsed } = useCollapsedGroups();
   const { data: session } = useSession();
 
@@ -1040,19 +1103,28 @@ export function AppSidebar() {
   const appsList = apps.data ?? [];
   const groups = appGroupsQuery.data ?? [];
 
+  // Apps visible in the sidebar — hidden apps are excluded unless show-hidden mode is on
+  const visibleAppsList = useMemo(
+    () =>
+      showHidden || hidden.size === 0
+        ? appsList
+        : appsList.filter((a) => !hidden.has(a.id)),
+    [appsList, hidden, showHidden],
+  );
+
   const storeFilter = useStoreFilter(storesList.map((s) => s.id));
   const filteredApps = useMemo(
     () =>
       storeFilter.enabled.size === 0
-        ? appsList
-        : appsList.filter((a) => storeFilter.enabled.has(a.storeId)),
-    [appsList, storeFilter.enabled],
+        ? visibleAppsList
+        : visibleAppsList.filter((a) => storeFilter.enabled.has(a.storeId)),
+    [visibleAppsList, storeFilter.enabled],
   );
 
-  // Favorite apps — from full appsList (visible regardless of store filter)
+  // Favorite apps — from visible apps (regardless of store filter)
   const favoriteApps = useMemo(
-    () => appsList.filter((a) => favorites.has(a.id)),
-    [appsList, favorites],
+    () => visibleAppsList.filter((a) => favorites.has(a.id)),
+    [visibleAppsList, favorites],
   );
 
   // Favorite groups
@@ -1207,6 +1279,8 @@ export function AppSidebar() {
       onColorChange: (c: string) => setColor(app.id, c),
       isFavorite: isFavorite(app.id),
       onToggleFavorite: () => toggleFavorite(app.id),
+      isHidden: isHidden(app.id),
+      onToggleHidden: () => toggleHidden(app.id),
       groups,
       appGroup: appGroupMap.get(app.id) ?? null,
       onAddToGroup: (groupId: string) => handleAddToGroup(groupId, app.id),
@@ -1217,7 +1291,7 @@ export function AppSidebar() {
       },
       ...overrides,
     }),
-    [currentPath, getColor, setColor, isFavorite, toggleFavorite, groups, appGroupMap],
+    [currentPath, getColor, setColor, isFavorite, toggleFavorite, isHidden, toggleHidden, groups, appGroupMap],
   );
 
   // Groups that have at least one visible (filtered) member (excluding favorite groups)
@@ -1247,7 +1321,7 @@ export function AppSidebar() {
   );
 
   return (
-    <aside className="flex w-[72px] shrink-0 flex-col items-center border-r border-border bg-[#111111] py-3">
+    <aside className="flex w-[88px] shrink-0 flex-col items-center border-r border-border bg-[#111111] py-3">
       {/* Top buttons: Store selector + Groups */}
       <div className="flex flex-col items-center gap-1.5 mb-3">
         {storesList.length > 0 ? (
@@ -1257,7 +1331,7 @@ export function AppSidebar() {
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-[#2a2a2a] text-muted-foreground transition-colors hover:bg-[#3a3a3a] hover:text-foreground"
+                    className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-[#2a2a2a] text-muted-foreground transition-colors hover:bg-[#3a3a3a] hover:text-foreground"
                   >
                     <Store className="h-5 w-5" />
                     {storesList.length > 1 && (
@@ -1281,7 +1355,6 @@ export function AppSidebar() {
             </Tooltip>
             <DropdownMenuContent side="right" align="start" className="w-56">
               {storesList.map((store) => {
-                const Icon = STORE_ICONS[store.type] ?? Store;
                 const isChecked = storeFilter.enabled.has(store.id);
                 return (
                   <DropdownMenuItem
@@ -1302,7 +1375,7 @@ export function AppSidebar() {
                     >
                       {isChecked && <Check className="h-3 w-3" />}
                     </div>
-                    <Icon className="h-4 w-4 shrink-0" />
+                    <StoreLogo type={store.type} className="h-4 w-4 shrink-0 text-foreground" />
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{store.name}</p>
                       <p className="text-xs text-muted-foreground">
@@ -1336,7 +1409,7 @@ export function AppSidebar() {
             <TooltipTrigger asChild>
               <Link
                 href="/onboarding"
-                className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/30 text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
+                className="flex h-11 w-11 items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/30 text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
               >
                 <Plus className="h-5 w-5" />
               </Link>
@@ -1352,7 +1425,7 @@ export function AppSidebar() {
           <TooltipTrigger asChild>
             <button
               type="button"
-              className="relative flex h-10 w-10 items-center justify-center rounded-xl bg-[#2a2a2a] text-muted-foreground transition-colors hover:bg-[#3a3a3a] hover:text-foreground"
+              className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-[#2a2a2a] text-muted-foreground transition-colors hover:bg-[#3a3a3a] hover:text-foreground"
               onClick={() => setGroupsOpen(true)}
             >
               <FolderOpen className="h-5 w-5" />
@@ -1390,7 +1463,7 @@ export function AppSidebar() {
               strategy={verticalListSortingStrategy}
             >
               {sortedFavoriteIds.map((id) => {
-                const app = appsList.find((a) => a.id === id);
+                const app = visibleAppsList.find((a) => a.id === id);
                 if (app) {
                   return (
                     <SortableWrapper key={id} id={id}>
@@ -1404,7 +1477,7 @@ export function AppSidebar() {
                 if (group) {
                   const isGroupCollapsed = collapsed.has(group.id);
                   const groupApps = group.members
-                    .map((m) => appsList.find((a) => a.id === m.appId))
+                    .map((m) => visibleAppsList.find((a) => a.id === m.appId))
                     .filter((a): a is App => !!a);
                   const hasActiveApp = groupApps.some((a) =>
                     currentPath.startsWith(`/apps/${a.id}`),
@@ -1530,14 +1603,39 @@ export function AppSidebar() {
         </DndContext>
       </div>
 
-      {/* Bottom: Research + Settings + Version */}
+      {/* Bottom: Show hidden + Research + Settings + Version */}
       <div className="mt-2 flex flex-col items-center gap-2">
+        {hidden.size > 0 && (
+          <Tooltip delayDuration={0}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                onClick={toggleShowHidden}
+                className={cn(
+                  "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
+                  showHidden
+                    ? "bg-[#2a2a2a] text-foreground"
+                    : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
+                )}
+              >
+                {showHidden ? (
+                  <Eye className="h-4 w-4" />
+                ) : (
+                  <EyeOff className="h-4 w-4" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right" sideOffset={8}>
+              {showHidden ? "Hide hidden apps" : "Show hidden apps"}
+            </TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip delayDuration={0}>
           <TooltipTrigger asChild>
             <Link
               href="/research"
               className={cn(
-                "flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
+                "flex h-11 w-11 items-center justify-center rounded-xl transition-colors",
                 currentPath.startsWith("/research")
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
@@ -1555,7 +1653,7 @@ export function AppSidebar() {
             <Link
               href="/settings"
               className={cn(
-                "flex h-10 w-10 items-center justify-center rounded-xl transition-colors",
+                "flex h-11 w-11 items-center justify-center rounded-xl transition-colors",
                 currentPath.startsWith("/settings")
                   ? "bg-primary text-primary-foreground"
                   : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
@@ -1587,8 +1685,8 @@ export function AppSidebar() {
                 className="flex items-center justify-between rounded-xl border p-3 transition-colors hover:bg-muted/50"
               >
                 <div className="flex items-center gap-3">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2a2a2a] text-xs font-bold text-muted-foreground">
-                    {store.type === "google_play" ? "GP" : "AS"}
+                  <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[#2a2a2a]">
+                    <StoreLogo type={store.type} className="h-5 w-5 text-foreground" />
                   </div>
                   <div>
                     <p className="text-sm font-medium">{store.name}</p>
