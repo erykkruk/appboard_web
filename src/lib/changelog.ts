@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.1",
+    serverVersion: "0.6.0",
+    date: "2026-07-08",
+    changes: [
+      "Screenshot editor: panorama mode — design one wide image spanning 2–5 screens with split guides; export slices and uploads all screenshots at once",
+      "Screenshots strip: always-visible scrollbar",
+      "Sidebar: wider rail, hide apps with a show-hidden toggle",
+      "Real Apple and Google Play logos for store markers",
+    ],
+  },
+  {
     version: "0.6.0",
     serverVersion: "0.6.0",
     date: "2026-07-08",
