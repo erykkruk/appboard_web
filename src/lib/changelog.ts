@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.3",
+    serverVersion: "0.6.0",
+    date: "2026-07-08",
+    changes: [
+      "Scrolling: any page taller than the viewport now scrolls instead of being cut off",
+      "AI settings: added GLM 5.2 and 4.6, Claude Sonnet/Opus 4.x, DeepSeek V3.1, Grok 4 and Qwen3 to the model picker",
+    ],
+  },
+  {
     version: "0.6.2",
     serverVersion: "0.6.0",
     date: "2026-07-08",

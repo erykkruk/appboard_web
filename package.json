@@ -1,6 +1,6 @@
 {
   "name": "appboard-web",
-  "version": "0.6.2",
+  "version": "0.6.3",
   "private": true,
   "description": "Open-source ASO (App Store Optimization) admin panel — manage App Store Connect & Google Play listings, screenshots, reviews, and publishing. The web UI for the AppBoard Backend.",
   "license": "MIT",
