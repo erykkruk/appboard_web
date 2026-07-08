@@ -19,6 +19,13 @@ interface HistoryTimelineProps {
 	isLoading?: boolean;
 	onRollback?: (entryId: string) => void;
 	rollbackPendingId?: string | null;
+	/**
+	 * Compact list mode: renders each entry as a clickable row (language badge
+	 * + field label) without inline diffs or rollback buttons. Used by the
+	 * version editor sheet where clicking an entry opens a preview.
+	 */
+	compact?: boolean;
+	onSelectEntry?: (entry: HistoryEntry) => void;
 	className?: string;
 }
 
@@ -89,6 +96,8 @@ export function HistoryTimeline({
 	isLoading,
 	onRollback,
 	rollbackPendingId,
+	compact = false,
+	onSelectEntry,
 	className,
 }: HistoryTimelineProps) {
 	const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
@@ -160,6 +169,27 @@ export function HistoryTimeline({
 							{group.entries.map((entry) => {
 								const isPending = rollbackPendingId === entry.id;
 								const isExpanded = expandedIds.has(entry.id);
+								if (compact) {
+									return (
+										<button
+											key={entry.id}
+											type="button"
+											onClick={() => onSelectEntry?.(entry)}
+											className="flex w-full cursor-pointer items-center gap-2 rounded border border-border/50 bg-background/40 p-2 text-left text-xs transition-colors hover:bg-accent/40"
+										>
+											<Badge
+												variant="outline"
+												className="shrink-0 text-[10px] uppercase"
+											>
+												{entry.language}
+											</Badge>
+											<span className="min-w-0 flex-1 truncate font-medium text-foreground">
+												{getListingFieldLabel(entry.field)}
+											</span>
+											<ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />
+										</button>
+									);
+								}
 								return (
 									<div
 										key={entry.id}

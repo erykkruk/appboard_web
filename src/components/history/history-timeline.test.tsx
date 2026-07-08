@@ -182,6 +182,73 @@ describe("HistoryTimeline — grouping", () => {
 	});
 });
 
+describe("HistoryTimeline — compact mode", () => {
+	test("renders language badge and field label", () => {
+		const entries: HistoryEntry[] = [
+			buildEntry({ field: "fullDesc", language: "pl" }),
+		];
+		render(<HistoryTimeline compact entries={entries} />);
+		expect(screen.getByText("pl")).toBeInTheDocument();
+		expect(screen.getByText("Full Description")).toBeInTheDocument();
+	});
+
+	test("does not render old/new value previews", () => {
+		const entries: HistoryEntry[] = [
+			buildEntry({ oldValue: "Old Title", newValue: "New Title" }),
+		];
+		render(<HistoryTimeline compact entries={entries} />);
+		expect(screen.queryByText("Old Title")).toBeNull();
+		expect(screen.queryByText("New Title")).toBeNull();
+	});
+
+	test("does not render expandable diff panels", () => {
+		const entries: HistoryEntry[] = [buildEntry()];
+		const { container } = render(
+			<HistoryTimeline compact entries={entries} />,
+		);
+		expect(screen.queryByText("Changes")).toBeNull();
+		expect(container.querySelector("[aria-expanded]")).toBeNull();
+	});
+
+	test("does not render rollback buttons even when onRollback is provided", () => {
+		const entries: HistoryEntry[] = [buildEntry({ field: "title" })];
+		render(
+			<HistoryTimeline
+				compact
+				entries={entries}
+				onRollback={mock(() => {})}
+			/>,
+		);
+		expect(
+			screen.queryByRole("button", { name: "Rollback Title" }),
+		).toBeNull();
+	});
+
+	test("keeps group header with date and change count", () => {
+		const entries: HistoryEntry[] = [buildEntry()];
+		render(<HistoryTimeline compact entries={entries} />);
+		expect(screen.getByText("1 change")).toBeInTheDocument();
+	});
+
+	test("clicking an entry calls onSelectEntry with the full entry", async () => {
+		const user = userEvent.setup();
+		const onSelectEntry = mock((entry: HistoryEntry) => entry);
+		const entry = buildEntry({ id: "entry-42", field: "title" });
+
+		render(
+			<HistoryTimeline
+				compact
+				entries={[entry]}
+				onSelectEntry={onSelectEntry}
+			/>,
+		);
+		await user.click(screen.getByRole("button", { name: /Title/ }));
+
+		expect(onSelectEntry).toHaveBeenCalledTimes(1);
+		expect(onSelectEntry).toHaveBeenCalledWith(entry);
+	});
+});
+
 describe("HistoryTimeline — rollback", () => {
 	test("renders rollback button when onRollback is provided", () => {
 		const entries: HistoryEntry[] = [buildEntry({ field: "title" })];
