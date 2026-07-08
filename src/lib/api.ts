@@ -13,6 +13,8 @@ import type {
 	AsoProfile,
 	AsoProfileInput,
 	Asset,
+	CapabilityAccessReport,
+	CapabilityCatalog,
 	CategoriesData,
 	ConnectStoreData,
 	ConnectStoreResponse,
@@ -68,6 +70,8 @@ import type {
 	SplitPreviewResult,
 	SplitUploadResult,
 	Store,
+	StoreCapabilities,
+	StoreType,
 	SubscriptionGroup,
 	SuggestCategoryRequest,
 	SuggestCategoryResponse,
@@ -1319,6 +1323,8 @@ export const api = {
 			),
 	},
 	stores: {
+		capabilityCatalog: () =>
+			fetchApi<CapabilityCatalog>("/api/stores/capability-catalog"),
 		connect: (data: ConnectStoreData) =>
 			fetchApi<ConnectStoreResponse>("/api/stores/connect", {
 				body: JSON.stringify(data),
@@ -1326,6 +1332,8 @@ export const api = {
 			}),
 		disconnect: (id: string) =>
 			fetchApi<void>(`/api/stores/${id}`, { method: "DELETE" }),
+		getCapabilities: (id: string) =>
+			fetchApi<StoreCapabilities>(`/api/stores/${id}/capabilities`),
 		list: () =>
 			fetchApi<{ stores: Store[] }>("/api/stores").then((r) => r.stores),
 		rename: (id: string, name: string) =>
@@ -1342,6 +1350,23 @@ export const api = {
 				results: { storeId: string; storeName: string; synced: number }[];
 				totalSynced: number;
 			}>("/api/stores/sync-all", { method: "POST" }),
+		updateCapabilities: (id: string, capabilities: string[]) =>
+			fetchApi<StoreCapabilities>(`/api/stores/${id}/capabilities`, {
+				body: JSON.stringify({ capabilities }),
+				method: "PATCH",
+			}),
+		verifyAccess: (data: {
+			type: StoreType;
+			credentials: Record<string, string | boolean>;
+		}) =>
+			fetchApi<CapabilityAccessReport>("/api/stores/verify-access", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}),
+		verifyStoredAccess: (id: string) =>
+			fetchApi<CapabilityAccessReport>(`/api/stores/${id}/verify-access`, {
+				method: "POST",
+			}),
 	},
 	vault: {
 		changePassphrase: (body: VaultParams) =>

@@ -7,12 +7,74 @@ export interface Store {
 	status: string;
 	createdAt: string;
 	lastSyncedAt: string | null;
+	capabilities: string[];
 }
 
 export interface ConnectStoreResponse {
 	store: Store;
 	syncedApps: number;
 	warnings: string[];
+	capabilities: string[];
+}
+
+// ============ Store Capabilities ============
+
+export type StoreCapabilityId =
+	| "listings"
+	| "assets"
+	| "reviews"
+	| "publishing"
+	| "purchases"
+	| "age_rating"
+	| "categories"
+	| "privacy";
+
+export interface StoreCapabilityDefinition {
+	id: StoreCapabilityId;
+	storeType: StoreType;
+	name: string;
+	description: string;
+	core: boolean;
+	wired: boolean;
+	consoleOnly: boolean;
+	gateable: boolean;
+	dependsOn: string[];
+	consoleRoles: string[];
+	gcpApis: string[];
+}
+
+export interface StoreSetupInfo {
+	storeType: StoreType;
+	baseGcpApis: string[];
+	baseNote: string;
+}
+
+export interface CapabilityCatalog {
+	capabilities: StoreCapabilityDefinition[];
+	setup: Record<StoreType, StoreSetupInfo>;
+}
+
+export interface StoreCapabilities {
+	storeType: StoreType;
+	capabilities: string[];
+}
+
+export type CapabilityAccessStatus =
+	| "granted"
+	| "missing"
+	| "unsupported"
+	| "unknown"
+	| "error";
+
+export interface CapabilityAccessResult {
+	id: string;
+	status: CapabilityAccessStatus;
+	detail?: string;
+}
+
+export interface CapabilityAccessReport {
+	storeType: StoreType;
+	results: CapabilityAccessResult[];
 }
 
 export type Platform = "android" | "ios";
@@ -216,6 +278,7 @@ export interface ConnectStoreData {
 	name: string;
 	type: StoreType;
 	credentials: Record<string, string | boolean>;
+	capabilities?: string[];
 }
 
 export interface SettingRow {

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Suspense, useMemo, useState } from "react";
 
 import {
 	ArrowLeft,
@@ -10,10 +11,12 @@ import {
 	Copy,
 	ExternalLink,
 	Info,
+	Sparkles,
 	Terminal,
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { computeSetupPlan } from "@/components/stores/store-setup-plan";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -26,6 +29,7 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { useStoreCapabilityCatalog } from "@/hooks/use-stores";
 
 const GCP_PROJECT_URL = "https://console.cloud.google.com/projectcreate";
 const CLOUD_SHELL_URL = "https://shell.cloud.google.com";
@@ -34,10 +38,31 @@ const PLAY_CONSOLE_URL = "https://play.google.com/console/developers";
 const SERVICE_ACCOUNT_NAME = "appboard-service-account";
 const KEY_FILE_NAME = "appboard-key";
 
-function generateScript(projectId: string): string {
+const DEFAULT_PLAY_APIS = [
+	"androidpublisher.googleapis.com",
+	"playdeveloperreporting.googleapis.com",
+	"pubsub.googleapis.com",
+];
+
+const DEFAULT_PERMISSIONS = [
+	"View app information and download bulk reports",
+	"View financial data, orders, and cancellation survey responses",
+	"Manage orders and subscriptions",
+];
+
+function generateScript(projectId: string, apis: string[]): string {
 	if (!projectId.trim()) {
 		return "# Enter your Google Cloud Project ID above to generate the script";
 	}
+
+	const playApis = apis.length > 0 ? apis : DEFAULT_PLAY_APIS;
+	const enableBlock = playApis
+		.map((apiName, i) =>
+			i < playApis.length - 1
+				? `gcloud services enable ${apiName}\nsleep 2`
+				: `gcloud services enable ${apiName}`,
+		)
+		.join("\n");
 
 	return `#!/bin/bash
 
@@ -84,11 +109,7 @@ gcloud services enable iam.googleapis.com
 sleep 2
 
 echo_info "Enabling Google Play required APIs..."
-gcloud services enable androidpublisher.googleapis.com
-sleep 2
-gcloud services enable playdeveloperreporting.googleapis.com
-sleep 2
-gcloud services enable pubsub.googleapis.com
+${enableBlock}
 
 echo_success "APIs enabled successfully."
 
@@ -136,14 +157,40 @@ function copyToClipboard(text: string, label: string) {
 	);
 }
 
-export default function GooglePlaySetupGuidePage() {
+function GuideContent() {
 	const [projectId, setProjectId] = useState("");
+	const searchParams = useSearchParams();
+	const catalog = useStoreCapabilityCatalog();
+
+	const selected = useMemo(() => {
+		const raw = searchParams.get("caps") ?? "";
+		return raw
+			.split(",")
+			.map((s) => s.trim())
+			.filter(Boolean);
+	}, [searchParams]);
+
+	const gpCaps = useMemo(
+		() =>
+			catalog.data?.capabilities.filter((c) => c.storeType === "google_play") ??
+			[],
+		[catalog.data],
+	);
+
+	const plan = useMemo(
+		() => computeSetupPlan(gpCaps, catalog.data?.setup.google_play, selected),
+		[gpCaps, catalog.data, selected],
+	);
+
+	const hasSelection = selected.length > 0;
+	const permissionItems =
+		hasSelection && plan.roles.length > 0 ? plan.roles : DEFAULT_PERMISSIONS;
 
 	const serviceAccountEmail = projectId.trim()
 		? `${SERVICE_ACCOUNT_NAME}@${projectId.trim()}.iam.gserviceaccount.com`
 		: "";
 
-	const script = generateScript(projectId);
+	const script = generateScript(projectId, hasSelection ? plan.apis : []);
 
 	return (
 		<div className="mx-auto w-full max-w-4xl space-y-6 p-6">
@@ -174,6 +221,17 @@ export default function GooglePlaySetupGuidePage() {
 					you&apos;ll have a JSON key file to upload in AppBoard.
 				</AlertDescription>
 			</Alert>
+
+			{hasSelection && (
+				<Alert>
+					<Sparkles className="h-4 w-4" />
+					<AlertTitle>Tailored to your selection</AlertTitle>
+					<AlertDescription>
+						The script and permissions below cover the capabilities you
+						picked when connecting.
+					</AlertDescription>
+				</Alert>
+			)}
 
 			{/* Step 1: Prerequisites */}
 			<Card>
@@ -381,11 +439,9 @@ export default function GooglePlaySetupGuidePage() {
 						<li>
 							Grant the following permissions:
 							<ul className="mt-1.5 ml-5 list-disc space-y-1">
-								<li>View app information and download bulk reports</li>
-								<li>
-									View financial data, orders, and cancellation survey responses
-								</li>
-								<li>Manage orders and subscriptions</li>
+								{permissionItems.map((permission) => (
+									<li key={permission}>{permission}</li>
+								))}
 							</ul>
 						</li>
 						<li>
@@ -432,5 +488,14 @@ export default function GooglePlaySetupGuidePage() {
 				</CardContent>
 			</Card>
 		</div>
+	);
+}
+
+
+export default function GooglePlaySetupGuidePage() {
+	return (
+		<Suspense fallback={null}>
+			<GuideContent />
+		</Suspense>
 	);
 }

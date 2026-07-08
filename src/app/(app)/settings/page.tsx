@@ -8,11 +8,15 @@ import {
   Loader2,
   Pencil,
   RefreshCw,
+  ShieldCheck,
+  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { StoreAccessReport } from "@/components/stores/store-access-report";
+import { StoreCapabilitiesPicker } from "@/components/stores/store-capabilities-picker";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,6 +30,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -48,11 +53,20 @@ import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
 import {
   useDisconnectStore,
   useRenameStore,
+  useStoreCapabilities,
+  useStoreCapabilityCatalog,
   useStores,
   useSyncAllStores,
   useSyncStore,
+  useUpdateStoreCapabilities,
+  useVerifyStoredAccess,
 } from "@/hooks/use-stores";
-import type { Store } from "@/lib/types";
+import { ApiError } from "@/lib/api";
+import type {
+  CapabilityAccessResult,
+  Store,
+  StoreCapabilityDefinition,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 const OTHER_VALUE = "__other__";
@@ -183,6 +197,156 @@ function ModelSelector({
 
 const MASKED_VALUE = "********";
 
+function PermissionsEditor({
+  store,
+  initial,
+  defs,
+  onClose,
+}: {
+  store: Store;
+  initial: string[];
+  defs: StoreCapabilityDefinition[];
+  onClose: () => void;
+}) {
+  const update = useUpdateStoreCapabilities();
+  const [selected, setSelected] = useState<string[]>(initial);
+
+  const handleSave = async () => {
+    try {
+      await update.mutateAsync({ id: store.id, capabilities: selected });
+      toast.success("Permissions updated");
+      onClose();
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to update permissions",
+      );
+    }
+  };
+
+  return (
+    <>
+      <StoreCapabilitiesPicker
+        capabilities={defs}
+        value={selected}
+        onChange={setSelected}
+      />
+      <DialogFooter>
+        <Button variant="outline" onClick={onClose} disabled={update.isPending}>
+          Cancel
+        </Button>
+        <Button onClick={handleSave} disabled={update.isPending}>
+          {update.isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+          Save
+        </Button>
+      </DialogFooter>
+    </>
+  );
+}
+
+function ManagePermissionsDialog({
+  store,
+  onClose,
+}: {
+  store: Store | null;
+  onClose: () => void;
+}) {
+  const catalog = useStoreCapabilityCatalog();
+  const caps = useStoreCapabilities(store?.id ?? null);
+
+  const defs =
+    catalog.data?.capabilities.filter((c) => c.storeType === store?.type) ?? [];
+  const loading = catalog.isLoading || caps.isLoading;
+
+  return (
+    <Dialog open={store !== null} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Manage permissions</DialogTitle>
+          <DialogDescription>
+            Choose what {store?.name} can edit. Core capabilities are always on.
+          </DialogDescription>
+        </DialogHeader>
+        {loading || !store || !caps.data ? (
+          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Loading capabilities...
+          </div>
+        ) : (
+          <PermissionsEditor
+            key={store.id}
+            store={store}
+            initial={caps.data.capabilities}
+            defs={defs}
+            onClose={onClose}
+          />
+        )}
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function VerifyAccessDialog({
+  store,
+  onClose,
+}: {
+  store: Store | null;
+  onClose: () => void;
+}) {
+  const catalog = useStoreCapabilityCatalog();
+  const { mutate, isPending } = useVerifyStoredAccess();
+  const [state, setState] = useState<{
+    storeId: string;
+    results: CapabilityAccessResult[];
+  } | null>(null);
+
+  useEffect(() => {
+    if (!store) return;
+    mutate(store.id, {
+      onSuccess: (report) =>
+        setState({ storeId: store.id, results: report.results }),
+      onError: (err) => {
+        if (!(err instanceof ApiError && err.status === 423)) {
+          toast.error(
+            err instanceof Error ? err.message : "Failed to verify access",
+          );
+        }
+      },
+    });
+  }, [store, mutate]);
+
+  const defs =
+    catalog.data?.capabilities.filter((c) => c.storeType === store?.type) ?? [];
+  const results =
+    store && state && state.storeId === store.id ? state.results : null;
+
+  return (
+    <Dialog open={store !== null} onOpenChange={(o) => !o && onClose()}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Access report</DialogTitle>
+          <DialogDescription>
+            What {store?.name}&apos;s stored key can really access. Unlock your
+            vault if prompted.
+          </DialogDescription>
+        </DialogHeader>
+        {isPending ? (
+          <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" />
+            Probing the live API...
+          </div>
+        ) : results ? (
+          <StoreAccessReport results={results} capabilities={defs} />
+        ) : (
+          <p className="py-4 text-sm text-muted-foreground">
+            No results — unlock your vault and try again.
+          </p>
+        )}
+        <DialogFooter showCloseButton />
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 export default function SettingsGeneralPage() {
   const [showApiKey, setShowApiKey] = useState(false);
   const [apiKey, setApiKey] = useState("");
@@ -202,6 +366,8 @@ export default function SettingsGeneralPage() {
   const renameStore = useRenameStore();
   const [renamingStore, setRenamingStore] = useState<Store | null>(null);
   const [renameValue, setRenameValue] = useState("");
+  const [managingStore, setManagingStore] = useState<Store | null>(null);
+  const [verifyingStore, setVerifyingStore] = useState<Store | null>(null);
 
   useEffect(() => {
     if (settings.data) {
@@ -433,6 +599,24 @@ export default function SettingsGeneralPage() {
                         variant="ghost"
                         size="icon"
                         className="h-8 w-8"
+                        onClick={() => setVerifyingStore(store)}
+                        aria-label="Verify access"
+                      >
+                        <ShieldCheck className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() => setManagingStore(store)}
+                        aria-label="Manage permissions"
+                      >
+                        <SlidersHorizontal className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
                         onClick={() => openRename(store)}
                         aria-label="Rename store"
                       >
@@ -529,6 +713,16 @@ export default function SettingsGeneralPage() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ManagePermissionsDialog
+        store={managingStore}
+        onClose={() => setManagingStore(null)}
+      />
+
+      <VerifyAccessDialog
+        store={verifyingStore}
+        onClose={() => setVerifyingStore(null)}
+      />
 
       <VaultSettingsCard />
 

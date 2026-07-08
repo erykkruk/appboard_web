@@ -8,13 +8,26 @@ import {
   CheckCircle2,
   ExternalLink,
   Loader2,
+  Lock,
   Play,
+  ShieldCheck,
   Upload,
 } from "lucide-react";
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { PageHeader } from "@/components/page-header";
+import { StoreAccessReport } from "@/components/stores/store-access-report";
+import {
+  StoreCapabilitiesPicker,
+  initialCapabilitySelection,
+} from "@/components/stores/store-capabilities-picker";
+import { StoreSetupPlan } from "@/components/stores/store-setup-plan";
+import {
+  Alert,
+  AlertDescription,
+  AlertTitle,
+} from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -26,11 +39,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
-import { useConnectStore } from "@/hooks/use-stores";
+import { useVault } from "@/components/vault/vault-provider";
+import {
+  useConnectStore,
+  useStoreCapabilityCatalog,
+  useVerifyStoreAccess,
+} from "@/hooks/use-stores";
 import { ApiError } from "@/lib/api";
-import type { StoreType } from "@/lib/types";
+import type { CapabilityAccessResult, StoreType } from "@/lib/types";
 
-const TOTAL_STEPS = 4;
+const TOTAL_STEPS = 5;
 
 function StepIndicator({
   currentStep,
@@ -313,6 +331,44 @@ function AppStoreCredentials({
   );
 }
 
+function VaultBanners() {
+  const { exists, unlocked, requestUnlock } = useVault();
+  return (
+    <div className="space-y-3">
+      <Alert>
+        <ShieldCheck className="h-4 w-4" />
+        <AlertTitle>End-to-end encrypted</AlertTitle>
+        <AlertDescription>
+          Your key is encrypted end-to-end — we only store an encrypted blob and
+          can&apos;t read it.
+        </AlertDescription>
+      </Alert>
+      {!unlocked && (
+        <Alert>
+          <Lock className="h-4 w-4" />
+          <AlertTitle>Vault {exists ? "locked" : "required"}</AlertTitle>
+          <AlertDescription className="gap-2">
+            <p>
+              Unlock your vault with your password to perform actions on your
+              stores.
+            </p>
+            {exists && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-1"
+                onClick={requestUnlock}
+              >
+                <Lock className="mr-2 h-4 w-4" /> Unlock vault
+              </Button>
+            )}
+          </AlertDescription>
+        </Alert>
+      )}
+    </div>
+  );
+}
+
 function ConnectingStep() {
   return (
     <div className="flex flex-col items-center justify-center py-12">
@@ -370,7 +426,30 @@ export default function OnboardingPage() {
   const [issuerId, setIssuerId] = useState("");
   const [privateKey, setPrivateKey] = useState("");
 
+  const [selectedCaps, setSelectedCaps] = useState<string[]>([]);
+  const [accessReport, setAccessReport] = useState<CapabilityAccessResult[] | null>(
+    null,
+  );
+  const initializedFor = useRef<StoreType | null>(null);
+
   const connectStore = useConnectStore();
+  const catalog = useStoreCapabilityCatalog();
+  const verifyAccess = useVerifyStoreAccess();
+
+  const capsForType =
+    catalog.data?.capabilities.filter((c) => c.storeType === storeType) ?? [];
+
+  // Seed the default capability selection once per store type.
+  useEffect(() => {
+    if (!storeType || !catalog.data) return;
+    if (initializedFor.current === storeType) return;
+    const defs = catalog.data.capabilities.filter(
+      (c) => c.storeType === storeType,
+    );
+    setSelectedCaps(initialCapabilitySelection(defs));
+    setAccessReport(null);
+    initializedFor.current = storeType;
+  }, [storeType, catalog.data]);
 
   const handleStoreSelect = (type: StoreType) => {
     setStoreType(type);
@@ -399,31 +478,56 @@ export default function OnboardingPage() {
     }
   };
 
+  const parseCredentials = (): Record<string, string | boolean> | null => {
+    if (!storeType) return null;
+    if (storeType === "google_play") {
+      try {
+        return JSON.parse(serviceAccountJson);
+      } catch {
+        toast.error("Invalid JSON — please check the credentials format");
+        return null;
+      }
+    }
+    return { keyId, issuerId, privateKey };
+  };
+
+  const handleCheckAccess = async () => {
+    if (!storeType) return;
+    const credentials = parseCredentials();
+    if (!credentials) return;
+    try {
+      const report = await verifyAccess.mutateAsync({
+        type: storeType,
+        credentials,
+      });
+      setAccessReport(report.results);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to check access",
+      );
+    }
+  };
+
   const handleConnect = async () => {
     if (!storeType) return;
 
     const name = accountName.trim() || (storeType === "google_play" ? "Google Play" : "App Store");
+    const credentials = parseCredentials();
+    if (!credentials) return;
 
-    let credentials: Record<string, string | boolean>;
-    if (storeType === "google_play") {
-      try {
-        credentials = JSON.parse(serviceAccountJson);
-      } catch {
-        toast.error("Invalid JSON — please check the credentials format");
-        return;
-      }
-    } else {
-      credentials = { keyId, issuerId, privateKey };
-    }
-
-    setStep(3);
+    setStep(4);
     try {
-      const result = await connectStore.mutateAsync({ name, type: storeType, credentials });
+      const result = await connectStore.mutateAsync({
+        name,
+        type: storeType,
+        credentials,
+        capabilities: selectedCaps,
+      });
       setConnectResult({ syncedApps: result.syncedApps, warnings: result.warnings });
-      setStep(4);
+      setStep(5);
       toast.success(`Store connected! ${result.syncedApps} app${result.syncedApps !== 1 ? "s" : ""} synced.`);
     } catch (err) {
-      setStep(2);
+      setStep(3);
       if (err instanceof ApiError && err.status === 423) {
         toast.error("Unlock your vault to save credentials, then retry.");
       } else {
@@ -437,7 +541,7 @@ export default function OnboardingPage() {
   };
 
   const hasName = accountName.trim().length > 0;
-  const canConnect = hasName && (
+  const canProceed = hasName && (
     storeType === "google_play"
       ? serviceAccountJson.trim().length > 0
       : keyId.trim().length > 0 &&
@@ -524,8 +628,92 @@ export default function OnboardingPage() {
           </div>
         )}
 
-        {step === 3 && <ConnectingStep />}
-        {step === 4 && <SuccessStep syncedApps={connectResult?.syncedApps ?? 0} warnings={connectResult?.warnings ?? []} />}
+        {step === 3 && storeType && (
+          <div className="space-y-6">
+            <div>
+              <h2 className="mb-2 text-xl font-semibold">Choose capabilities</h2>
+              <p className="text-sm text-muted-foreground">
+                Pick what you&apos;ll be able to edit for this connection, then
+                check what your key can really access before saving.
+              </p>
+            </div>
+
+            <VaultBanners />
+
+            {catalog.isLoading ? (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Loading capabilities...
+              </div>
+            ) : (
+              <StoreCapabilitiesPicker
+                capabilities={capsForType}
+                value={selectedCaps}
+                onChange={setSelectedCaps}
+              />
+            )}
+
+            <div className="flex flex-wrap items-center gap-3">
+              <Button
+                variant="outline"
+                onClick={handleCheckAccess}
+                disabled={verifyAccess.isPending || catalog.isLoading}
+              >
+                {verifyAccess.isPending ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <ShieldCheck className="mr-2 h-4 w-4" />
+                )}
+                Check access
+              </Button>
+              {storeType === "google_play" && (
+                <Link
+                  href={`/settings/google-play-setup/guide?caps=${selectedCaps.join(",")}`}
+                  target="_blank"
+                  className="inline-flex items-center gap-1 text-sm text-primary underline underline-offset-4"
+                >
+                  Setup guide for this selection
+                  <ExternalLink className="h-3 w-3" />
+                </Link>
+              )}
+            </div>
+
+            {accessReport && (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Access report</p>
+                <StoreAccessReport
+                  results={accessReport}
+                  capabilities={capsForType}
+                />
+              </div>
+            )}
+
+            {!catalog.isLoading && capsForType.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">
+                    What to grant for this selection
+                  </CardTitle>
+                  <CardDescription>
+                    Roles and APIs your key needs to cover the selected
+                    capabilities.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <StoreSetupPlan
+                    capabilities={capsForType}
+                    setup={catalog.data?.setup[storeType]}
+                    selected={selectedCaps}
+                    storeType={storeType}
+                  />
+                </CardContent>
+              </Card>
+            )}
+          </div>
+        )}
+
+        {step === 4 && <ConnectingStep />}
+        {step === 5 && <SuccessStep syncedApps={connectResult?.syncedApps ?? 0} warnings={connectResult?.warnings ?? []} />}
 
         {step === 2 && (
           <div className="mt-6 flex justify-between">
@@ -540,7 +728,20 @@ export default function OnboardingPage() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
             </Button>
-            <Button onClick={handleConnect} disabled={!canConnect}>
+            <Button onClick={() => setStep(3)} disabled={!canProceed}>
+              Next
+              <ArrowRight className="ml-2 h-4 w-4" />
+            </Button>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="mt-6 flex justify-between">
+            <Button variant="outline" onClick={() => setStep(2)}>
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back
+            </Button>
+            <Button onClick={handleConnect} disabled={connectStore.isPending}>
               Connect
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
