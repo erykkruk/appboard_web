@@ -11,6 +11,7 @@ import {
 	MoreVertical,
 	RefreshCw,
 	Sparkles,
+	Undo2,
 	Upload,
 	X,
 } from "lucide-react";
@@ -56,7 +57,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { ActionsMenu } from "@/components/actions-menu";
 import type { ActionsMenuAction } from "@/components/actions-menu";
-import { DiffBadge, FieldDiffPanel } from "@/components/diff";
+import { DiffBadge, FieldDiffPanel, InlineDiff } from "@/components/diff";
 import { HistoryTimeline } from "@/components/history/history-timeline";
 import {
 	LocalizationPipelineDialog,
@@ -78,6 +79,12 @@ import {
 	useVersionDetail,
 } from "@/hooks/use-publishing";
 import { api } from "@/lib/api";
+import { computeDiff } from "@/lib/diff";
+import { getListingFieldLabel } from "@/lib/field-labels";
+import {
+	formatPreviewDate,
+	resolvePreviewFormField,
+} from "@/lib/history-preview";
 import {
 	downloadFile,
 	exportListingsCsv,
@@ -87,6 +94,7 @@ import {
 } from "@/lib/listings-csv";
 import {
 	APP_STORE_LANGUAGES,
+	type HistoryEntry,
 	type ListingFieldName,
 	type VersionLocalization,
 } from "@/lib/types";
@@ -287,6 +295,44 @@ function getFieldError(
 	return null;
 }
 
+interface HistoryPreviewDiffProps {
+	entry: HistoryEntry;
+	currentValue: string;
+}
+
+/**
+ * Read-only comparison between a historical version value (entry.newValue)
+ * and today's draft value. Red segments existed in that version only, green
+ * segments exist only in the current draft.
+ */
+function HistoryPreviewDiff({ entry, currentValue }: HistoryPreviewDiffProps) {
+	const versionValue = entry.newValue ?? "";
+	const { segments, mode } = useMemo(
+		() => computeDiff(versionValue, currentValue),
+		[versionValue, currentValue],
+	);
+
+	return (
+		<div className="rounded-md border border-primary/40 bg-card p-3">
+			<div className="mb-2 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+				<span className="rounded bg-red-500/20 px-1.5 py-0.5 text-red-400">
+					This version ({formatPreviewDate(entry)})
+				</span>
+				<span className="rounded bg-green-500/20 px-1.5 py-0.5 text-green-400">
+					Today
+				</span>
+				<span className="ml-auto">
+					{mode === "line" ? "Line diff" : "Word diff"}
+				</span>
+			</div>
+			<InlineDiff
+				segments={segments}
+				mode={mode === "line" ? "line-by-line" : "inline"}
+			/>
+		</div>
+	);
+}
+
 export default function VersionDetailPage() {
 	const params = useParams<{ appId: string; versionId: string }>();
 	const detail = useVersionDetail(params.appId, params.versionId);
@@ -338,6 +384,8 @@ export default function VersionDetailPage() {
 	// Diff + history state
 	const [expandedDiffs, setExpandedDiffs] = useState<Set<string>>(new Set());
 	const [historyOpen, setHistoryOpen] = useState(false);
+	// History entry previewed on the main editor (set by clicking a sheet entry)
+	const [previewEntry, setPreviewEntry] = useState<HistoryEntry | null>(null);
 	const diffsQuery = useListingDiffs(params.appId);
 	const historyQuery = useHistory(params.appId, { enabled: historyOpen });
 	const rollbackMutation = useRollback(params.appId);
@@ -371,23 +419,24 @@ export default function VersionDetailPage() {
 	}, []);
 
 	const handleHistoryRollback = useCallback(
-		async (entryId: string) => {
+		async (entryId: string): Promise<boolean> => {
 			try {
 				await rollbackMutation.mutateAsync(entryId);
 				toast.success("Rollback applied");
+				return true;
 			} catch {
 				toast.error("Failed to rollback change");
+				return false;
 			}
 		},
 		[rollbackMutation],
 	);
 
-	const rollbackPendingId = rollbackMutation.isPending
-		? (rollbackMutation.variables ?? null)
-		: null;
 
-
-	const localizations = detail.data?.localizations ?? [];
+	const localizations = useMemo(
+		() => detail.data?.localizations ?? [],
+		[detail.data?.localizations],
+	);
 
 	// Filter fields based on platform capabilities
 	const capData = capabilities.data;
@@ -469,6 +518,60 @@ export default function VersionDetailPage() {
 		setSaveAttempted(false);
 		setFieldLangOverrides({});
 	}, []);
+
+	// --- History preview mode ---
+
+	// Which editor form field the previewed history entry maps to (history
+	// stores DB column names, the form uses platform capability keys).
+	const previewFormFieldKey = useMemo(
+		() =>
+			previewEntry
+				? resolvePreviewFormField(
+						previewEntry.field,
+						visibleFields.map((f): string => f.key),
+					)
+				: null,
+		[previewEntry, visibleFields],
+	);
+
+	// The language currently shown for the mapped field (per-field chips can
+	// override the master selector). The inline diff renders only when it
+	// matches the previewed entry's language; otherwise the banner hosts it.
+	const previewActiveLang = previewFormFieldKey
+		? fieldLangOverrides[previewFormFieldKey] || selectedLanguage
+		: selectedLanguage;
+	const isPreviewFieldVisible =
+		previewEntry !== null &&
+		previewFormFieldKey !== null &&
+		previewEntry.language === previewActiveLang;
+
+	const handleSelectHistoryEntry = useCallback(
+		(entry: HistoryEntry) => {
+			setHistoryOpen(false);
+			setPreviewEntry(entry);
+			// Switch the editor to the entry's language so the diff shows next
+			// to the actual field being previewed.
+			const hasLocalization = localizations.some(
+				(l) => l.language === entry.language,
+			);
+			if (hasLocalization && entry.language !== selectedLanguage) {
+				handleLanguageChange(entry.language);
+			}
+		},
+		[handleLanguageChange, localizations, selectedLanguage],
+	);
+
+	const handleCancelPreview = useCallback(() => {
+		setPreviewEntry(null);
+	}, []);
+
+	const handleRestorePreview = useCallback(async () => {
+		if (!previewEntry) return;
+		const restored = await handleHistoryRollback(previewEntry.id);
+		if (restored) {
+			setPreviewEntry(null);
+		}
+	}, [handleHistoryRollback, previewEntry]);
 
 	const handleFieldLangChange = useCallback(
 		(fieldKey: string, lang: string) => {
@@ -1058,7 +1161,7 @@ export default function VersionDetailPage() {
 				toast.success(`Synced ${result.synced} version(s) from App Store`);
 			} else {
 				toast.warning(
-					"App Store niedostępny — używam danych z pamięci podręcznej",
+					"App Store unavailable — using cached data",
 				);
 			}
 		} catch (err) {
@@ -1226,7 +1329,7 @@ export default function VersionDetailPage() {
 			? [
 					{
 						key: "localization-pipeline",
-						label: "Lokalizacja (pipeline)",
+						label: "Localization (pipeline)",
 						icon: "languages" as const,
 						disabled: isTranslatingAll || isGeneratingAll || !!generatingField,
 						onSelect: () => setLocalizationDialogOpen(true),
@@ -1285,7 +1388,7 @@ export default function VersionDetailPage() {
 				<div className="flex items-center gap-2 rounded-md border border-yellow-500/30 bg-yellow-500/10 px-4 py-2.5 text-sm text-yellow-200">
 					<Info className="h-4 w-4 shrink-0" />
 					<span>
-						Dane z pamięci podręcznej — App Store chwilowo niedostępny
+						Cached data — App Store temporarily unavailable
 					</span>
 					<Button
 						className="ml-auto h-7 text-xs"
@@ -1369,6 +1472,62 @@ export default function VersionDetailPage() {
 					/>
 				</div>
 			</div>
+
+			{/* History preview banner */}
+			{previewEntry && (
+				<div className="space-y-3 rounded-md border border-primary/40 bg-primary/5 px-4 py-3">
+					<div className="flex flex-wrap items-center gap-2">
+						<Clock className="h-4 w-4 shrink-0 text-primary" />
+						<span className="text-sm">
+							Previewing{" "}
+							<span className="font-medium">
+								{getListingFieldLabel(previewEntry.field)}
+							</span>{" "}
+							<span className="uppercase text-muted-foreground">
+								({previewEntry.language})
+							</span>{" "}
+							from {formatPreviewDate(previewEntry)}
+						</span>
+						<div className="ml-auto flex items-center gap-2">
+							<Button
+								className="h-7 text-xs"
+								onClick={handleCancelPreview}
+								size="sm"
+								variant="ghost"
+							>
+								Cancel
+							</Button>
+							<Button
+								className="h-7 text-xs"
+								disabled={rollbackMutation.isPending}
+								onClick={handleRestorePreview}
+								size="sm"
+							>
+								{rollbackMutation.isPending ? (
+									<Loader2 className="mr-1 h-3 w-3 animate-spin" />
+								) : (
+									<Undo2 className="mr-1 h-3 w-3" />
+								)}
+								Restore this version
+							</Button>
+						</div>
+					</div>
+					{/* Fallback diff when the field has no visible form input
+					    (e.g. privacyUrl) or its language is not shown */}
+					{!isPreviewFieldVisible && (
+						<HistoryPreviewDiff
+							currentValue={
+								previewFormFieldKey
+									? (allFormData[previewEntry.language]?.[
+											previewFormFieldKey
+										] ?? "")
+									: ""
+							}
+							entry={previewEntry}
+						/>
+					)}
+				</div>
+			)}
 
 			{/* Generate All dialog (triggered from menu) */}
 			<AlertDialog
@@ -1620,6 +1779,9 @@ export default function VersionDetailPage() {
 						);
 						const diffKey = `${activeLang}:${field.key}`;
 						const isDiffExpanded = expandedDiffs.has(diffKey);
+						const isPreviewedField =
+							isPreviewFieldVisible &&
+							previewFormFieldKey === field.key;
 
 						return (
 							<div
@@ -1773,6 +1935,14 @@ export default function VersionDetailPage() {
 										{field.maxLength}
 									</span>
 								</div>
+
+								{/* History preview: version value vs today's value */}
+								{isPreviewedField && previewEntry && (
+									<HistoryPreviewDiff
+										currentValue={value}
+										entry={previewEntry}
+									/>
+								)}
 
 								<div className="relative">
 									{(isGeneratingAll || isTranslatingAll || translatingField === field.key) &&
@@ -1949,15 +2119,15 @@ export default function VersionDetailPage() {
 					<SheetHeader className="border-b border-border">
 						<SheetTitle>Change History</SheetTitle>
 						<SheetDescription>
-							Review and rollback previous listing changes.
+							Click a change to preview it in the editor.
 						</SheetDescription>
 					</SheetHeader>
 					<div className="min-h-0 flex-1">
 						<HistoryTimeline
+							compact
 							entries={historyQuery.data ?? []}
 							isLoading={historyQuery.isLoading}
-							onRollback={handleHistoryRollback}
-							rollbackPendingId={rollbackPendingId}
+							onSelectEntry={handleSelectHistoryEntry}
 						/>
 					</div>
 				</SheetContent>
