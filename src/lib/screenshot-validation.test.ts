@@ -15,13 +15,13 @@ describe("formatDimensions", () => {
 });
 
 describe("formatSupportedDimensions", () => {
-	test("joins multiple sizes with 'lub'", () => {
+	test("joins multiple sizes with 'or'", () => {
 		expect(
 			formatSupportedDimensions([
 				[1290, 2796],
 				[2796, 1290],
 			]),
-		).toBe("1290×2796 lub 2796×1290");
+		).toBe("1290×2796 or 2796×1290");
 	});
 
 	test("renders a single supported size without separator", () => {
@@ -30,7 +30,20 @@ describe("formatSupportedDimensions", () => {
 });
 
 describe("buildDimensionMessage", () => {
-	test("names the device, provided size and accepted sizes", () => {
+	test("prefers the backend-provided suggestion when present", () => {
+		const message = buildDimensionMessage({
+			displayTypeName: "Android phone",
+			providedDimensions: [200, 400],
+			suggestion:
+				"Android phone screenshots can be any size between 320px and 3840px per side with an aspect ratio of at most 2:1.",
+			supportedDimensions: [[1284, 2778]],
+		});
+		expect(message).toBe(
+			"Android phone screenshots can be any size between 320px and 3840px per side with an aspect ratio of at most 2:1.",
+		);
+	});
+
+	test("builds an English message naming device, provided and accepted sizes when no suggestion", () => {
 		const message = buildDimensionMessage({
 			displayTypeName: 'iPhone 6.7"',
 			providedDimensions: [1000, 2000],
@@ -40,7 +53,7 @@ describe("buildDimensionMessage", () => {
 			],
 		});
 		expect(message).toBe(
-			'Nieprawidłowy rozmiar dla iPhone 6.7": podano 1000×2000px, oczekiwano 1290×2796 lub 2796×1290px.',
+			'Invalid dimensions for iPhone 6.7": provided 1000×2000px, expected 1290×2796 or 2796×1290px.',
 		);
 	});
 });
@@ -58,7 +71,7 @@ describe("buildValidationWarning", () => {
 		expect(buildValidationWarning(result)).toBeNull();
 	});
 
-	test("returns an actionable message when dimensions are invalid", () => {
+	test("returns the backend suggestion when dimensions are invalid", () => {
 		const result: ScreenshotValidationResult = {
 			displayType: "phone",
 			displayTypeName: "Android phone",
@@ -68,7 +81,21 @@ describe("buildValidationWarning", () => {
 			valid: false,
 		};
 		expect(buildValidationWarning(result)).toBe(
-			"Nieprawidłowy rozmiar dla Android phone: podano 800×1600px, oczekiwano 1284×2778px.",
+			"Android phone expects 1284x2778; you provided 800x1600.",
+		);
+	});
+
+	test("falls back to an English message when the suggestion is empty", () => {
+		const result: ScreenshotValidationResult = {
+			displayType: "phone",
+			displayTypeName: "Android phone",
+			providedDimensions: [800, 1600],
+			supportedDimensions: [[1284, 2778]],
+			suggestion: "",
+			valid: false,
+		};
+		expect(buildValidationWarning(result)).toBe(
+			"Invalid dimensions for Android phone: provided 800×1600px, expected 1284×2778px.",
 		);
 	});
 });

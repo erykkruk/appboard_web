@@ -31,6 +31,7 @@ const noopLayerProps = {
 	onAddText: mock(() => {}),
 	onDeleteText: mock(() => {}),
 	onAddAnnotation: mock(() => {}),
+	onAddImage: mock(() => {}),
 	onDeleteAnnotation: mock(() => {}),
 };
 
@@ -40,6 +41,9 @@ const noopPropertiesProps = {
 	onPatchAnnotation: mock(() => {}),
 	onPickBackgroundImage: mock(() => {}),
 	onPickScreenshot: mock(() => {}),
+	onUploadFont: mock(() => {}),
+	onReplaceAnnotationImage: mock(() => {}),
+	onDeleteAnnotation: mock(() => {}),
 };
 
 function sceneWithBadge(): SceneData {

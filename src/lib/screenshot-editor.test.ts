@@ -6,11 +6,13 @@ import {
 	computeImageFit,
 	createDefaultAnnotation,
 	createDefaultScene,
+	createImageAnnotation,
 	defaultFrameForDisplayType,
 	getDisplayTypeLabel,
 	getTargetDimensions,
 	hitTestAnnotation,
 	hitTestCalloutTarget,
+	hitTestDevice,
 	hitTestTextLayer,
 	measureAnnotationBox,
 	resolveTextPosition,
@@ -115,6 +117,44 @@ describe("computeImageFit", () => {
 	test("handles zero-sized source without dividing by zero", () => {
 		const { dest } = computeImageFit(0, 0, target, "cover");
 		expect(dest).toEqual(target);
+	});
+
+	test("stretch fills the whole target with the whole source", () => {
+		const { dest, src } = computeImageFit(400, 200, target, "stretch");
+		expect(dest).toEqual(target);
+		expect(src).toEqual({ x: 0, y: 0, width: 400, height: 200 });
+	});
+
+	test("cover focal offsetX pans the crop window horizontally", () => {
+		// src 400x200 into 100x200 target → crop width 100, slack 300.
+		const left = computeImageFit(400, 200, target, "cover", -1);
+		const center = computeImageFit(400, 200, target, "cover", 0);
+		const right = computeImageFit(400, 200, target, "cover", 1);
+		expect(left.src.x).toBeCloseTo(0);
+		expect(center.src.x).toBeCloseTo(150);
+		expect(right.src.x).toBeCloseTo(300);
+	});
+
+	test("cover focal offsetY pans the crop window vertically", () => {
+		// src 100x400 into 100x200 (wide) target: taller source → crop height.
+		const tallTarget = { x: 0, y: 0, width: 100, height: 100 };
+		const top = computeImageFit(100, 400, tallTarget, "cover", 0, -1);
+		const bottom = computeImageFit(100, 400, tallTarget, "cover", 0, 1);
+		expect(top.src.y).toBeCloseTo(0);
+		expect(bottom.src.y).toBeCloseTo(300);
+	});
+
+	test("clamps focal offsets outside the -1..1 range", () => {
+		const over = computeImageFit(400, 200, target, "cover", 5);
+		expect(over.src.x).toBeCloseTo(300);
+		const under = computeImageFit(400, 200, target, "cover", -5);
+		expect(under.src.x).toBeCloseTo(0);
+	});
+
+	test("focal offsets do not affect contain mode", () => {
+		const a = computeImageFit(400, 200, target, "contain", 1, 1);
+		const b = computeImageFit(400, 200, target, "contain");
+		expect(a).toEqual(b);
 	});
 });
 
@@ -295,6 +335,132 @@ describe("hitTestAnnotation", () => {
 			],
 		};
 		expect(hitTestAnnotation(overlap, 500, 1000)).toBe("top");
+	});
+});
+
+describe("createImageAnnotation", () => {
+	test("builds a centered image layer with the given aspect", () => {
+		const ann = createImageAnnotation("img1", "data:image/png;base64,xyz", 0.5);
+		expect(ann.type).toBe("image");
+		expect(ann.id).toBe("img1");
+		expect(ann.x).toBe(0.5);
+		expect(ann.y).toBe(0.5);
+		expect(ann.aspect).toBe(0.5);
+		expect(ann.opacity).toBe(1);
+		expect(ann.rotation).toBe(0);
+	});
+
+	test("falls back to a square aspect for invalid values", () => {
+		expect(createImageAnnotation("i", "u", 0).aspect).toBe(1);
+		expect(createImageAnnotation("i", "u", -2).aspect).toBe(1);
+	});
+});
+
+describe("measureAnnotationBox — image layers", () => {
+	const scene = { width: 1000, height: 2000 };
+
+	test("sizes the box from normalized width and stored aspect", () => {
+		const box = measureAnnotationBox(
+			{
+				aspect: 0.5,
+				id: "img",
+				type: "image",
+				url: "data:,",
+				width: 0.4,
+				x: 0.5,
+				y: 0.25,
+			},
+			scene,
+		);
+		// width = 0.4 * 1000 = 400; height = 400 * 0.5 = 200; centered on (500, 500).
+		expect(box).toEqual({ x: 300, y: 400, width: 400, height: 200 });
+	});
+
+	test("defaults to a square box when aspect is missing", () => {
+		const box = measureAnnotationBox(
+			{ id: "img", type: "image", url: "data:,", width: 0.2, x: 0.5, y: 0.5 },
+			scene,
+		);
+		expect(box.width).toBe(200);
+		expect(box.height).toBe(200);
+	});
+});
+
+describe("hitTestAnnotation — image layers", () => {
+	const scene: SceneData = {
+		width: 1000,
+		height: 2000,
+		background: { type: "color", value: "#000" },
+		textLayers: [],
+		annotations: [
+			{
+				aspect: 1,
+				id: "img",
+				type: "image",
+				url: "data:,",
+				width: 0.4,
+				x: 0.5,
+				y: 0.5,
+			},
+		],
+	};
+
+	test("hits inside the image box and misses outside", () => {
+		expect(hitTestAnnotation(scene, 500, 1000)).toBe("img");
+		expect(hitTestAnnotation(scene, 50, 50)).toBeNull();
+	});
+});
+
+describe("hitTestDevice", () => {
+	const baseScene: SceneData = {
+		width: 1000,
+		height: 2000,
+		background: { type: "color", value: "#000" },
+		device: { frame: "iphone", scale: 0.5, offsetX: 0, offsetY: 0 },
+		textLayers: [],
+	};
+
+	test("hits inside the device frame rect", () => {
+		// frame: width 500, height 1025, centered at (500, 1000).
+		expect(hitTestDevice(baseScene, 500, 1000)).toBe(true);
+		expect(hitTestDevice(baseScene, 260, 600)).toBe(true);
+	});
+
+	test("misses outside the device frame rect", () => {
+		expect(hitTestDevice(baseScene, 100, 100)).toBe(false);
+	});
+
+	test("is false without a device or with the 'none' frame", () => {
+		expect(hitTestDevice({ ...baseScene, device: undefined }, 500, 1000)).toBe(
+			false,
+		);
+		expect(
+			hitTestDevice(
+				{
+					...baseScene,
+					device: { frame: "none", scale: 0.5, offsetX: 0, offsetY: 0 },
+				},
+				500,
+				1000,
+			),
+		).toBe(false);
+	});
+
+	test("expands the hit box for a rotated frame", () => {
+		const rotated: SceneData = {
+			...baseScene,
+			device: {
+				frame: "iphone",
+				scale: 0.5,
+				offsetX: 0,
+				offsetY: 0,
+				rotation: 90,
+			},
+		};
+		// At 90° the AABB is height×width: a point beyond the unrotated width
+		// (|dx| > 250) but within the rotated half-width (~512) now hits.
+		expect(hitTestDevice(rotated, 950, 1000)).toBe(true);
+		expect(hitTestDevice(baseScene, 950, 1000)).toBe(false);
 	});
 });
 

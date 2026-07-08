@@ -41,9 +41,12 @@ import { getListingFieldLabel } from "@/lib/field-labels";
 
 type SectionStatus = "idle" | "pushing" | "done" | "error";
 
-type PushSection = "listings" | "purchases" | "categories" | "ageRating" | "privacy";
+// Purchases are not pushable here: in-app purchases / subscriptions are written
+// straight to the store on create/update (no draft model), so they only appear
+// as an informational summary, never as a push target.
+type PushSection = "listings" | "categories" | "ageRating" | "privacy";
 
-const SECTION_ORDER: PushSection[] = ["listings", "purchases", "categories", "ageRating", "privacy"];
+const SECTION_ORDER: PushSection[] = ["listings", "categories", "ageRating", "privacy"];
 
 interface PushPreviewDialogProps {
   appId: string;
@@ -66,7 +69,6 @@ export function PushPreviewDialog({
 
   const [statuses, setStatuses] = useState<Record<PushSection, SectionStatus>>({
     listings: "idle",
-    purchases: "idle",
     categories: "idle",
     ageRating: "idle",
     privacy: "idle",
@@ -84,7 +86,6 @@ export function PushPreviewDialog({
 
   const sectionHasData: Record<PushSection, boolean> = {
     listings: hasListingChanges || hasAssetChanges,
-    purchases: hasPurchases,
     categories: isIos && hasCategories,
     ageRating: isIos && hasAgeRating,
     privacy: isIos && hasPrivacy,
@@ -103,9 +104,6 @@ export function PushPreviewDialog({
       switch (section) {
         case "listings":
           await api.listings.publish(appId);
-          break;
-        case "purchases":
-          await api.purchases.publish(appId);
           break;
         case "categories":
           await api.listings.publishCategories(appId);
@@ -135,7 +133,6 @@ export function PushPreviewDialog({
   const resetAndClose = useCallback(() => {
     setStatuses({
       listings: "idle",
-      purchases: "idle",
       categories: "idle",
       ageRating: "idle",
       privacy: "idle",
@@ -288,15 +285,13 @@ export function PushPreviewDialog({
               )}
             </Section>
 
-            {/* Purchases */}
+            {/* Purchases — informational only (auto-published on edit) */}
             <Section
               icon={<CreditCard className="h-4 w-4" />}
               title="Purchases"
               badge={hasPurchases ? data!.purchases.purchaseCount : undefined}
               skipped={!hasPurchases}
-              status={statuses.purchases}
-              onPush={() => pushSection("purchases")}
-              canPush={sectionHasData.purchases && statuses.purchases === "idle" && !isPushingAll}
+              status="idle"
             >
               {hasPurchases && (
                 <p className="text-xs text-muted-foreground">

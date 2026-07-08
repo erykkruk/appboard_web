@@ -6,6 +6,7 @@ import { api } from "@/lib/api";
 import {
 	buildTranslatedScene,
 	type LayerTranslations,
+	translatableAnnotations,
 	translatableLayers,
 } from "@/lib/screenshot-localization";
 import type { SceneData } from "@/lib/types";
@@ -66,19 +67,24 @@ export function useSceneLocalization() {
 			});
 
 			try {
-				const layers = translatableLayers(sourceScene);
+				// Text layers and text annotations translate the same way; both
+				// are keyed by id in the translations map.
+				const items = [
+					...translatableLayers(sourceScene),
+					...translatableAnnotations(sourceScene),
+				];
 				const translations: LayerTranslations = {};
 
-				// One translate call per layer, scoped to this single target
+				// One translate call per item, scoped to this single target
 				// language, so a failure on one language never affects the others.
-				for (const layer of layers) {
+				for (const item of items) {
 					const { translations: byLanguage } = await api.ai.translate({
 						targetLanguages: [targetLanguage],
-						text: layer.text,
+						text: item.text,
 					});
 					const translated = byLanguage?.[targetLanguage];
 					if (typeof translated === "string" && translated.trim()) {
-						translations[layer.id] = translated.trim();
+						translations[item.id] = translated.trim();
 					}
 				}
 

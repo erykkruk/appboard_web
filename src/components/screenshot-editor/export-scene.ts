@@ -1,3 +1,4 @@
+import { ensureCustomFontsLoaded } from "@/lib/scene-fonts";
 import type { SceneData } from "@/lib/types";
 
 import { type RenderImage, type RenderImages, renderScene } from "./render-scene";
@@ -51,6 +52,10 @@ function loadRenderImage(src: string): Promise<RenderImage | null> {
  * is tainted by a remote image without CORS headers (toBlob throws).
  */
 export async function exportSceneToPng(scene: SceneData): Promise<Blob | null> {
+	// Custom fonts must be registered before drawing, or the exported PNG
+	// silently falls back to a default family.
+	await ensureCustomFontsLoaded(scene);
+
 	const images: RenderImages = {};
 	if (scene.background.type === "image" && scene.background.value) {
 		images.background =
@@ -58,6 +63,13 @@ export async function exportSceneToPng(scene: SceneData): Promise<Blob | null> {
 	}
 	if (scene.screenshot?.url) {
 		images.screenshot = (await loadRenderImage(scene.screenshot.url)) ?? undefined;
+	}
+	for (const annotation of scene.annotations ?? []) {
+		if (annotation.type !== "image" || !annotation.url) continue;
+		const image = await loadRenderImage(annotation.url);
+		if (image) {
+			images.annotations = { ...images.annotations, [annotation.id]: image };
+		}
 	}
 
 	const canvas = document.createElement("canvas");

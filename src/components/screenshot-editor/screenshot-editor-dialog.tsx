@@ -16,11 +16,20 @@ import {
 	useCreateScreenshotScene,
 	useUpdateScreenshotScene,
 } from "@/hooks/use-screenshot-scenes";
-import { useUploadScreenshot } from "@/hooks/use-publishing";
+import {
+	useUploadScreenshot,
+	useVersionScreenshots,
+} from "@/hooks/use-publishing";
 import { getScreenshotDimensionError } from "@/lib/api";
+import {
+	dedupeFontFamily,
+	registerCustomFont,
+	sanitizeFontFamilyName,
+} from "@/lib/scene-fonts";
 import {
 	createDefaultAnnotation,
 	createDefaultScene,
+	createImageAnnotation,
 	getDisplayTypeLabel,
 	getTargetDimensions,
 } from "@/lib/screenshot-editor";
@@ -31,6 +40,7 @@ import type {
 	SceneData,
 	SceneTextLayer,
 	ScreenshotScene,
+	VersionScreenshot,
 } from "@/lib/types";
 
 import { LayersPanel, PropertiesPanel } from "./editor-panels";
@@ -56,6 +66,19 @@ function readFileAsDataUrl(file: File): Promise<string> {
 		reader.onload = () => resolve(reader.result as string);
 		reader.onerror = () => reject(reader.error);
 		reader.readAsDataURL(file);
+	});
+}
+
+/** Decode an image source just to read its natural aspect (height / width). */
+function readImageAspect(src: string): Promise<number> {
+	return new Promise((resolve) => {
+		const img = new Image();
+		img.onload = () =>
+			resolve(
+				img.naturalWidth > 0 ? img.naturalHeight / img.naturalWidth : 1,
+			);
+		img.onerror = () => resolve(1);
+		img.src = src;
 	});
 }
 
@@ -96,14 +119,24 @@ export function ScreenshotEditorDialog({
 		editingScene?.scene.screenshot?.url,
 	);
 	const [localizeOpen, setLocalizeOpen] = useState(false);
+	const [pickerOpen, setPickerOpen] = useState(false);
 
 	const canvasRef = useRef<SceneCanvasHandle>(null);
 	const bgFileRef = useRef<HTMLInputElement>(null);
 	const screenshotFileRef = useRef<HTMLInputElement>(null);
+	const imageLayerFileRef = useRef<HTMLInputElement>(null);
+	// Annotation id whose image is being replaced; null = add a new image layer.
+	const imageLayerTargetRef = useRef<string | null>(null);
+	const fontFileRef = useRef<HTMLInputElement>(null);
+	// Text layer that requested the font upload; its family is set on success.
+	const fontTargetRef = useRef<string | null>(null);
 
 	const createScene = useCreateScreenshotScene(appId);
 	const updateScene = useUpdateScreenshotScene(appId);
 	const uploadScreenshot = useUploadScreenshot(appId, versionId);
+	// Screenshots already uploaded for this app/version (incl. panorama splits),
+	// so the editor can reuse them as the device screenshot from the DB.
+	const existingScreenshots = useVersionScreenshots(appId, versionId);
 
 	const loaded = useSceneImages(scene, screenshotSrc);
 	// Wrap each decoded image with its natural pixel dimensions so the renderer's
@@ -124,8 +157,20 @@ export function ScreenshotEditorDialog({
 						height: loaded.screenshot.height,
 					}
 				: undefined,
+			annotations: loaded.annotations
+				? Object.fromEntries(
+						Object.entries(loaded.annotations).map(([id, img]) => [
+							id,
+							{
+								source: img.element,
+								width: img.width,
+								height: img.height,
+							},
+						]),
+					)
+				: undefined,
 		}),
-		[loaded.background, loaded.screenshot],
+		[loaded.background, loaded.screenshot, loaded.annotations],
 	);
 	const [target0, target1] = useMemo(
 		() => getTargetDimensions(displayType),
@@ -248,6 +293,92 @@ export function ScreenshotEditorDialog({
 		[selectedLayerId],
 	);
 
+	const moveDevice = useCallback((offsetX: number, offsetY: number) => {
+		setScene((prev) =>
+			prev.device
+				? { ...prev, device: { ...prev.device, offsetX, offsetY } }
+				: prev,
+		);
+	}, []);
+
+	const handleAddImageLayer = useCallback(() => {
+		imageLayerTargetRef.current = null;
+		imageLayerFileRef.current?.click();
+	}, []);
+
+	const handleReplaceAnnotationImage = useCallback((id: string) => {
+		imageLayerTargetRef.current = id;
+		imageLayerFileRef.current?.click();
+	}, []);
+
+	const handleImageLayerFile = async (
+		e: React.ChangeEvent<HTMLInputElement>,
+	) => {
+		const file = e.target.files?.[0];
+		e.target.value = "";
+		if (!file) return;
+		const dataUrl = await readFileAsDataUrl(file);
+		const aspect = await readImageAspect(dataUrl);
+		const targetId = imageLayerTargetRef.current;
+		imageLayerTargetRef.current = null;
+		if (targetId) {
+			setScene((prev) => ({
+				...prev,
+				annotations: (prev.annotations ?? []).map((a) =>
+					a.id === targetId && a.type === "image"
+						? { ...a, url: dataUrl, aspect }
+						: a,
+				),
+			}));
+			return;
+		}
+		const id = nextAnnotationId();
+		setScene((prev) => ({
+			...prev,
+			annotations: [
+				...(prev.annotations ?? []),
+				createImageAnnotation(id, dataUrl, aspect),
+			],
+		}));
+		setSelectedLayerId(id);
+	};
+
+	const handleUploadFont = useCallback(() => {
+		fontTargetRef.current = selectedLayerId;
+		fontFileRef.current?.click();
+	}, [selectedLayerId]);
+
+	const handleFontFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+		const file = e.target.files?.[0];
+		e.target.value = "";
+		if (!file) return;
+		try {
+			const dataUrl = await readFileAsDataUrl(file);
+			const family = dedupeFontFamily(
+				sanitizeFontFamilyName(file.name),
+				(scene.customFonts ?? []).map((f) => f.family),
+			);
+			const font = { dataUrl, family };
+			// Register up front so the canvas can draw with the new family
+			// immediately after the state update.
+			await registerCustomFont(font);
+			const targetId = fontTargetRef.current;
+			fontTargetRef.current = null;
+			setScene((prev) => ({
+				...prev,
+				customFonts: [...(prev.customFonts ?? []), font],
+				textLayers: targetId
+					? prev.textLayers.map((l) =>
+							l.id === targetId ? { ...l, fontFamily: family } : l,
+						)
+					: prev.textLayers,
+			}));
+			toast.success(`Font "${family}" added`);
+		} catch {
+			toast.error("Failed to load the font file");
+		}
+	};
+
 	const handleBackgroundFile = async (
 		e: React.ChangeEvent<HTMLInputElement>,
 	) => {
@@ -270,6 +401,22 @@ export function ScreenshotEditorDialog({
 			screenshot: { ...scene.screenshot, url: dataUrl },
 		});
 	};
+
+	const handlePickExistingScreenshot = useCallback(
+		(shot: VersionScreenshot) => {
+			setScreenshotSrc(shot.url);
+			setScene((prev) => ({
+				...prev,
+				screenshot: {
+					...prev.screenshot,
+					assetId: shot.externalId,
+					url: shot.url,
+				},
+			}));
+			setPickerOpen(false);
+		},
+		[],
+	);
 
 	const handleSave = async () => {
 		try {
@@ -345,7 +492,10 @@ export function ScreenshotEditorDialog({
 						<Button
 							variant="outline"
 							onClick={() => setLocalizeOpen(true)}
-							disabled={scene.textLayers.length === 0}
+							disabled={
+								scene.textLayers.length === 0 &&
+								!(scene.annotations ?? []).some((a) => a.type !== "image")
+							}
 						>
 							<Languages className="h-4 w-4" />
 							Warianty językowe
@@ -384,6 +534,7 @@ export function ScreenshotEditorDialog({
 						onAddText={addTextLayer}
 						onDeleteText={deleteTextLayer}
 						onAddAnnotation={addAnnotation}
+						onAddImage={handleAddImageLayer}
 						onDeleteAnnotation={deleteAnnotation}
 					/>
 
@@ -397,6 +548,7 @@ export function ScreenshotEditorDialog({
 							onMoveLayer={moveTextLayer}
 							onMoveAnnotation={moveAnnotation}
 							onMoveCalloutTarget={moveCalloutTarget}
+							onMoveDevice={moveDevice}
 						/>
 					</div>
 
@@ -408,6 +560,10 @@ export function ScreenshotEditorDialog({
 						onPatchAnnotation={patchAnnotation}
 						onPickBackgroundImage={() => bgFileRef.current?.click()}
 						onPickScreenshot={() => screenshotFileRef.current?.click()}
+						onPickExistingScreenshot={() => setPickerOpen(true)}
+						onUploadFont={handleUploadFont}
+						onReplaceAnnotationImage={handleReplaceAnnotationImage}
+						onDeleteAnnotation={deleteAnnotation}
 					/>
 				</div>
 
@@ -425,6 +581,20 @@ export function ScreenshotEditorDialog({
 					className="hidden"
 					onChange={handleScreenshotFile}
 				/>
+				<input
+					ref={imageLayerFileRef}
+					type="file"
+					accept="image/*"
+					className="hidden"
+					onChange={handleImageLayerFile}
+				/>
+				<input
+					ref={fontFileRef}
+					type="file"
+					accept=".ttf,.otf,.woff,.woff2"
+					className="hidden"
+					onChange={handleFontFile}
+				/>
 
 				{localizeOpen && (
 					<SceneLocalizationDialog
@@ -437,6 +607,79 @@ export function ScreenshotEditorDialog({
 						sourceLanguage={language}
 						displayType={displayType}
 					/>
+				)}
+
+				<ExistingScreenshotPicker
+					open={pickerOpen}
+					onOpenChange={setPickerOpen}
+					screenshots={existingScreenshots.data ?? []}
+					loading={existingScreenshots.isLoading}
+					displayType={displayType}
+					onPick={handlePickExistingScreenshot}
+				/>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+/**
+ * Picker for screenshots already uploaded to the store (including panorama
+ * splits). Prefers screenshots for the current device size, falling back to all
+ * of them, so a user can reuse an existing image as the device screenshot.
+ */
+function ExistingScreenshotPicker({
+	open,
+	onOpenChange,
+	screenshots,
+	loading,
+	displayType,
+	onPick,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	screenshots: VersionScreenshot[];
+	loading: boolean;
+	displayType: string;
+	onPick: (shot: VersionScreenshot) => void;
+}) {
+	const sameDevice = screenshots.filter((s) => s.displayType === displayType);
+	const list = sameDevice.length > 0 ? sameDevice : screenshots;
+
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="max-w-2xl">
+				<DialogHeader>
+					<DialogTitle>Wybierz z wgranych screenshotów</DialogTitle>
+				</DialogHeader>
+				{loading ? (
+					<div className="flex items-center justify-center py-12 text-muted-foreground">
+						<Loader2 className="h-5 w-5 animate-spin" />
+					</div>
+				) : list.length === 0 ? (
+					<p className="py-12 text-center text-sm text-muted-foreground">
+						Brak wgranych screenshotów dla tej aplikacji.
+					</p>
+				) : (
+					<div className="grid max-h-[60vh] grid-cols-3 gap-3 overflow-y-auto p-1 sm:grid-cols-4">
+						{list.map((shot) => (
+							<button
+								key={shot.externalId}
+								type="button"
+								onClick={() => onPick(shot)}
+								className="group flex flex-col items-center gap-1 rounded-lg border border-border p-1.5 transition-colors hover:border-primary hover:bg-accent/40"
+							>
+								{/* Plain <img>: asset URLs are remote (CDN); next/image not used here. */}
+								<img
+									src={shot.url}
+									alt={shot.language}
+									className="h-40 w-full rounded object-contain"
+								/>
+								<span className="text-[10px] text-muted-foreground">
+									{shot.language}
+								</span>
+							</button>
+						))}
+					</div>
 				)}
 			</DialogContent>
 		</Dialog>

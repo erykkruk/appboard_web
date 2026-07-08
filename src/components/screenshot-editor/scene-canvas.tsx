@@ -9,10 +9,13 @@ import {
 	useState,
 } from "react";
 
+import { ensureCustomFontsLoaded, registerCustomFont } from "@/lib/scene-fonts";
 import {
+	computeDeviceRect,
 	computeDisplayScale,
 	hitTestAnnotation,
 	hitTestCalloutTarget,
+	hitTestDevice,
 	hitTestTextLayer,
 } from "@/lib/screenshot-editor";
 import type { SceneData } from "@/lib/types";
@@ -27,11 +30,17 @@ export interface SceneCanvasHandle {
 }
 
 // What the active pointer drag is moving. Text layers and annotation boxes are
-// dragged by their anchor; a callout's tail tip is dragged independently.
+// dragged by their anchor; a callout's tail tip is dragged independently. The
+// device frame drags by the grab point (offset from its center) to avoid a
+// jump on pointer down.
 type DragTarget =
 	| { kind: "text"; id: string }
 	| { kind: "annotation"; id: string }
-	| { kind: "callout-target"; id: string };
+	| { kind: "callout-target"; id: string }
+	| { kind: "device"; grabDx: number; grabDy: number };
+
+// Matches the ±40% range of the device position sliders in the panel.
+const DEVICE_OFFSET_LIMIT = 0.4;
 
 interface SceneCanvasProps {
 	scene: SceneData;
@@ -41,6 +50,7 @@ interface SceneCanvasProps {
 	onMoveLayer: (id: string, x: number, y: number) => void;
 	onMoveAnnotation: (id: string, x: number, y: number) => void;
 	onMoveCalloutTarget: (id: string, targetX: number, targetY: number) => void;
+	onMoveDevice: (offsetX: number, offsetY: number) => void;
 	className?: string;
 }
 
@@ -54,6 +64,7 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 			onMoveLayer,
 			onMoveAnnotation,
 			onMoveCalloutTarget,
+			onMoveDevice,
 			className,
 		},
 		ref,
@@ -62,6 +73,23 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 		const containerRef = useRef<HTMLDivElement>(null);
 		const [displayScale, setDisplayScale] = useState(1);
 		const draggingRef = useRef<DragTarget | null>(null);
+		// Bumped once the scene's custom fonts finish loading so text drawn
+		// before the FontFace resolved is re-rendered with the real glyphs.
+		const [fontsVersion, setFontsVersion] = useState(0);
+		const customFonts = scene.customFonts;
+
+		useEffect(() => {
+			if (!customFonts || customFonts.length === 0) return;
+			let cancelled = false;
+			Promise.all(customFonts.map((font) => registerCustomFont(font))).then(
+				() => {
+					if (!cancelled) setFontsVersion((v) => v + 1);
+				},
+			);
+			return () => {
+				cancelled = true;
+			};
+		}, [customFonts]);
 
 		// Fit the canvas into the available container box while keeping the
 		// backing store at true device pixels (scene.width × scene.height).
@@ -83,20 +111,23 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 			return () => observer.disconnect();
 		}, [scene.width, scene.height]);
 
-		// Redraw whenever the scene or decoded images change.
+		// Redraw whenever the scene, decoded images or loaded fonts change.
 		useEffect(() => {
 			const canvas = canvasRef.current;
 			if (!canvas) return;
 			const ctx = canvas.getContext("2d");
 			if (!ctx) return;
 			renderScene(ctx, scene, images);
-		}, [scene, images]);
+		}, [scene, images, fontsVersion]);
 
 		useImperativeHandle(
 			ref,
 			() => ({
-				exportPng: () =>
-					new Promise<Blob | null>((resolve) => {
+				exportPng: async () => {
+					// Guarantee custom fonts are registered before the off-screen
+					// draw so the exported PNG uses the real glyphs.
+					await ensureCustomFontsLoaded(scene);
+					return new Promise<Blob | null>((resolve) => {
 						const exportCanvas = document.createElement("canvas");
 						exportCanvas.width = scene.width;
 						exportCanvas.height = scene.height;
@@ -115,7 +146,8 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 							// Tainted canvas (remote image without CORS headers).
 							resolve(null);
 						}
-					}),
+					});
+				},
 			}),
 			[scene, images],
 		);
@@ -160,11 +192,30 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 				}
 
 				const textHit = hitTestTextLayer(scene, point.x, point.y);
-				onSelectLayer(textHit);
 				if (textHit) {
+					onSelectLayer(textHit);
 					draggingRef.current = { kind: "text", id: textHit };
 					e.currentTarget.setPointerCapture(e.pointerId);
+					return;
 				}
+
+				// Device frame is the lowest-priority drag target — it usually
+				// covers most of the scene, so text/annotations must win above.
+				if (hitTestDevice(scene, point.x, point.y)) {
+					const rect = computeDeviceRect(scene);
+					if (rect) {
+						onSelectLayer("__device");
+						draggingRef.current = {
+							kind: "device",
+							grabDx: point.x - (rect.x + rect.width / 2),
+							grabDy: point.y - (rect.y + rect.height / 2),
+						};
+						e.currentTarget.setPointerCapture(e.pointerId);
+						return;
+					}
+				}
+
+				onSelectLayer(null);
 			},
 			[scene, selectedLayerId, toScenePoint, onSelectLayer],
 		);
@@ -175,6 +226,26 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 				if (!drag) return;
 				const point = toScenePoint(e.clientX, e.clientY);
 				if (!point) return;
+				if (drag.kind === "device") {
+					const centerX = point.x - drag.grabDx;
+					const centerY = point.y - drag.grabDy;
+					const offsetX = Math.min(
+						Math.max(
+							(centerX - scene.width / 2) / scene.width,
+							-DEVICE_OFFSET_LIMIT,
+						),
+						DEVICE_OFFSET_LIMIT,
+					);
+					const offsetY = Math.min(
+						Math.max(
+							(centerY - scene.height / 2) / scene.height,
+							-DEVICE_OFFSET_LIMIT,
+						),
+						DEVICE_OFFSET_LIMIT,
+					);
+					onMoveDevice(offsetX, offsetY);
+					return;
+				}
 				const nx = Math.min(Math.max(point.x / scene.width, 0), 1);
 				const ny = Math.min(Math.max(point.y / scene.height, 0), 1);
 				if (drag.kind === "text") onMoveLayer(drag.id, nx, ny);
@@ -188,6 +259,7 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 				onMoveLayer,
 				onMoveAnnotation,
 				onMoveCalloutTarget,
+				onMoveDevice,
 			],
 		);
 

@@ -16,6 +16,8 @@ export interface LoadedImage {
 interface SceneImages {
 	background?: LoadedImage;
 	screenshot?: LoadedImage;
+	/** Decoded image-annotation sources keyed by annotation id. */
+	annotations?: Record<string, LoadedImage>;
 	/** True if any drawn image tainted the canvas (remote, no CORS headers). */
 	tainted: boolean;
 }
@@ -62,10 +64,26 @@ function loadImage(src: string): Promise<LoadedImage> {
 	});
 }
 
+// Decode-once cache keyed by source. The loading effect re-runs on every scene
+// change (image annotations live inside `scene.annotations`, whose identity
+// changes on each drag frame), so repeated loads must be free.
+const imageCache = new Map<string, Promise<LoadedImage>>();
+
+function loadImageCached(src: string): Promise<LoadedImage> {
+	const cached = imageCache.get(src);
+	if (cached) return cached;
+	const promise = loadImage(src);
+	// Drop failures from the cache so a transient network error can be retried.
+	promise.catch(() => imageCache.delete(src));
+	imageCache.set(src, promise);
+	return promise;
+}
+
 /**
- * Decode the background-image and screenshot sources referenced by a scene into
- * HTMLImageElements for the canvas renderer. Re-runs when the relevant sources
- * change. Returns a `tainted` flag so the editor can warn before export.
+ * Decode the background-image, screenshot and image-annotation sources
+ * referenced by a scene into HTMLImageElements for the canvas renderer.
+ * Re-runs when the relevant sources change. Returns a `tainted` flag so the
+ * editor can warn before export.
  */
 export function useSceneImages(
 	scene: SceneData,
@@ -75,6 +93,7 @@ export function useSceneImages(
 
 	const backgroundSrc =
 		scene.background.type === "image" ? scene.background.value : undefined;
+	const annotations = scene.annotations;
 
 	useEffect(() => {
 		let cancelled = false;
@@ -83,7 +102,7 @@ export function useSceneImages(
 
 		if (backgroundSrc) {
 			tasks.push(
-				loadImage(backgroundSrc)
+				loadImageCached(backgroundSrc)
 					.then((img) => {
 						next.background = img;
 						if (img.tainted) next.tainted = true;
@@ -93,9 +112,21 @@ export function useSceneImages(
 		}
 		if (screenshotSrc) {
 			tasks.push(
-				loadImage(screenshotSrc)
+				loadImageCached(screenshotSrc)
 					.then((img) => {
 						next.screenshot = img;
+						if (img.tainted) next.tainted = true;
+					})
+					.catch(() => {}),
+			);
+		}
+		for (const annotation of annotations ?? []) {
+			if (annotation.type !== "image" || !annotation.url) continue;
+			const { id, url } = annotation;
+			tasks.push(
+				loadImageCached(url)
+					.then((img) => {
+						next.annotations = { ...next.annotations, [id]: img };
 						if (img.tainted) next.tainted = true;
 					})
 					.catch(() => {}),
@@ -109,7 +140,7 @@ export function useSceneImages(
 		return () => {
 			cancelled = true;
 		};
-	}, [backgroundSrc, screenshotSrc]);
+	}, [backgroundSrc, screenshotSrc, annotations]);
 
 	return images;
 }

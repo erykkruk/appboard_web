@@ -1,9 +1,11 @@
 import type {
 	SceneAnnotation,
 	SceneAnnotationType,
+	SceneBackgroundFit,
 	SceneData,
 	SceneDeviceFrame,
-	SceneScreenshotFit,
+	SceneImageAnnotation,
+	SceneTextAnnotation,
 } from "@/lib/types";
 
 // Exact device target dimensions keyed by displayType. Mirrors the backend
@@ -130,22 +132,36 @@ export function computeDeviceRect(scene: SceneData): Rect | null {
 	};
 }
 
+/** Clamp a value into [min, max]. */
+function clamp(value: number, min: number, max: number): number {
+	return Math.min(Math.max(value, min), max);
+}
+
 /**
  * Compute the destination rect for drawing a source image of `srcW`×`srcH`
  * inside `target`, honoring the fit mode. "cover" fills and crops; "contain"
- * letterboxes. Returns the rect and the source crop rect for drawImage.
+ * letterboxes; "stretch" fills ignoring aspect ratio. In "cover" mode the
+ * focal offsets (-1..1, default 0) pan the crop window: -1 keeps the
+ * left/top edge, 0 the center, 1 the right/bottom edge. Returns the rect and
+ * the source crop rect for drawImage.
  */
 export function computeImageFit(
 	srcW: number,
 	srcH: number,
 	target: Rect,
-	fit: SceneScreenshotFit = "cover",
+	fit: SceneBackgroundFit = "cover",
+	focalX = 0,
+	focalY = 0,
 ): { dest: Rect; src: Rect } {
 	if (srcW <= 0 || srcH <= 0) {
 		return { dest: target, src: { x: 0, y: 0, width: srcW, height: srcH } };
 	}
 	const targetRatio = target.width / target.height;
 	const srcRatio = srcW / srcH;
+
+	if (fit === "stretch") {
+		return { dest: target, src: { x: 0, y: 0, width: srcW, height: srcH } };
+	}
 
 	if (fit === "contain") {
 		let w = target.width;
@@ -166,17 +182,18 @@ export function computeImageFit(
 		};
 	}
 
-	// cover: crop the source to the target aspect ratio
+	// cover: crop the source to the target aspect ratio, panned by the focal
+	// offsets (a focal of -1/0/1 maps to the start/center/end of the slack).
 	let sx = 0;
 	let sy = 0;
 	let sw = srcW;
 	let sh = srcH;
 	if (srcRatio > targetRatio) {
 		sw = srcH * targetRatio;
-		sx = (srcW - sw) / 2;
+		sx = ((srcW - sw) / 2) * (1 + clamp(focalX, -1, 1));
 	} else {
 		sh = srcW / targetRatio;
-		sy = (srcH - sh) / 2;
+		sy = ((srcH - sh) / 2) * (1 + clamp(focalY, -1, 1));
 	}
 	return {
 		dest: target,
@@ -253,7 +270,7 @@ export function createDefaultAnnotation(
 	type: SceneAnnotationType,
 	scene: Pick<SceneData, "height">,
 	id: string,
-): SceneAnnotation {
+): SceneTextAnnotation {
 	const base = {
 		id,
 		text: ANNOTATION_DEFAULT_TEXT[type],
@@ -291,6 +308,29 @@ export function createDefaultAnnotation(
 	};
 }
 
+/**
+ * Build a fresh image annotation centered on the scene. `aspect` is the
+ * uploaded image's natural height/width so the box (and hit-test) match the
+ * rendered size immediately. Pure — the caller injects `id` and `url`.
+ */
+export function createImageAnnotation(
+	id: string,
+	url: string,
+	aspect: number,
+): SceneImageAnnotation {
+	return {
+		aspect: aspect > 0 ? aspect : 1,
+		id,
+		opacity: 1,
+		rotation: 0,
+		type: "image",
+		url,
+		width: 0.4,
+		x: 0.5,
+		y: 0.5,
+	};
+}
+
 /** Horizontal/vertical padding (as a multiple of fontSize) around annotation text. */
 const ANNOTATION_PADDING_X = 0.7;
 const ANNOTATION_PADDING_Y = 0.45;
@@ -309,6 +349,11 @@ export function measureAnnotationBox(
 ): Rect {
 	const cx = annotation.x * scene.width;
 	const cy = annotation.y * scene.height;
+	if (annotation.type === "image") {
+		const width = annotation.width * scene.width;
+		const height = width * (annotation.aspect ?? 1);
+		return { x: cx - width / 2, y: cy - height / 2, width, height };
+	}
 	const lines = annotation.text.split("\n");
 	const longest = lines.reduce((max, l) => Math.max(max, l.length), 1);
 	const padX = annotation.fontSize * ANNOTATION_PADDING_X;
@@ -366,6 +411,32 @@ export function hitTestCalloutTarget(
 	const dy = py - ty;
 	const handle = Math.max(CALLOUT_TARGET_HANDLE_RADIUS, annotation.fontSize);
 	return dx * dx + dy * dy <= handle * handle;
+}
+
+/**
+ * Hit-test the device frame's on-canvas box (rotation-aware axis-aligned
+ * bounding box of the rotated frame rect). Lowest-priority drag target: the
+ * canvas checks text layers and annotations first. Pure.
+ */
+export function hitTestDevice(
+	scene: SceneData,
+	px: number,
+	py: number,
+): boolean {
+	const device = scene.device;
+	if (!device || device.frame === "none") return false;
+	const rect = computeDeviceRect(scene);
+	if (!rect) return false;
+	const cx = rect.x + rect.width / 2;
+	const cy = rect.y + rect.height / 2;
+	const rad = ((device.rotation ?? 0) * Math.PI) / 180;
+	const cos = Math.abs(Math.cos(rad));
+	const sin = Math.abs(Math.sin(rad));
+	const halfW = (rect.width / 2) * cos + (rect.height / 2) * sin;
+	const halfH = (rect.width / 2) * sin + (rect.height / 2) * cos;
+	return (
+		px >= cx - halfW && px <= cx + halfW && py >= cy - halfH && py <= cy + halfH
+	);
 }
 
 /**

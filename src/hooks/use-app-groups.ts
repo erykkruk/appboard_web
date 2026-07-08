@@ -95,3 +95,25 @@ export function useReorderGroupMembers() {
     },
   });
 }
+
+export function useGenerateGroupListings() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({
+      groupId,
+      data,
+    }: {
+      groupId: string;
+      data?: {
+        fields?: string[];
+        sourceLanguage?: string;
+        translateToOthers?: boolean;
+      };
+    }) => api.appGroups.generateListings(groupId, data),
+    onSuccess: () => {
+      // Generated drafts land in each member app's listings.
+      queryClient.invalidateQueries({ queryKey: ["listings"] });
+      queryClient.invalidateQueries({ queryKey: ["listing-diffs"] });
+    },
+  });
+}

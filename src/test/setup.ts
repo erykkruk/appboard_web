@@ -7,7 +7,7 @@ const window = new GlobalWindow();
 for (const key of Object.getOwnPropertyNames(window)) {
 	if (!(key in globalThis)) {
 		Object.defineProperty(globalThis, key, {
-			value: (window as Record<string, unknown>)[key],
+			value: (window as unknown as Record<string, unknown>)[key],
 			configurable: true,
 			writable: true,
 		});

@@ -27,6 +27,7 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useConnectStore } from "@/hooks/use-stores";
+import { ApiError } from "@/lib/api";
 import type { StoreType } from "@/lib/types";
 
 const TOTAL_STEPS = 4;
@@ -400,7 +401,6 @@ export default function OnboardingPage() {
 
   const handleConnect = async () => {
     if (!storeType) return;
-    setStep(3);
 
     const name = accountName.trim() || (storeType === "google_play" ? "Google Play" : "App Store");
 
@@ -409,20 +409,30 @@ export default function OnboardingPage() {
       try {
         credentials = JSON.parse(serviceAccountJson);
       } catch {
-        credentials = { type: "mock", mock: true };
+        toast.error("Invalid JSON — please check the credentials format");
+        return;
       }
     } else {
       credentials = { keyId, issuerId, privateKey };
     }
 
+    setStep(3);
     try {
       const result = await connectStore.mutateAsync({ name, type: storeType, credentials });
       setConnectResult({ syncedApps: result.syncedApps, warnings: result.warnings });
       setStep(4);
       toast.success(`Store connected! ${result.syncedApps} app${result.syncedApps !== 1 ? "s" : ""} synced.`);
-    } catch {
+    } catch (err) {
       setStep(2);
-      toast.error("Failed to connect store. Please check your credentials.");
+      if (err instanceof ApiError && err.status === 423) {
+        toast.error("Unlock your vault to save credentials, then retry.");
+      } else {
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Failed to connect store. Please check your credentials.",
+        );
+      }
     }
   };
 

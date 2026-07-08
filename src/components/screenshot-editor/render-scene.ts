@@ -6,7 +6,12 @@ import {
 	resolveTextPosition,
 	type Rect,
 } from "@/lib/screenshot-editor";
-import type { SceneAnnotation, SceneData } from "@/lib/types";
+import type {
+	SceneData,
+	SceneDeviceColor,
+	SceneImageAnnotation,
+	SceneTextAnnotation,
+} from "@/lib/types";
 
 // A decoded image plus its natural pixel dimensions. The element is passed to
 // drawImage; the dims drive the fit math (the element's own width/height can be
@@ -23,11 +28,19 @@ export interface RenderImage {
 export interface RenderImages {
 	background?: RenderImage;
 	screenshot?: RenderImage;
+	/** Decoded image-annotation sources keyed by annotation id. */
+	annotations?: Record<string, RenderImage | undefined>;
 }
 
-const NOTCH_WIDTH_RATIO = 0.42;
-const NOTCH_HEIGHT_RATIO = 0.028;
-const SCREEN_INSET_RATIO = 0.045;
+// Realistic device-frame proportions (fractions of the frame width W, except
+// button lengths which are fractions of the frame height H). Tuned to read as a
+// modern iPhone (titanium rail + Dynamic Island) and a modern hole-punch
+// Android. See scripts/frames preview used during design.
+const BODY_RADIUS_RATIO = { android: 0.135, iphone: 0.16 } as const;
+const RAIL_RATIO = 0.02; // metallic edge thickness
+const BEZEL_RATIO = 0.038; // outer edge → screen inset (thin, uniform)
+const BTN_PROTRUDE_RATIO = 0.012;
+const BTN_THICKNESS_RATIO = 0.016;
 
 function roundedRectPath(
 	ctx: CanvasRenderingContext2D,
@@ -44,6 +57,71 @@ function roundedRectPath(
 	ctx.closePath();
 }
 
+/**
+ * Metallic side-rail gradient (light edges → dark centre) across [x, x+W].
+ * "silver" reads as brushed titanium; "black" as black titanium with a faint
+ * edge sheen so it never looks flat.
+ */
+function metalGradient(
+	ctx: CanvasRenderingContext2D,
+	x: number,
+	w: number,
+	color: SceneDeviceColor,
+): CanvasGradient {
+	const g = ctx.createLinearGradient(x, 0, x + w, 0);
+	if (color === "black") {
+		g.addColorStop(0, "#4a4d52");
+		g.addColorStop(0.12, "#17181b");
+		g.addColorStop(0.5, "#0c0d0f");
+		g.addColorStop(0.88, "#17181b");
+		g.addColorStop(1, "#45484d");
+	} else {
+		g.addColorStop(0, "#f4f2ee");
+		g.addColorStop(0.12, "#c6c4be");
+		g.addColorStop(0.5, "#8c8a85");
+		g.addColorStop(0.88, "#c6c4be");
+		g.addColorStop(1, "#eae8e3");
+	}
+	return g;
+}
+
+/** Side-button rects (power/volume/action) protruding from the frame edge. */
+function deviceButtons(frame: Rect, isAndroid: boolean): Rect[] {
+	const { x, y, width: W, height: H } = frame;
+	const bp = W * BTN_PROTRUDE_RATIO;
+	const bt = W * BTN_THICKNESS_RATIO;
+	const right = (top: number, len: number): Rect => ({
+		x: x + W - bt * 0.4,
+		y: y + H * top,
+		width: bt + bp,
+		height: H * len,
+	});
+	const left = (top: number, len: number): Rect => ({
+		x: x - bp,
+		y: y + H * top,
+		width: bt + bp,
+		height: H * len,
+	});
+	if (isAndroid) {
+		return [right(0.22, 0.07), right(0.32, 0.13)]; // power + volume rocker
+	}
+	// iPhone: action + volume up/down (left), power (right).
+	return [left(0.185, 0.05), left(0.28, 0.08), left(0.385, 0.08), right(0.27, 0.13)];
+}
+
+function fillCircle(
+	ctx: CanvasRenderingContext2D,
+	cx: number,
+	cy: number,
+	r: number,
+	color: string,
+): void {
+	ctx.beginPath();
+	ctx.arc(cx, cy, r, 0, Math.PI * 2);
+	ctx.fillStyle = color;
+	ctx.fill();
+}
+
 function drawBackground(
 	ctx: CanvasRenderingContext2D,
 	scene: SceneData,
@@ -51,11 +129,19 @@ function drawBackground(
 ): void {
 	const { background } = scene;
 	if (background.type === "image" && images.background) {
+		const fit = background.fit ?? "cover";
+		if (fit === "contain") {
+			// Letterbox bars: fill the canvas before drawing the fitted image.
+			ctx.fillStyle = "#000000";
+			ctx.fillRect(0, 0, scene.width, scene.height);
+		}
 		const { dest, src } = computeImageFit(
 			images.background.width,
 			images.background.height,
 			{ x: 0, y: 0, width: scene.width, height: scene.height },
-			"cover",
+			fit,
+			background.offsetX ?? 0,
+			background.offsetY ?? 0,
 		);
 		ctx.drawImage(
 			images.background.source,
@@ -130,40 +216,65 @@ function drawDeviceFrame(
 	const frame = computeDeviceRect(scene);
 	if (!frame) return;
 
+	const isAndroid = device.frame === "android";
+	// Default color per platform preserves the look of scenes saved before the
+	// color option existed (iPhone silver, Android black).
+	const color: SceneDeviceColor =
+		device.color ?? (isAndroid ? "black" : "silver");
+	const W = frame.width;
+	const bodyRadius =
+		W * (isAndroid ? BODY_RADIUS_RATIO.android : BODY_RADIUS_RATIO.iphone);
+	const rail = W * RAIL_RATIO;
+	const bezel = W * BEZEL_RATIO;
+	const cx = frame.x + W / 2;
+
 	ctx.save();
 	if (device.rotation) {
-		const cx = frame.x + frame.width / 2;
-		const cy = frame.y + frame.height / 2;
-		ctx.translate(cx, cy);
+		const rcx = frame.x + frame.width / 2;
+		const rcy = frame.y + frame.height / 2;
+		ctx.translate(rcx, rcy);
 		ctx.rotate((device.rotation * Math.PI) / 180);
-		ctx.translate(-cx, -cy);
+		ctx.translate(-rcx, -rcy);
 	}
 
-	const bezelRadius = frame.width * 0.14;
-	const isAndroid = device.frame === "android";
-
-	// Drop shadow for depth.
+	// Metallic body + side buttons, sharing one drop shadow. Buttons are drawn
+	// first so the body rail covers their inner (seam) end, leaving only the nub.
+	const metal = metalGradient(ctx, frame.x, W, color);
+	const buttons = deviceButtons(frame, isAndroid);
 	ctx.save();
-	ctx.shadowColor = "rgba(0,0,0,0.35)";
-	ctx.shadowBlur = frame.width * 0.06;
-	ctx.shadowOffsetY = frame.width * 0.03;
-	ctx.fillStyle = "#0b0b0f";
-	roundedRectPath(ctx, frame, bezelRadius);
+	ctx.shadowColor = "rgba(0,0,0,0.4)";
+	ctx.shadowBlur = W * 0.05;
+	ctx.shadowOffsetY = W * 0.02;
+	ctx.fillStyle = color === "silver" ? "#adaba3" : "#2a2c30";
+	for (const b of buttons) {
+		roundedRectPath(ctx, b, b.width * 0.4);
+		ctx.fill();
+	}
+	ctx.fillStyle = metal;
+	roundedRectPath(ctx, frame, bodyRadius);
 	ctx.fill();
 	ctx.restore();
 
-	// Inner screen area.
-	const inset = frame.width * SCREEN_INSET_RATIO;
-	const screen: Rect = {
-		x: frame.x + inset,
-		y: frame.y + inset,
-		width: frame.width - inset * 2,
-		height: frame.height - inset * 2,
+	// Black glass bezel (covers the body interior, leaving the metal rail ring).
+	const glass: Rect = {
+		x: frame.x + rail,
+		y: frame.y + rail,
+		width: W - rail * 2,
+		height: frame.height - rail * 2,
 	};
-	const screenRadius = bezelRadius - inset;
+	ctx.fillStyle = "#050507";
+	roundedRectPath(ctx, glass, bodyRadius - rail);
+	ctx.fill();
 
+	// Screen area (screenshot clipped to rounded corners).
+	const screen: Rect = {
+		x: frame.x + bezel,
+		y: frame.y + bezel,
+		width: W - bezel * 2,
+		height: frame.height - bezel * 2,
+	};
 	ctx.save();
-	roundedRectPath(ctx, screen, screenRadius);
+	roundedRectPath(ctx, screen, bodyRadius - bezel);
 	ctx.clip();
 	if (images.screenshot) {
 		const { dest, src } = computeImageFit(
@@ -189,19 +300,28 @@ function drawDeviceFrame(
 	}
 	ctx.restore();
 
-	// Notch (iPhone only).
-	if (!isAndroid) {
-		const notchWidth = frame.width * NOTCH_WIDTH_RATIO;
-		const notchHeight = frame.height * NOTCH_HEIGHT_RATIO;
-		const notch: Rect = {
-			x: frame.x + (frame.width - notchWidth) / 2,
-			y: frame.y + inset,
-			width: notchWidth,
-			height: notchHeight,
+	// Camera cutout, drawn over the screen.
+	if (isAndroid) {
+		const holeCy = screen.y + W * 0.058;
+		fillCircle(ctx, cx, holeCy, W * 0.026, "#000000");
+		fillCircle(ctx, cx, holeCy, W * 0.013, "#0b1a2b");
+		fillCircle(ctx, cx, holeCy, W * 0.006, "#1e3a5f");
+	} else {
+		const iw = screen.width * 0.275;
+		const ih = W * 0.072;
+		const island: Rect = {
+			x: cx - iw / 2,
+			y: screen.y + W * 0.05,
+			width: iw,
+			height: ih,
 		};
-		ctx.fillStyle = "#0b0b0f";
-		roundedRectPath(ctx, notch, notchHeight / 2);
+		ctx.fillStyle = "#000000";
+		roundedRectPath(ctx, island, ih / 2);
 		ctx.fill();
+		const lensCx = island.x + iw - ih * 0.62;
+		const lensCy = island.y + ih / 2;
+		fillCircle(ctx, lensCx, lensCy, ih * 0.26, "#0b1a2b");
+		fillCircle(ctx, lensCx, lensCy, ih * 0.12, "#1e3a5f");
 	}
 
 	ctx.restore();
@@ -211,12 +331,32 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 	for (const layer of scene.textLayers) {
 		const { x, y } = resolveTextPosition(layer, scene);
 		ctx.font = buildFontString(layer);
-		ctx.fillStyle = layer.color;
-		ctx.textAlign = layer.align;
-		ctx.textBaseline = "middle";
 		const lines = layer.text.split("\n");
 		const lineHeight = layer.fontSize * 1.2;
 		const totalHeight = lineHeight * (lines.length - 1);
+
+		// Optional background panel sized to the measured text block.
+		if (layer.bg) {
+			const maxWidth = lines.reduce(
+				(w, line) => Math.max(w, ctx.measureText(line).width),
+				0,
+			);
+			const padX = layer.fontSize * 0.4;
+			const padY = layer.fontSize * 0.3;
+			const boxW = maxWidth + padX * 2;
+			const boxH = lineHeight * lines.length + padY * 2 - layer.fontSize * 0.2;
+			let boxX = x - boxW / 2;
+			if (layer.align === "left") boxX = x - padX;
+			else if (layer.align === "right") boxX = x - maxWidth - padX;
+			const box: Rect = { x: boxX, y: y - boxH / 2, width: boxW, height: boxH };
+			ctx.fillStyle = layer.bg;
+			roundedRectPath(ctx, box, layer.fontSize * 0.25);
+			ctx.fill();
+		}
+
+		ctx.fillStyle = layer.color;
+		ctx.textAlign = layer.align;
+		ctx.textBaseline = "middle";
 		lines.forEach((line, i) => {
 			ctx.fillText(line, x, y - totalHeight / 2 + i * lineHeight);
 		});
@@ -226,7 +366,7 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 /** Draw the multi-line text of an annotation centered inside `box`. */
 function drawAnnotationText(
 	ctx: CanvasRenderingContext2D,
-	annotation: SceneAnnotation,
+	annotation: SceneTextAnnotation,
 	box: Rect,
 ): void {
 	ctx.font = buildFontString({
@@ -254,7 +394,7 @@ function drawAnnotationText(
  */
 function drawCallout(
 	ctx: CanvasRenderingContext2D,
-	annotation: SceneAnnotation & { type: "callout" },
+	annotation: SceneTextAnnotation & { type: "callout" },
 	scene: SceneData,
 ): void {
 	const box = measureAnnotationBox(annotation, scene);
@@ -304,7 +444,7 @@ function drawCallout(
 /** Draw a pill-shaped badge: a fully-rounded rect with centered text. */
 function drawBadge(
 	ctx: CanvasRenderingContext2D,
-	annotation: SceneAnnotation & { type: "badge" },
+	annotation: SceneTextAnnotation & { type: "badge" },
 	scene: SceneData,
 ): void {
 	const box = measureAnnotationBox(annotation, scene);
@@ -322,7 +462,7 @@ function drawBadge(
 /** Draw a label: centered text with an optional rounded background panel. */
 function drawLabel(
 	ctx: CanvasRenderingContext2D,
-	annotation: SceneAnnotation & { type: "label" },
+	annotation: SceneTextAnnotation & { type: "label" },
 	scene: SceneData,
 ): void {
 	const box = measureAnnotationBox(annotation, scene);
@@ -336,11 +476,54 @@ function drawLabel(
 	drawAnnotationText(ctx, annotation, box);
 }
 
-function drawAnnotations(ctx: CanvasRenderingContext2D, scene: SceneData): void {
+/**
+ * Draw a user image layer: centered on its anchor, width as a fraction of the
+ * scene width, height following the natural aspect ratio (stored `aspect` is
+ * preferred so the drawn box matches the hit-test box), with optional opacity
+ * and rotation. Skipped silently while the image is still decoding.
+ */
+function drawImageAnnotation(
+	ctx: CanvasRenderingContext2D,
+	annotation: SceneImageAnnotation,
+	scene: SceneData,
+	image: RenderImage | undefined,
+): void {
+	if (!image) return;
+	const width = annotation.width * scene.width;
+	const naturalAspect = image.width > 0 ? image.height / image.width : 1;
+	const height = width * (annotation.aspect ?? naturalAspect);
+	const cx = annotation.x * scene.width;
+	const cy = annotation.y * scene.height;
+	ctx.save();
+	ctx.globalAlpha = Math.min(Math.max(annotation.opacity ?? 1, 0), 1);
+	ctx.translate(cx, cy);
+	if (annotation.rotation) {
+		ctx.rotate((annotation.rotation * Math.PI) / 180);
+	}
+	ctx.drawImage(image.source, -width / 2, -height / 2, width, height);
+	ctx.restore();
+}
+
+function drawAnnotations(
+	ctx: CanvasRenderingContext2D,
+	scene: SceneData,
+	images: RenderImages,
+): void {
 	for (const annotation of scene.annotations ?? []) {
-		if (annotation.type === "callout") drawCallout(ctx, annotation, scene);
-		else if (annotation.type === "badge") drawBadge(ctx, annotation, scene);
-		else drawLabel(ctx, annotation, scene);
+		if (annotation.type === "image") {
+			drawImageAnnotation(
+				ctx,
+				annotation,
+				scene,
+				images.annotations?.[annotation.id],
+			);
+		} else if (annotation.type === "callout") {
+			drawCallout(ctx, annotation, scene);
+		} else if (annotation.type === "badge") {
+			drawBadge(ctx, annotation, scene);
+		} else {
+			drawLabel(ctx, annotation, scene);
+		}
 	}
 }
 
@@ -359,5 +542,5 @@ export function renderScene(
 	drawBackground(ctx, scene, images);
 	drawDeviceFrame(ctx, scene, images);
 	drawTextLayers(ctx, scene);
-	drawAnnotations(ctx, scene);
+	drawAnnotations(ctx, scene, images);
 }

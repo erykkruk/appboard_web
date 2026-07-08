@@ -388,7 +388,7 @@ export default function VersionScreenshotsPage() {
       .catch((err) => {
         const dimensionError = getScreenshotDimensionError(err);
         const message = dimensionError
-          ? `${buildDimensionMessage(dimensionError)} ${dimensionError.suggestion}`
+          ? buildDimensionMessage(dimensionError)
           : err instanceof Error
             ? err.message
             : "Upload failed";

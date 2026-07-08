@@ -31,7 +31,10 @@ import {
 import { useCreateScreenshotScene } from "@/hooks/use-screenshot-scenes";
 import { useUploadScreenshot } from "@/hooks/use-publishing";
 import { getScreenshotDimensionError } from "@/lib/api";
-import { translatableLayers } from "@/lib/screenshot-localization";
+import {
+	translatableAnnotations,
+	translatableLayers,
+} from "@/lib/screenshot-localization";
 import { getDisplayTypeLabel } from "@/lib/screenshot-editor";
 import { buildDimensionMessage } from "@/lib/screenshot-validation";
 import { APP_STORE_LANGUAGES, type SceneData } from "@/lib/types";
@@ -102,14 +105,19 @@ export function SceneLocalizationDialog({
 	const [targets, setTargets] = useState<Set<string>>(new Set());
 	const [isPersisting, setIsPersisting] = useState(false);
 
-	const dntCount = useMemo(
-		() =>
-			sourceScene.textLayers.filter((l) => l.doNotTranslate && l.text.trim())
-				.length,
-		[sourceScene.textLayers],
-	);
+	const dntCount = useMemo(() => {
+		const dntLayers = sourceScene.textLayers.filter(
+			(l) => l.doNotTranslate && l.text.trim(),
+		).length;
+		const dntAnnotations = (sourceScene.annotations ?? []).filter(
+			(a) => a.type !== "image" && a.doNotTranslate && a.text.trim(),
+		).length;
+		return dntLayers + dntAnnotations;
+	}, [sourceScene.textLayers, sourceScene.annotations]);
 	const translatableCount = useMemo(
-		() => translatableLayers(sourceScene).length,
+		() =>
+			translatableLayers(sourceScene).length +
+			translatableAnnotations(sourceScene).length,
 		[sourceScene],
 	);
 

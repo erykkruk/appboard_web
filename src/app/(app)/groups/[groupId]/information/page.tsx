@@ -48,7 +48,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CharacterCounter } from "@/components/character-counter";
-import { useAppGroups } from "@/hooks/use-app-groups";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useAppGroups, useGenerateGroupListings } from "@/hooks/use-app-groups";
 import { useAsoProfile } from "@/hooks/use-aso-profile";
 import {
   useEnableSharedProfile,
@@ -280,6 +281,11 @@ export default function GroupInformationPage() {
   const [sourceAppId, setSourceAppId] = useState<string>("empty");
   const [isImporting, setIsImporting] = useState(false);
 
+  // Group listing generation state
+  const generateListings = useGenerateGroupListings();
+  const [generateDialogOpen, setGenerateDialogOpen] = useState(false);
+  const [translateToOthers, setTranslateToOthers] = useState(false);
+
   // Group profile form state
   const [form, setForm] = useState<GroupAsoProfileInput>(EMPTY_PROFILE);
   const [initialized, setInitialized] = useState(false);
@@ -507,12 +513,28 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             </p>
           </div>
 
-          {useSharedProfile && (
-            <ActionsMenu
-              actions={actionsMenuItems}
-              importConfig={{ accept: ".csv,.json", onChange: handleImport }}
-            />
-          )}
+          <div className="flex items-center gap-2">
+            {group.members.length > 0 && (
+              <Button
+                size="sm"
+                onClick={() => setGenerateDialogOpen(true)}
+                disabled={generateListings.isPending}
+              >
+                {generateListings.isPending ? (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Zap className="mr-1.5 h-3.5 w-3.5" />
+                )}
+                Generate listings
+              </Button>
+            )}
+            {useSharedProfile && (
+              <ActionsMenu
+                actions={actionsMenuItems}
+                importConfig={{ accept: ".csv,.json", onChange: handleImport }}
+              />
+            )}
+          </div>
         </div>
 
         {/* Shared profile disabled banner */}
@@ -540,6 +562,73 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
             </Button>
           </div>
         )}
+
+        {/* Generate listings dialog */}
+        <Dialog open={generateDialogOpen} onOpenChange={setGenerateDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Generate Listings for Group</DialogTitle>
+              <DialogDescription>
+                AI will generate listing drafts (title, descriptions, keywords…)
+                for {group.members.length === 1 ? "the app" : `all ${group.members.length} apps`} in
+                this group using {useSharedProfile ? "the shared" : "each app's"} ASO
+                profile. Drafts are written in en-US — nothing is published.
+              </DialogDescription>
+            </DialogHeader>
+
+            <div className="flex items-center gap-3 rounded-lg border p-3">
+              <Checkbox
+                id="translate-to-others"
+                checked={translateToOthers}
+                onCheckedChange={(v) => setTranslateToOthers(v === true)}
+              />
+              <Label htmlFor="translate-to-others" className="cursor-pointer text-sm">
+                Also translate to every other language of each app
+              </Label>
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setGenerateDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={async () => {
+                  setGenerateDialogOpen(false);
+                  try {
+                    const { results } = await generateListings.mutateAsync({
+                      data: { translateToOthers },
+                      groupId,
+                    });
+                    for (const r of results) {
+                      const generated = Object.keys(r.generated).length;
+                      const failed = r.errors.length;
+                      if (failed === 0) {
+                        const translated = r.translation?.translated;
+                        toast.success(
+                          `${r.appName} (${r.platform === "ios" ? "iOS" : "Android"}): ${generated} field${generated === 1 ? "" : "s"} generated${translated ? `, translated to ${translated} language${translated === 1 ? "" : "s"}` : ""}`,
+                        );
+                      } else {
+                        toast.warning(
+                          `${r.appName}: ${generated} generated, ${failed} failed — ${r.errors[0]?.message ?? ""}`,
+                        );
+                      }
+                    }
+                  } catch (err) {
+                    toast.error(
+                      err instanceof Error ? err.message : "Generation failed",
+                    );
+                  }
+                }}
+                disabled={generateListings.isPending}
+              >
+                {generateListings.isPending && (
+                  <Loader2 className="mr-1.5 h-3.5 w-3.5 animate-spin" />
+                )}
+                Generate
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
 
         {/* Enable shared profile dialog */}
         <Dialog open={enableDialogOpen} onOpenChange={setEnableDialogOpen}>

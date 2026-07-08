@@ -44,3 +44,14 @@ export function useSyncStore() {
     },
   });
 }
+
+export function useSyncAllStores() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: () => api.stores.syncAll(),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stores"] });
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
+    },
+  });
+}

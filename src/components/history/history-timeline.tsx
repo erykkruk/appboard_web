@@ -1,7 +1,9 @@
 "use client";
 
-import { Clock, Loader2, Undo2 } from "lucide-react";
+import { ChevronRight, Clock, Loader2, Undo2 } from "lucide-react";
+import { useState } from "react";
 
+import { FieldDiffPanel } from "@/components/diff";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -89,6 +91,20 @@ export function HistoryTimeline({
 	rollbackPendingId,
 	className,
 }: HistoryTimelineProps) {
+	const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+	const toggleExpanded = (entryId: string) => {
+		setExpandedIds((prev) => {
+			const next = new Set(prev);
+			if (next.has(entryId)) {
+				next.delete(entryId);
+			} else {
+				next.add(entryId);
+			}
+			return next;
+		});
+	};
+
 	if (isLoading) {
 		return (
 			<ScrollArea className={cn("h-full", className)}>
@@ -143,53 +159,82 @@ export function HistoryTimeline({
 						<div className="space-y-1">
 							{group.entries.map((entry) => {
 								const isPending = rollbackPendingId === entry.id;
+								const isExpanded = expandedIds.has(entry.id);
 								return (
 									<div
 										key={entry.id}
-										className="flex items-start gap-2 rounded border border-border/50 bg-background/40 p-2 text-xs"
+										className="rounded border border-border/50 bg-background/40 text-xs"
 									>
-										<Badge
-											variant="outline"
-											className="shrink-0 text-[10px] uppercase"
-										>
-											{entry.language}
-										</Badge>
-										<div className="min-w-0 flex-1 space-y-0.5">
-											<div className="font-medium text-foreground">
-												{getListingFieldLabel(entry.field)}
-											</div>
-											<div className="flex items-center gap-1.5 text-muted-foreground">
-												<span
-													className="truncate line-through text-red-400/80"
-													title={entry.oldValue ?? ""}
-												>
-													{truncate(entry.oldValue, PREVIEW_MAX_LENGTH)}
-												</span>
-												<span className="shrink-0">→</span>
-												<span
-													className="truncate text-green-400/80"
-													title={entry.newValue ?? ""}
-												>
-													{truncate(entry.newValue, PREVIEW_MAX_LENGTH)}
-												</span>
-											</div>
-										</div>
-										{onRollback && (
-											<Button
+										<div className="flex items-start gap-2 p-2">
+											<button
 												type="button"
-												variant="ghost"
-												size="sm"
-												className="h-7 shrink-0 px-2"
-												onClick={() => onRollback(entry.id)}
-												disabled={isPending}
-												aria-label={`Rollback ${getListingFieldLabel(entry.field)}`}
+												onClick={() => toggleExpanded(entry.id)}
+												aria-expanded={isExpanded}
+												className="flex min-w-0 flex-1 cursor-pointer items-start gap-2 rounded text-left transition-colors hover:bg-accent/40"
 											>
-												{isPending ? (
-													<Loader2 className="h-3 w-3 animate-spin" />
-												) : (
-													<Undo2 className="h-3 w-3" />
-												)}
-											</Button>
+												<ChevronRight
+													className={cn(
+														"mt-0.5 h-3 w-3 shrink-0 text-muted-foreground transition-transform",
+														isExpanded && "rotate-90",
+													)}
+												/>
+												<Badge
+													variant="outline"
+													className="shrink-0 text-[10px] uppercase"
+												>
+													{entry.language}
+												</Badge>
+												<div className="min-w-0 flex-1 space-y-0.5">
+													<div className="font-medium text-foreground">
+														{getListingFieldLabel(entry.field)}
+													</div>
+													{!isExpanded && (
+														<div className="flex items-center gap-1.5 text-muted-foreground">
+															<span
+																className="truncate line-through text-red-400/80"
+																title={entry.oldValue ?? ""}
+															>
+																{truncate(entry.oldValue, PREVIEW_MAX_LENGTH)}
+															</span>
+															<span className="shrink-0">→</span>
+															<span
+																className="truncate text-green-400/80"
+																title={entry.newValue ?? ""}
+															>
+																{truncate(entry.newValue, PREVIEW_MAX_LENGTH)}
+															</span>
+														</div>
+													)}
+												</div>
+											</button>
+											{onRollback && (
+												<Button
+													type="button"
+													variant="ghost"
+													size="sm"
+													className="h-7 shrink-0 px-2"
+													onClick={(e) => {
+														e.stopPropagation();
+														onRollback(entry.id);
+													}}
+													disabled={isPending}
+													aria-label={`Rollback ${getListingFieldLabel(entry.field)}`}
+												>
+													{isPending ? (
+														<Loader2 className="h-3 w-3 animate-spin" />
+													) : (
+														<Undo2 className="h-3 w-3" />
+													)}
+												</Button>
+											)}
+										</div>
+										{isExpanded && (
+											<div className="px-2 pb-2">
+												<FieldDiffPanel
+													oldValue={entry.oldValue ?? ""}
+													newValue={entry.newValue ?? ""}
+												/>
+											</div>
 										)}
 									</div>
 								);

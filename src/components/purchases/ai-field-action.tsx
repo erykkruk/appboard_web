@@ -91,7 +91,7 @@ export function AiFieldAction({
 			const res = await api.ai.translate({
 				text: currentValue,
 				targetLanguages: otherLocales,
-			} as Parameters<typeof api.ai.translate>[0]);
+			});
 			if (res && typeof res === "object" && "translations" in res) {
 				onTranslateResults(
 					(res as { translations: Record<string, string> }).translations,

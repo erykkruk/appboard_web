@@ -33,9 +33,14 @@ import { cn } from "@/lib/utils";
 import type {
 	SceneAnnotation,
 	SceneAnnotationType,
+	SceneBackgroundFit,
+	SceneCustomFont,
 	SceneData,
+	SceneDeviceColor,
 	SceneDeviceFrame,
+	SceneImageAnnotation,
 	SceneTextAlign,
+	SceneTextAnnotation,
 	SceneTextLayer,
 } from "@/lib/types";
 
@@ -67,6 +72,20 @@ const ANNOTATION_META: Record<
 	label: { label: "Etykieta", icon: Type },
 };
 
+/** List/panel meta for any annotation, including image layers. */
+function annotationMeta(annotation: SceneAnnotation): {
+	label: string;
+	icon: typeof Tag;
+} {
+	if (annotation.type === "image") {
+		return { label: "Image", icon: ImageIcon };
+	}
+	return ANNOTATION_META[annotation.type];
+}
+
+/** The Select value that triggers the custom-font upload flow. */
+const UPLOAD_FONT_VALUE = "__upload-font";
+
 interface LayersPanelProps {
 	scene: SceneData;
 	selectedLayerId: string | null;
@@ -74,6 +93,7 @@ interface LayersPanelProps {
 	onAddText: () => void;
 	onDeleteText: (id: string) => void;
 	onAddAnnotation: (type: SceneAnnotationType) => void;
+	onAddImage: () => void;
 	onDeleteAnnotation: (id: string) => void;
 }
 
@@ -85,6 +105,7 @@ export function LayersPanel({
 	onAddText,
 	onDeleteText,
 	onAddAnnotation,
+	onAddImage,
 	onDeleteAnnotation,
 }: LayersPanelProps) {
 	const annotations = scene.annotations ?? [];
@@ -161,36 +182,42 @@ export function LayersPanel({
 				<span className="text-xs font-medium text-muted-foreground">
 					Adnotacje
 				</span>
-				<DropdownMenu>
-					<DropdownMenuTrigger asChild>
-						<Button size="sm" variant="ghost">
-							<Plus className="h-4 w-4" />
-							Dodaj
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						{(
-							Object.keys(ANNOTATION_META) as SceneAnnotationType[]
-						).map((type) => {
-							const { label, icon: Icon } = ANNOTATION_META[type];
-							return (
-								<DropdownMenuItem
-									key={type}
-									onSelect={() => onAddAnnotation(type)}
-								>
-									<Icon className="h-4 w-4" />
-									{label}
-								</DropdownMenuItem>
-							);
-						})}
-					</DropdownMenuContent>
-				</DropdownMenu>
+				<div className="flex items-center">
+					<Button size="sm" variant="ghost" onClick={onAddImage}>
+						<ImageIcon className="h-4 w-4" />
+						Add image
+					</Button>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button size="sm" variant="ghost">
+								<Plus className="h-4 w-4" />
+								Dodaj
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end">
+							{(
+								Object.keys(ANNOTATION_META) as SceneAnnotationType[]
+							).map((type) => {
+								const { label, icon: Icon } = ANNOTATION_META[type];
+								return (
+									<DropdownMenuItem
+										key={type}
+										onSelect={() => onAddAnnotation(type)}
+									>
+										<Icon className="h-4 w-4" />
+										{label}
+									</DropdownMenuItem>
+								);
+							})}
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
 			</div>
 			{annotations.length === 0 && (
 				<p className="px-2 text-xs text-muted-foreground">Brak adnotacji.</p>
 			)}
 			{annotations.map((annotation) => {
-				const { icon: Icon } = ANNOTATION_META[annotation.type];
+				const { label, icon: Icon } = annotationMeta(annotation);
 				return (
 					<div
 						key={annotation.id}
@@ -208,7 +235,9 @@ export function LayersPanel({
 						>
 							<Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
 							<span className="truncate">
-								{annotation.text || ANNOTATION_META[annotation.type].label}
+								{annotation.type === "image"
+									? label
+									: annotation.text || label}
 							</span>
 						</button>
 						<button
@@ -234,6 +263,10 @@ interface PropertiesPanelProps {
 	onPatchAnnotation: (id: string, patch: Partial<SceneAnnotation>) => void;
 	onPickBackgroundImage: () => void;
 	onPickScreenshot: () => void;
+	onPickExistingScreenshot: () => void;
+	onUploadFont: () => void;
+	onReplaceAnnotationImage: (id: string) => void;
+	onDeleteAnnotation: (id: string) => void;
 }
 
 /** Right-side contextual properties for the currently selected layer. */
@@ -245,6 +278,10 @@ export function PropertiesPanel({
 	onPatchAnnotation,
 	onPickBackgroundImage,
 	onPickScreenshot,
+	onPickExistingScreenshot,
+	onUploadFont,
+	onReplaceAnnotationImage,
+	onDeleteAnnotation,
 }: PropertiesPanelProps) {
 	const selectedText = scene.textLayers.find((l) => l.id === selectedLayerId);
 	const selectedAnnotation = (scene.annotations ?? []).find(
@@ -265,15 +302,28 @@ export function PropertiesPanel({
 					scene={scene}
 					onPatchScene={onPatchScene}
 					onPickScreenshot={onPickScreenshot}
+					onPickExistingScreenshot={onPickExistingScreenshot}
 				/>
 			)}
 			{selectedText && (
 				<TextProperties
 					layer={selectedText}
+					customFonts={scene.customFonts}
 					onPatch={(patch) => onPatchTextLayer(selectedText.id, patch)}
+					onUploadFont={onUploadFont}
 				/>
 			)}
-			{selectedAnnotation && (
+			{selectedAnnotation && selectedAnnotation.type === "image" && (
+				<ImageAnnotationProperties
+					annotation={selectedAnnotation}
+					onPatch={(patch) => onPatchAnnotation(selectedAnnotation.id, patch)}
+					onReplaceImage={() =>
+						onReplaceAnnotationImage(selectedAnnotation.id)
+					}
+					onDelete={() => onDeleteAnnotation(selectedAnnotation.id)}
+				/>
+			)}
+			{selectedAnnotation && selectedAnnotation.type !== "image" && (
 				<AnnotationProperties
 					annotation={selectedAnnotation}
 					onPatch={(patch) => onPatchAnnotation(selectedAnnotation.id, patch)}
@@ -399,10 +449,70 @@ function BackgroundProperties({
 			)}
 
 			{bg.type === "image" && (
-				<Button variant="outline" size="sm" onClick={onPickBackgroundImage}>
-					<ImageIcon className="h-4 w-4" />
-					{bg.value ? "Zmień obraz tła" : "Wgraj obraz tła"}
-				</Button>
+				<>
+					<Button variant="outline" size="sm" onClick={onPickBackgroundImage}>
+						<ImageIcon className="h-4 w-4" />
+						{bg.value ? "Zmień obraz tła" : "Wgraj obraz tła"}
+					</Button>
+
+					<div className="flex flex-col gap-1.5">
+						<Label className="text-xs">Fit</Label>
+						<Select
+							value={bg.fit ?? "cover"}
+							onValueChange={(fit) =>
+								onPatchScene({
+									background: { ...bg, fit: fit as SceneBackgroundFit },
+								})
+							}
+						>
+							<SelectTrigger>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="cover">Fill (cover)</SelectItem>
+								<SelectItem value="contain">Fit (contain)</SelectItem>
+								<SelectItem value="stretch">Stretch</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+
+					{(bg.fit ?? "cover") === "cover" && (
+						<>
+							<div className="flex flex-col gap-1.5">
+								<Label className="text-xs">
+									Horizontal focus: {Math.round((bg.offsetX ?? 0) * 100)}%
+								</Label>
+								<Slider
+									min={-100}
+									max={100}
+									step={1}
+									value={[Math.round((bg.offsetX ?? 0) * 100)]}
+									onValueChange={([v]) =>
+										onPatchScene({
+											background: { ...bg, offsetX: v / 100 },
+										})
+									}
+								/>
+							</div>
+							<div className="flex flex-col gap-1.5">
+								<Label className="text-xs">
+									Vertical focus: {Math.round((bg.offsetY ?? 0) * 100)}%
+								</Label>
+								<Slider
+									min={-100}
+									max={100}
+									step={1}
+									value={[Math.round((bg.offsetY ?? 0) * 100)]}
+									onValueChange={([v]) =>
+										onPatchScene({
+											background: { ...bg, offsetY: v / 100 },
+										})
+									}
+								/>
+							</div>
+						</>
+					)}
+				</>
 			)}
 		</div>
 	);
@@ -412,10 +522,12 @@ function DeviceProperties({
 	scene,
 	onPatchScene,
 	onPickScreenshot,
+	onPickExistingScreenshot,
 }: {
 	scene: SceneData;
 	onPatchScene: (patch: Partial<SceneData>) => void;
 	onPickScreenshot: () => void;
+	onPickExistingScreenshot: () => void;
 }) {
 	const device = scene.device ?? {
 		frame: "iphone" as SceneDeviceFrame,
@@ -448,6 +560,28 @@ function DeviceProperties({
 				</Select>
 			</div>
 
+			{device.frame !== "none" && (
+				<div className="flex flex-col gap-1.5">
+					<Label className="text-xs">Kolor ramki</Label>
+					<Select
+						value={device.color ?? (device.frame === "android" ? "black" : "silver")}
+						onValueChange={(color) =>
+							onPatchScene({
+								device: { ...device, color: color as SceneDeviceColor },
+							})
+						}
+					>
+						<SelectTrigger>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="silver">Srebrny</SelectItem>
+							<SelectItem value="black">Czarny</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+			)}
+
 			<div className="flex flex-col gap-1.5">
 				<Label className="text-xs">
 					Rozmiar: {Math.round(device.scale * 100)}%
@@ -459,6 +593,19 @@ function DeviceProperties({
 					value={[Math.round(device.scale * 100)]}
 					onValueChange={([v]) =>
 						onPatchScene({ device: { ...device, scale: v / 100 } })
+					}
+				/>
+			</div>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">Horizontal position</Label>
+				<Slider
+					min={-40}
+					max={40}
+					step={1}
+					value={[Math.round(device.offsetX * 100)]}
+					onValueChange={([v]) =>
+						onPatchScene({ device: { ...device, offsetX: v / 100 } })
 					}
 				/>
 			</div>
@@ -476,9 +623,44 @@ function DeviceProperties({
 				/>
 			</div>
 
+			<div className="flex flex-col gap-1.5">
+				<div className="flex items-center justify-between">
+					<Label className="text-xs">
+						Rotation: {Math.round(device.rotation ?? 0)}°
+					</Label>
+					{(device.rotation ?? 0) !== 0 && (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-6 px-2 text-xs"
+							onClick={() =>
+								onPatchScene({ device: { ...device, rotation: 0 } })
+							}
+						>
+							Reset
+						</Button>
+					)}
+				</div>
+				<Slider
+					min={-45}
+					max={45}
+					step={1}
+					value={[Math.round(device.rotation ?? 0)]}
+					onValueChange={([v]) =>
+						onPatchScene({ device: { ...device, rotation: v } })
+					}
+				/>
+			</div>
+
 			<Button variant="outline" size="sm" onClick={onPickScreenshot}>
 				<ImageIcon className="h-4 w-4" />
 				{scene.screenshot?.url ? "Zmień screenshot" : "Wgraj screenshot"}
+			</Button>
+
+			<Button variant="outline" size="sm" onClick={onPickExistingScreenshot}>
+				<ImageIcon className="h-4 w-4" />
+				Wybierz z wgranych
 			</Button>
 
 			<div className="flex flex-col gap-1.5">
@@ -509,10 +691,14 @@ function DeviceProperties({
 
 function TextProperties({
 	layer,
+	customFonts,
 	onPatch,
+	onUploadFont,
 }: {
 	layer: SceneTextLayer;
+	customFonts?: SceneCustomFont[];
 	onPatch: (patch: Partial<SceneTextLayer>) => void;
+	onUploadFont: () => void;
 }) {
 	return (
 		<div className="flex flex-col gap-3">
@@ -530,7 +716,13 @@ function TextProperties({
 				<Label className="text-xs">Czcionka</Label>
 				<Select
 					value={layer.fontFamily}
-					onValueChange={(fontFamily) => onPatch({ fontFamily })}
+					onValueChange={(fontFamily) => {
+						if (fontFamily === UPLOAD_FONT_VALUE) {
+							onUploadFont();
+							return;
+						}
+						onPatch({ fontFamily });
+					}}
 				>
 					<SelectTrigger>
 						<SelectValue />
@@ -541,6 +733,12 @@ function TextProperties({
 								{f.label}
 							</SelectItem>
 						))}
+						{(customFonts ?? []).map((f) => (
+							<SelectItem key={f.family} value={f.family}>
+								{f.family}
+							</SelectItem>
+						))}
+						<SelectItem value={UPLOAD_FONT_VALUE}>Upload font…</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
@@ -562,6 +760,28 @@ function TextProperties({
 					value={layer.color}
 					onChange={(color) => onPatch({ color })}
 				/>
+			</div>
+
+			<div className="flex items-center gap-2 rounded-md border border-border/60 p-2.5">
+				<Checkbox
+					id={`bg-${layer.id}`}
+					checked={layer.bg != null}
+					onCheckedChange={(checked) =>
+						onPatch({ bg: checked === true ? (layer.bg ?? "#000000") : undefined })
+					}
+				/>
+				<Label htmlFor={`bg-${layer.id}`} className="flex-1 text-xs">
+					Tło pod tekstem
+				</Label>
+				{layer.bg != null && (
+					<input
+						type="color"
+						value={layer.bg}
+						onChange={(e) => onPatch({ bg: e.target.value })}
+						className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+						aria-label="Kolor tła tekstu"
+					/>
+				)}
 			</div>
 
 			<div className="flex flex-col gap-1.5">
@@ -626,12 +846,101 @@ function TextProperties({
 	);
 }
 
+/**
+ * Properties for a user image layer: size, opacity, rotation, replace/delete.
+ * Text-related controls don't apply here, so image layers get their own panel.
+ */
+function ImageAnnotationProperties({
+	annotation,
+	onPatch,
+	onReplaceImage,
+	onDelete,
+}: {
+	annotation: SceneImageAnnotation;
+	onPatch: (patch: Partial<SceneImageAnnotation>) => void;
+	onReplaceImage: () => void;
+	onDelete: () => void;
+}) {
+	return (
+		<div className="flex flex-col gap-3">
+			<h4 className="text-sm font-semibold">Image layer</h4>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">
+					Width: {Math.round(annotation.width * 100)}%
+				</Label>
+				<Slider
+					min={5}
+					max={100}
+					step={1}
+					value={[Math.round(annotation.width * 100)]}
+					onValueChange={([v]) => onPatch({ width: v / 100 })}
+				/>
+			</div>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">
+					Opacity: {Math.round((annotation.opacity ?? 1) * 100)}%
+				</Label>
+				<Slider
+					min={0}
+					max={100}
+					step={1}
+					value={[Math.round((annotation.opacity ?? 1) * 100)]}
+					onValueChange={([v]) => onPatch({ opacity: v / 100 })}
+				/>
+			</div>
+
+			<div className="flex flex-col gap-1.5">
+				<div className="flex items-center justify-between">
+					<Label className="text-xs">
+						Rotation: {Math.round(annotation.rotation ?? 0)}°
+					</Label>
+					{(annotation.rotation ?? 0) !== 0 && (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-6 px-2 text-xs"
+							onClick={() => onPatch({ rotation: 0 })}
+						>
+							Reset
+						</Button>
+					)}
+				</div>
+				<Slider
+					min={-180}
+					max={180}
+					step={1}
+					value={[Math.round(annotation.rotation ?? 0)]}
+					onValueChange={([v]) => onPatch({ rotation: v })}
+				/>
+			</div>
+
+			<Button variant="outline" size="sm" onClick={onReplaceImage}>
+				<ImageIcon className="h-4 w-4" />
+				Replace image
+			</Button>
+
+			<Button
+				variant="outline"
+				size="sm"
+				className="text-red-500 hover:text-red-600"
+				onClick={onDelete}
+			>
+				<Trash2 className="h-4 w-4" />
+				Delete
+			</Button>
+		</div>
+	);
+}
+
 function AnnotationProperties({
 	annotation,
 	onPatch,
 }: {
-	annotation: SceneAnnotation;
-	onPatch: (patch: Partial<SceneAnnotation>) => void;
+	annotation: SceneTextAnnotation;
+	onPatch: (patch: Partial<SceneTextAnnotation>) => void;
 }) {
 	const { label } = ANNOTATION_META[annotation.type];
 	return (

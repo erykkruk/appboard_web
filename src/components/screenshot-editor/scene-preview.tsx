@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
+import { ensureCustomFontsLoaded } from "@/lib/scene-fonts";
 import type { SceneData } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -38,9 +39,34 @@ export function ScenePreview({ scene, className }: ScenePreviewProps) {
 						height: loaded.screenshot.height,
 					}
 				: undefined,
+			annotations: loaded.annotations
+				? Object.fromEntries(
+						Object.entries(loaded.annotations).map(([id, img]) => [
+							id,
+							{
+								source: img.element,
+								width: img.width,
+								height: img.height,
+							},
+						]),
+					)
+				: undefined,
 		}),
-		[loaded.background, loaded.screenshot],
+		[loaded.background, loaded.screenshot, loaded.annotations],
 	);
+
+	// Re-render once the scene's custom fonts finish loading so the thumbnail
+	// shows the real glyphs, not a fallback family.
+	const [fontsVersion, setFontsVersion] = useState(0);
+	useEffect(() => {
+		let cancelled = false;
+		ensureCustomFontsLoaded(scene).then(() => {
+			if (!cancelled) setFontsVersion((v) => v + 1);
+		});
+		return () => {
+			cancelled = true;
+		};
+	}, [scene]);
 
 	useEffect(() => {
 		const canvas = canvasRef.current;
@@ -48,7 +74,7 @@ export function ScenePreview({ scene, className }: ScenePreviewProps) {
 		const ctx = canvas.getContext("2d");
 		if (!ctx) return;
 		renderScene(ctx, scene, renderImages);
-	}, [scene, renderImages]);
+	}, [scene, renderImages, fontsVersion]);
 
 	return (
 		<canvas
