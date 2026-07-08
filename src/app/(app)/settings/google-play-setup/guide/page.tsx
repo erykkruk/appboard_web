@@ -138,14 +138,33 @@ echo_success "Monitoring Viewer role assigned."
 
 echo_info "Allowing service account key creation (Google blocks this by default via an org policy)..."
 gcloud services enable orgpolicy.googleapis.com 2>/dev/null || true
-if gcloud resource-manager org-policies disable-enforce iam.disableServiceAccountKeyCreation --project=$PROJECT_ID 2>/dev/null; then
-  echo_success "Org policy updated — key creation is allowed for this project."
-  echo_info "Waiting 20s for the policy change to propagate..."
-  sleep 20
+# roles/owner does NOT include permission to change org policies — grant the
+# current user Org Policy Administrator on this project first (owner can do this).
+ACTIVE_ACCOUNT=$(gcloud config get-value account 2>/dev/null)
+if [ -n "$ACTIVE_ACCOUNT" ]; then
+  gcloud projects add-iam-policy-binding $PROJECT_ID \\
+    --member="user:$ACTIVE_ACCOUNT" \\
+    --role="roles/orgpolicy.policyAdmin" >/dev/null 2>&1 || true
+  echo_info "Waiting 15s for the Org Policy Admin grant to propagate..."
+  sleep 15
+fi
+# Set an explicit PROJECT-level override that turns enforcement OFF. This works
+# even when the constraint is inherited/enforced above the project. The modern
+# 'org-policies set-policy' replaces the deprecated 'disable-enforce'.
+cat > /tmp/appboard-key-policy.yaml <<POLICY
+name: projects/$PROJECT_ID/policies/iam.disableServiceAccountKeyCreation
+spec:
+  rules:
+  - enforce: false
+POLICY
+if gcloud org-policies set-policy /tmp/appboard-key-policy.yaml >/dev/null 2>&1; then
+  echo_success "Org policy overridden for this project — key creation is allowed."
+  echo_info "Waiting 30s for the policy change to propagate..."
+  sleep 30
 else
-  echo_warning "Could not change the org policy 'iam.disableServiceAccountKeyCreation' automatically."
-  echo_warning "You likely need the 'Organization Policy Administrator' role, or it is enforced at the organization level."
-  echo_warning "If the key step below fails, allow it for this project (IAM & Admin > Organization Policies), then re-run this script."
+  echo_warning "Could not override 'iam.disableServiceAccountKeyCreation' automatically."
+  echo_warning "It is likely LOCKED at the organization level — a Google Workspace / Cloud org admin must allow it for this project."
+  echo_warning "Manual fix: IAM & Admin > Organization Policies > 'Disable service account key creation' > Manage policy > Override parent's policy > Off, then re-run this script."
 fi
 
 echo_info "Generating service account key..."

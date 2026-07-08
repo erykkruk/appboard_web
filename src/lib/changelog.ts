@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.5",
+    serverVersion: "0.6.2",
+    date: "2026-07-08",
+    changes: [
+      "Google Play setup script: now grants Org Policy Admin and sets a project-level override so service-account key creation works even when Google's org policy blocks it by default",
+      "App Store: opening a listing for a language with no synced data no longer errors with 'Listing not found'",
+      "Reliability: all backend errors are now recorded to the database (secrets scrubbed) for faster diagnosis",
+    ],
+  },
+  {
     version: "0.6.4",
     serverVersion: "0.6.1",
     date: "2026-07-08",
