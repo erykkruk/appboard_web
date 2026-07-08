@@ -114,13 +114,16 @@ ${enableBlock}
 echo_success "APIs enabled successfully."
 
 echo_info "Creating service account: $SERVICE_ACCOUNT_NAME"
-gcloud iam service-accounts create $SERVICE_ACCOUNT_NAME \\
-  --description="Service account for AppBoard integration" \\
-  --display-name="AppBoard Service Account"
-echo_success "Service account created successfully."
-
-echo_info "Waiting 30s for service account to be available..."
-sleep 30
+if gcloud iam service-accounts describe "$SERVICE_ACCOUNT_NAME@$PROJECT_ID.iam.gserviceaccount.com" >/dev/null 2>&1; then
+  echo_warning "Service account already exists — reusing it (script is safe to re-run)."
+else
+  gcloud iam service-accounts create $SERVICE_ACCOUNT_NAME \\
+    --description="Service account for AppBoard integration" \\
+    --display-name="AppBoard Service Account"
+  echo_success "Service account created successfully."
+  echo_info "Waiting 30s for service account to be available..."
+  sleep 30
+fi
 
 echo_info "Granting roles to the service account..."
 gcloud projects add-iam-policy-binding $PROJECT_ID \\
@@ -133,9 +136,39 @@ gcloud projects add-iam-policy-binding $PROJECT_ID \\
   --role="roles/monitoring.viewer"
 echo_success "Monitoring Viewer role assigned."
 
+echo_info "Allowing service account key creation (Google blocks this by default via an org policy)..."
+gcloud services enable orgpolicy.googleapis.com 2>/dev/null || true
+if gcloud resource-manager org-policies disable-enforce iam.disableServiceAccountKeyCreation --project=$PROJECT_ID 2>/dev/null; then
+  echo_success "Org policy updated — key creation is allowed for this project."
+  echo_info "Waiting 20s for the policy change to propagate..."
+  sleep 20
+else
+  echo_warning "Could not change the org policy 'iam.disableServiceAccountKeyCreation' automatically."
+  echo_warning "You likely need the 'Organization Policy Administrator' role, or it is enforced at the organization level."
+  echo_warning "If the key step below fails, allow it for this project (IAM & Admin > Organization Policies), then re-run this script."
+fi
+
 echo_info "Generating service account key..."
-gcloud iam service-accounts keys create $KEY_FILE_NAME.json \\
-  --iam-account="$SERVICE_ACCOUNT_NAME@$PROJECT_ID.iam.gserviceaccount.com"
+KEY_OK=false
+for attempt in 1 2 3; do
+  set +e
+  gcloud iam service-accounts keys create $KEY_FILE_NAME.json \\
+    --iam-account="$SERVICE_ACCOUNT_NAME@$PROJECT_ID.iam.gserviceaccount.com"
+  STATUS=$?
+  set -e
+  if [ $STATUS -eq 0 ]; then
+    KEY_OK=true
+    break
+  fi
+  echo_warning "Key creation failed (attempt $attempt/3) — waiting 15s in case the policy change is still propagating..."
+  sleep 15
+done
+if [ "$KEY_OK" != "true" ]; then
+  echo_error "Could not create the service account key after 3 attempts."
+  echo_error "This is almost always the org policy 'iam.disableServiceAccountKeyCreation' still blocking it."
+  echo_error "Fix: IAM & Admin > Organization Policies > 'Disable service account key creation' > Manage policy > Off (this project), then re-run this script."
+  exit 1
+fi
 echo_success "Service account key created: $KEY_FILE_NAME.json"
 echo_info "Download this key and upload it to AppBoard in Settings > Google Play Setup."
 
