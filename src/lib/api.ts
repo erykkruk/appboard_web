@@ -1346,6 +1346,10 @@ export const api = {
 				body: JSON.stringify({ name }),
 				method: "PATCH",
 			}),
+		resync: (id: string) =>
+			fetchApi<{ synced: number }>(`/api/stores/${id}/resync`, {
+				method: "POST",
+			}),
 		sync: (id: string) =>
 			fetchApi<{ synced: number }>(`/api/stores/${id}/sync`, {
 				method: "POST",

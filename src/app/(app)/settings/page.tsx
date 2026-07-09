@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import {
+  DownloadCloud,
   ExternalLink,
   Eye,
   EyeOff,
@@ -18,6 +19,16 @@ import { toast } from "sonner";
 import { StoreLogo } from "@/components/store-logo";
 import { StoreAccessReport } from "@/components/stores/store-access-report";
 import { StoreCapabilitiesPicker } from "@/components/stores/store-capabilities-picker";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -57,6 +68,7 @@ import {
   useStoreCapabilities,
   useStoreCapabilityCatalog,
   useStores,
+  useResyncStore,
   useSyncAllStores,
   useSyncStore,
   useUpdateStoreCapabilities,
@@ -373,6 +385,11 @@ export default function SettingsGeneralPage() {
   const stores = useStores();
   const disconnectStore = useDisconnectStore();
   const syncStore = useSyncStore();
+  const resyncStore = useResyncStore();
+  const [resyncTarget, setResyncTarget] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
   const syncAllStores = useSyncAllStores();
   const renameStore = useRenameStore();
   const [renamingStore, setRenamingStore] = useState<Store | null>(null);
@@ -480,6 +497,20 @@ export default function SettingsGeneralPage() {
       toast.success("Store synced");
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to sync store");
+    }
+  };
+
+  const handleResync = async () => {
+    if (!resyncTarget) return;
+    const { id, name } = resyncTarget;
+    setResyncTarget(null);
+    try {
+      await resyncStore.mutateAsync(id);
+      toast.success(`Re-imported apps from ${name}`);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to re-import apps",
+      );
     }
   };
 
@@ -603,6 +634,25 @@ export default function SettingsGeneralPage() {
                           <Loader2 className="h-4 w-4 animate-spin" />
                         ) : (
                           <RefreshCw className="h-4 w-4" />
+                        )}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8"
+                        onClick={() =>
+                          setResyncTarget({ id: store.id, name: store.name })
+                        }
+                        disabled={
+                          resyncStore.isPending || syncAllStores.isPending
+                        }
+                        aria-label="Re-import apps from account"
+                      >
+                        {resyncStore.isPending &&
+                        resyncStore.variables === store.id ? (
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                        ) : (
+                          <DownloadCloud className="h-4 w-4" />
                         )}
                       </Button>
                       <Button
@@ -735,6 +785,33 @@ export default function SettingsGeneralPage() {
       />
 
       <VaultSettingsCard />
+
+      <AlertDialog
+        open={!!resyncTarget}
+        onOpenChange={(open) => {
+          if (!open) setResyncTarget(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Re-import apps from {resyncTarget?.name}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              This deletes all locally stored apps for this connection —
+              including drafts, listing history and screenshots — and imports
+              everything fresh from the store account. Use this after switching
+              the connection to a different account.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleResync}>
+              Re-import
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Card>
         <CardHeader>

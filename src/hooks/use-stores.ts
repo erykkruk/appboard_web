@@ -57,6 +57,18 @@ export function useSyncStore() {
   });
 }
 
+export function useResyncStore() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (id: string) => api.stores.resync(id),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stores"] });
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
+      queryClient.invalidateQueries({ queryKey: ["app-groups"] });
+    },
+  });
+}
+
 export function useSyncAllStores() {
   const queryClient = useQueryClient();
   return useMutation({
