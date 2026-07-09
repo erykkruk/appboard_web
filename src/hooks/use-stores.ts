@@ -57,6 +57,18 @@ export function useSyncStore() {
   });
 }
 
+export function useAddStorePackage() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, packageName }: { id: string; packageName: string }) =>
+      api.stores.addPackage(id, packageName),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["stores"] });
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
+    },
+  });
+}
+
 export function useResyncStore() {
   const queryClient = useQueryClient();
   return useMutation({

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import {
   DownloadCloud,
+  PackagePlus,
   ExternalLink,
   Eye,
   EyeOff,
@@ -68,6 +69,7 @@ import {
   useStoreCapabilities,
   useStoreCapabilityCatalog,
   useStores,
+  useAddStorePackage,
   useResyncStore,
   useSyncAllStores,
   useSyncStore,
@@ -393,6 +395,9 @@ export default function SettingsGeneralPage() {
   const syncAllStores = useSyncAllStores();
   const renameStore = useRenameStore();
   const [renamingStore, setRenamingStore] = useState<Store | null>(null);
+  const [packageStore, setPackageStore] = useState<Store | null>(null);
+  const [packageValue, setPackageValue] = useState("");
+  const addStorePackage = useAddStorePackage();
   const [renameValue, setRenameValue] = useState("");
   const [managingStore, setManagingStore] = useState<Store | null>(null);
   const [verifyingStore, setVerifyingStore] = useState<Store | null>(null);
@@ -464,6 +469,22 @@ export default function SettingsGeneralPage() {
     } catch (err) {
       toast.error(
         err instanceof Error ? err.message : "Failed to disconnect store",
+      );
+    }
+  };
+
+  const handleAddPackage = async () => {
+    if (!packageStore) return;
+    const packageName = packageValue.trim();
+    if (!packageName) return;
+    try {
+      await addStorePackage.mutateAsync({ id: packageStore.id, packageName });
+      toast.success(`Added ${packageName} and synced`);
+      setPackageStore(null);
+      setPackageValue("");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Failed to add package",
       );
     }
   };
@@ -636,6 +657,20 @@ export default function SettingsGeneralPage() {
                           <RefreshCw className="h-4 w-4" />
                         )}
                       </Button>
+                      {store.type === "google_play" && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => {
+                            setPackageStore(store);
+                            setPackageValue("");
+                          }}
+                          aria-label="Add app by package name"
+                        >
+                          <PackagePlus className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -785,6 +820,55 @@ export default function SettingsGeneralPage() {
       />
 
       <VaultSettingsCard />
+
+      <Dialog
+        open={packageStore !== null}
+        onOpenChange={(open) => {
+          if (!open) setPackageStore(null);
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Add app by package name</DialogTitle>
+            <DialogDescription>
+              Brand-new draft apps (no release yet) are invisible to
+              auto-discovery. Enter the package name from Play Console — the
+              service account must have access to the app.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="package-name">Package name</Label>
+            <Input
+              id="package-name"
+              placeholder="com.example.app"
+              value={packageValue}
+              onChange={(e) => setPackageValue(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAddPackage();
+              }}
+            />
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPackageStore(null)}
+              disabled={addStorePackage.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleAddPackage}
+              disabled={addStorePackage.isPending || !packageValue.trim()}
+            >
+              {addStorePackage.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                "Add & sync"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog
         open={!!resyncTarget}
