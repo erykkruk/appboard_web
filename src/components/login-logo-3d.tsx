@@ -34,16 +34,16 @@ export function LoginLogo3d(): JSX.Element {
       const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 1000);
       camera.position.set(0, 0, 260);
 
-      const rim = new THREE.DirectionalLight(0xb7b9ff, 5);
+      const rim = new THREE.DirectionalLight(0x8f91ff, 6);
       rim.position.set(-160, 180, 90);
       scene.add(rim);
-      const key = new THREE.DirectionalLight(0x8f91ff, 1.6);
+      const key = new THREE.DirectionalLight(0x22d3ee, 1.4);
       key.position.set(80, 20, 280);
       scene.add(key);
       scene.add(new THREE.AmbientLight(0x1c2030, 2));
 
       const material = new THREE.MeshStandardMaterial({
-        color: 0x14151d,
+        color: 0x171a28,
         metalness: 0.7,
         roughness: 0.32,
       });
