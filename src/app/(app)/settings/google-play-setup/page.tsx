@@ -188,6 +188,29 @@ export default function GooglePlaySetupPage() {
 				</CardContent>
 			</Card>
 
+			<Card className="border-dashed">
+				<CardContent className="space-y-2 p-4">
+					<p className="text-sm font-medium">
+						Ran the setup script in Cloud Shell?
+					</p>
+					<p className="text-sm text-muted-foreground">
+						Download the generated key to your computer, then upload it below.
+						In the Cloud Shell terminal run:
+					</p>
+					<code className="block rounded-lg border border-border bg-[#0a0a0a] px-3 py-2 font-mono text-xs text-muted-foreground">
+						cloudshell download appboard-key.json
+					</code>
+					<p className="text-sm text-muted-foreground">
+						A browser download opens. Alternatively, right-click{" "}
+						<code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+							appboard-key.json
+						</code>{" "}
+						in the Cloud Shell Editor file tree and choose{" "}
+						<span className="text-foreground">Download</span>.
+					</p>
+				</CardContent>
+			</Card>
+
 			<div>
 				<label className="mb-2 block text-sm font-medium" htmlFor="sa-json">
 					Service Account JSON
