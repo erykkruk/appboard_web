@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.9",
+    serverVersion: "0.6.3",
+    date: "2026-07-09",
+    changes: [
+      "Google Play setup: the script now auto-downloads the key file and the guide explains how to grab it (cloudshell download / right-click Download)",
+    ],
+  },
+  {
     version: "0.6.8",
     serverVersion: "0.6.3",
     date: "2026-07-09",

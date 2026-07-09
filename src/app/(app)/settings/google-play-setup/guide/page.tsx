@@ -208,7 +208,6 @@ if [ "$KEY_OK" != "true" ]; then
   exit 1
 fi
 echo_success "Service account key created: $KEY_FILE_NAME.json"
-echo_info "Download this key and upload it to AppBoard in Settings > Google Play Setup."
 
 echo_info "Verifying service account and key details..."
 gcloud iam service-accounts list | grep $SERVICE_ACCOUNT_NAME
@@ -216,7 +215,16 @@ gcloud iam service-accounts list | grep $SERVICE_ACCOUNT_NAME
 echo_info "Listing keys for the service account..."
 gcloud iam service-accounts keys list \\
   --iam-account="$SERVICE_ACCOUNT_NAME@$PROJECT_ID.iam.gserviceaccount.com"
-echo_success "Setup complete! Download $KEY_FILE_NAME.json and upload it to AppBoard."
+
+# Trigger a browser download of the key straight from Cloud Shell.
+if command -v cloudshell >/dev/null 2>&1; then
+  echo_info "Downloading the key to your computer..."
+  cloudshell download $KEY_FILE_NAME.json || echo_warning "Auto-download failed — run: cloudshell download $KEY_FILE_NAME.json"
+fi
+echo_success "Setup complete!"
+echo_info "Download the key with:  cloudshell download $KEY_FILE_NAME.json"
+echo_info "(or right-click $KEY_FILE_NAME.json in the Cloud Shell Editor > Download)"
+echo_info "Then upload it to AppBoard in Settings > Google Play Setup."
 
 exit 0`;
 }
@@ -482,7 +490,12 @@ function GuideContent() {
 									<code className="rounded bg-muted px-1.5 py-0.5 text-xs">
 										{KEY_FILE_NAME}.json
 									</code>{" "}
-									file
+									to your computer — the script tries automatically, or run{" "}
+									<code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+										cloudshell download {KEY_FILE_NAME}.json
+									</code>{" "}
+									(or right-click the file in the Cloud Shell Editor →
+									Download)
 								</li>
 							</ol>
 						</AlertDescription>
