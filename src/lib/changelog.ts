@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.7",
+    serverVersion: "0.6.3",
+    date: "2026-07-09",
+    changes: [
+      "Google Play setup guide: added a 'Key creation failed?' troubleshooting section explaining how to turn off the org policy manually (or use another project) when the script can't do it automatically",
+    ],
+  },
+  {
     version: "0.6.6",
     serverVersion: "0.6.3",
     date: "2026-07-08",

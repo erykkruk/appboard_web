@@ -13,6 +13,7 @@ import {
 	Info,
 	Sparkles,
 	Terminal,
+	TriangleAlert,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -184,8 +185,17 @@ for attempt in 1 2 3; do
 done
 if [ "$KEY_OK" != "true" ]; then
   echo_error "Could not create the service account key after 3 attempts."
-  echo_error "This is almost always the org policy 'iam.disableServiceAccountKeyCreation' still blocking it."
-  echo_error "Fix: IAM & Admin > Organization Policies > 'Disable service account key creation' > Manage policy > Off (this project), then re-run this script."
+  echo_error "The org policy 'iam.disableServiceAccountKeyCreation' is blocking key creation and could not be turned off automatically."
+  echo_error ""
+  echo_error "FIX IT MANUALLY (see the 'Key creation failed?' section in the AppBoard guide):"
+  echo_error "  1) Console > IAM & Admin > Organization Policies > 'Disable service account key creation'"
+  echo_error "     (make sure THIS project is selected) > Manage policy > Override parent's policy > Off > Save."
+  echo_error "  2) Wait ~2 min, then re-run this script (safe to re-run)."
+  echo_error ""
+  echo_error "If 'Manage policy' is greyed out, the policy is LOCKED at the organization level —"
+  echo_error "you need roles/orgpolicy.policyAdmin, or ask your Google Cloud/Workspace org admin to allow it."
+  echo_error "Alternatively, run this script in another project where key creation is allowed, then invite"
+  echo_error "the service-account email in Play Console > Users and permissions."
   exit 1
 fi
 echo_success "Service account key created: $KEY_FILE_NAME.json"
@@ -537,6 +547,117 @@ function GuideContent() {
 							Back to Google Play Setup
 						</Link>
 					</Button>
+				</CardContent>
+			</Card>
+
+			{/* Troubleshooting: the org-policy key-creation block */}
+			<Card className="border-amber-500/30">
+				<CardHeader>
+					<CardTitle className="flex items-center gap-2">
+						<TriangleAlert className="h-4 w-4 text-amber-500" />
+						Key creation failed? (&quot;Key creation is not allowed&quot;)
+					</CardTitle>
+					<CardDescription>
+						If the script ends with{" "}
+						<code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+							FAILED_PRECONDITION: Key creation is not allowed on this service
+							account
+						</code>{" "}
+						(constraint{" "}
+						<code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+							iam.disableServiceAccountKeyCreation
+						</code>
+						), Google is blocking key creation with an organization policy that
+						the script could not turn off automatically. Here&apos;s how to fix
+						it by hand.
+					</CardDescription>
+				</CardHeader>
+				<CardContent className="space-y-4 text-sm">
+					<div className="space-y-2">
+						<p className="font-medium text-foreground">
+							Option A — Turn the policy off in the Console (recommended)
+						</p>
+						<ol className="ml-4 list-decimal space-y-1.5 text-muted-foreground">
+							<li>
+								Open{" "}
+								<a
+									href="https://console.cloud.google.com/iam-admin/orgpolicies/iam-disableServiceAccountKeyCreation"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+								>
+									IAM &amp; Admin → Organization Policies → &quot;Disable service
+									account key creation&quot;
+									<ExternalLink className="h-3 w-3" />
+								</a>{" "}
+								and make sure your project (not the org) is selected in the top
+								project picker.
+							</li>
+							<li>
+								Click <span className="text-foreground">Manage policy</span>.
+							</li>
+							<li>
+								Choose{" "}
+								<span className="text-foreground">
+									Override parent&apos;s policy
+								</span>{" "}
+								(a.k.a. &quot;Customize&quot;).
+							</li>
+							<li>
+								Add a rule with enforcement set to{" "}
+								<span className="text-foreground">Off</span>, then{" "}
+								<span className="text-foreground">Save</span>.
+							</li>
+							<li>
+								Wait ~2 minutes for it to propagate, then re-run the script (it
+								is safe to re-run).
+							</li>
+						</ol>
+					</div>
+
+					<Separator />
+
+					<div className="space-y-2">
+						<p className="font-medium text-foreground">
+							If &quot;Manage policy&quot; is greyed out or Save is blocked
+						</p>
+						<p className="text-muted-foreground">
+							The policy is locked at the{" "}
+							<span className="text-foreground">organization</span> level and
+							your account can&apos;t override it. You need the{" "}
+							<code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+								roles/orgpolicy.policyAdmin
+							</code>{" "}
+							role at the organization, or ask whoever administers your Google
+							Cloud organization / Google Workspace to allow key creation for
+							this project.
+						</p>
+					</div>
+
+					<Separator />
+
+					<div className="space-y-2">
+						<p className="font-medium text-foreground">
+							Option B — Use a different Google Cloud project
+						</p>
+						<p className="text-muted-foreground">
+							The service account does not have to live in a specific project —
+							Google Play access is granted by inviting the service-account email
+							in Play Console. If you have another project (e.g. a personal one)
+							where key creation is allowed, run the script there instead, then
+							invite that service-account email in{" "}
+							<a
+								href="https://play.google.com/console"
+								target="_blank"
+								rel="noopener noreferrer"
+								className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+							>
+								Play Console → Users and permissions
+								<ExternalLink className="h-3 w-3" />
+							</a>
+							.
+						</p>
+					</div>
 				</CardContent>
 			</Card>
 		</div>
