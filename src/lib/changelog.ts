@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.11",
+    serverVersion: "0.6.3",
+    date: "2026-07-09",
+    changes: [
+      "Sidebar: wider rail that now shows each app and group name next to its icon (with labels on Stores, Groups, Research and Settings too)",
+      "Scrolling: onboarding and Research now scroll from anywhere on the page — including the far right edge — instead of only over the centered content",
+      "Onboarding: wider layout",
+    ],
+  },
+  {
     version: "0.6.10",
     serverVersion: "0.6.3",
     date: "2026-07-09",

@@ -39,12 +39,12 @@ export default function ResearchPage() {
       : (results[0]?.key ?? "");
 
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex flex-col">
       <PageHeader
         title="Research"
         description="Analyze store reviews, ASO keywords, markets and competitors for any app"
       />
-      <div className="flex-1 overflow-y-auto">
+      <div>
         <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
           <div className="grid items-start gap-6 lg:grid-cols-2">
             <AppListSection

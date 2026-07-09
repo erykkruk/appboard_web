@@ -359,7 +359,7 @@ function AppIcon({
 }: AppIconProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const storeType = app.platform === "ios" ? "app_store" : "google_play";
-  const sizeClass = size === "sm" ? "h-8 w-8" : "h-11 w-11";
+  const sizeClass = size === "sm" ? "h-8 w-8" : "h-9 w-9";
   const badgeClass = size === "sm" ? "h-4 w-4" : "h-5 w-5";
   const badgeIconClass = size === "sm" ? "h-2.5 w-2.5" : "h-3.5 w-3.5";
 
@@ -383,34 +383,48 @@ function AppIcon({
           <DropdownMenu open={menuOpen} onOpenChange={(open) => { if (!open) setMenuOpen(false); }}>
             <DropdownMenuTrigger asChild>
               <div
-                className={cn("relative", isHidden && "opacity-40")}
+                className={cn("w-full", isHidden && "opacity-40")}
                 onGotPointerCapture={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
               >
                 <Link
                   href={`/apps/${app.id}/dashboard`}
                   draggable={false}
                   className={cn(
-                    "flex shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white transition-all select-none",
-                    sizeClass,
-                    app.iconUrl && "overflow-hidden",
-                    isActive &&
-                      "ring-2 ring-primary ring-offset-2 ring-offset-[#111111]",
+                    "flex w-full items-center gap-2.5 rounded-xl px-2 py-1 transition-colors select-none",
+                    isActive ? "bg-[#2a2a2a]" : "hover:bg-[#1c1c1c]",
                   )}
-                  style={app.iconUrl ? undefined : { backgroundColor: color }}
                   onContextMenu={(e) => {
                     e.preventDefault();
                     setMenuOpen(true);
                   }}
                 >
-                  {iconContent}
+                  <div className="relative shrink-0">
+                    <div
+                      className={cn(
+                        "flex items-center justify-center overflow-hidden rounded-xl text-xs font-bold text-white",
+                        sizeClass,
+                      )}
+                      style={app.iconUrl ? undefined : { backgroundColor: color }}
+                    >
+                      {iconContent}
+                    </div>
+                    <div className={cn("pointer-events-none absolute -bottom-1.5 -right-1.5 flex items-center justify-center rounded-full bg-[#111111]", badgeClass)}>
+                      {badgeType === "star" ? (
+                        <Star className={cn("fill-yellow-500 text-yellow-500", badgeIconClass)} />
+                      ) : (
+                        <StoreLogo type={storeType} className={cn("text-muted-foreground", badgeIconClass)} />
+                      )}
+                    </div>
+                  </div>
+                  <span
+                    className={cn(
+                      "truncate text-sm",
+                      isActive ? "font-medium text-foreground" : "text-muted-foreground",
+                    )}
+                  >
+                    {app.name}
+                  </span>
                 </Link>
-                <div className={cn("pointer-events-none absolute -bottom-1.5 -right-1.5 flex items-center justify-center rounded-full bg-[#111111]", badgeClass)}>
-                  {badgeType === "star" ? (
-                    <Star className={cn("fill-yellow-500 text-yellow-500", badgeIconClass)} />
-                  ) : (
-                    <StoreLogo type={storeType} className={cn("text-muted-foreground", badgeIconClass)} />
-                  )}
-                </div>
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -690,7 +704,7 @@ function GroupHeader({
           <DropdownMenu open={menuOpen} onOpenChange={(open) => { if (!open) setMenuOpen(false); }}>
             <DropdownMenuTrigger asChild>
               <div
-                className="relative"
+                className="w-full"
                 onGotPointerCapture={(e) => e.currentTarget.releasePointerCapture(e.pointerId)}
               >
                 <Link
@@ -701,32 +715,47 @@ function GroupHeader({
                     setMenuOpen(true);
                   }}
                   className={cn(
-                    "flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-xs font-bold text-white transition-all select-none overflow-hidden",
-                    hasActiveApp && !isCollapsed &&
-                      "ring-2 ring-primary/50 ring-offset-1 ring-offset-[#111111]",
+                    "flex w-full items-center gap-2.5 rounded-xl px-2 py-1 transition-colors select-none",
+                    hasActiveApp && !isCollapsed ? "bg-[#2a2a2a]" : "hover:bg-[#1c1c1c]",
                   )}
-                  style={iconUrl ? undefined : { backgroundColor: getDefaultColor(group.id) }}
                 >
-                  {iconUrl ? (
-                    <img
-                      src={iconUrl}
-                      alt={group.name}
-                      className="h-full w-full object-cover"
-                      draggable={false}
-                    />
-                  ) : (
-                    getInitials(group.name)
-                  )}
+                  <div className="relative shrink-0">
+                    <div
+                      className="flex h-9 w-9 items-center justify-center overflow-hidden rounded-xl text-xs font-bold text-white"
+                      style={iconUrl ? undefined : { backgroundColor: getDefaultColor(group.id) }}
+                    >
+                      {iconUrl ? (
+                        <img
+                          src={iconUrl}
+                          alt={group.name}
+                          className="h-full w-full object-cover"
+                          draggable={false}
+                        />
+                      ) : (
+                        getInitials(group.name)
+                      )}
+                    </div>
+                    <div className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#111111]">
+                      {badgeType === "star" ? (
+                        <Star className="h-2.5 w-2.5 fill-yellow-500 text-yellow-500" />
+                      ) : isCollapsed ? (
+                        <ChevronRight className="h-2.5 w-2.5 text-muted-foreground" />
+                      ) : (
+                        <ChevronDown className="h-2.5 w-2.5 text-muted-foreground" />
+                      )}
+                    </div>
+                  </div>
+                  <span
+                    className={cn(
+                      "truncate text-sm",
+                      hasActiveApp && !isCollapsed
+                        ? "font-medium text-foreground"
+                        : "text-foreground/80",
+                    )}
+                  >
+                    {group.name}
+                  </span>
                 </Link>
-                <div className="pointer-events-none absolute -bottom-0.5 -right-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#111111]">
-                  {badgeType === "star" ? (
-                    <Star className="h-2.5 w-2.5 fill-yellow-500 text-yellow-500" />
-                  ) : isCollapsed ? (
-                    <ChevronRight className="h-2.5 w-2.5 text-muted-foreground" />
-                  ) : (
-                    <ChevronDown className="h-2.5 w-2.5 text-muted-foreground" />
-                  )}
-                </div>
               </div>
             </DropdownMenuTrigger>
             <DropdownMenuContent
@@ -1321,9 +1350,9 @@ export function AppSidebar() {
   );
 
   return (
-    <aside className="flex w-[88px] shrink-0 flex-col items-center border-r border-border bg-[#111111] py-3">
+    <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-[#111111] py-3">
       {/* Top buttons: Store selector + Groups */}
-      <div className="flex flex-col items-center gap-1.5 mb-3">
+      <div className="mb-3 flex flex-col gap-1 px-2">
         {storesList.length > 0 ? (
           <DropdownMenu>
             <Tooltip delayDuration={0}>
@@ -1331,13 +1360,16 @@ export function AppSidebar() {
                 <DropdownMenuTrigger asChild>
                   <button
                     type="button"
-                    className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-[#2a2a2a] text-muted-foreground transition-colors hover:bg-[#3a3a3a] hover:text-foreground"
+                    className="flex w-full items-center gap-2.5 rounded-xl bg-[#2a2a2a] px-2 py-1.5 text-muted-foreground transition-colors hover:bg-[#3a3a3a] hover:text-foreground"
                   >
-                    <Store className="h-5 w-5" />
+                    <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                      <Store className="h-5 w-5" />
+                    </div>
+                    <span className="text-sm">Stores</span>
                     {storesList.length > 1 && (
                       <span
                         className={cn(
-                          "absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-0.5 text-[9px] font-bold",
+                          "ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold",
                           storeFilter.enabled.size < storesList.length
                             ? "bg-primary text-primary-foreground"
                             : "bg-[#3a3a3a] text-muted-foreground",
@@ -1409,9 +1441,12 @@ export function AppSidebar() {
             <TooltipTrigger asChild>
               <Link
                 href="/onboarding"
-                className="flex h-11 w-11 items-center justify-center rounded-xl border-2 border-dashed border-muted-foreground/30 text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
+                className="flex w-full items-center gap-2.5 rounded-xl border-2 border-dashed border-muted-foreground/30 px-2 py-1.5 text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
               >
-                <Plus className="h-5 w-5" />
+                <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                  <Plus className="h-5 w-5" />
+                </div>
+                <span className="text-sm">Connect a store</span>
               </Link>
             </TooltipTrigger>
             <TooltipContent side="right" sideOffset={8}>
@@ -1425,12 +1460,15 @@ export function AppSidebar() {
           <TooltipTrigger asChild>
             <button
               type="button"
-              className="relative flex h-11 w-11 items-center justify-center rounded-xl bg-[#2a2a2a] text-muted-foreground transition-colors hover:bg-[#3a3a3a] hover:text-foreground"
+              className="flex w-full items-center gap-2.5 rounded-xl bg-[#2a2a2a] px-2 py-1.5 text-muted-foreground transition-colors hover:bg-[#3a3a3a] hover:text-foreground"
               onClick={() => setGroupsOpen(true)}
             >
-              <FolderOpen className="h-5 w-5" />
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+                <FolderOpen className="h-5 w-5" />
+              </div>
+              <span className="text-sm">Groups</span>
               {groups.length > 0 && (
-                <span className="absolute -right-1 -top-1 flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#3a3a3a] px-0.5 text-[9px] font-bold text-muted-foreground">
+                <span className="ml-auto flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-[#3a3a3a] px-1 text-[10px] font-bold text-muted-foreground">
                   {groups.length}
                 </span>
               )}
@@ -1443,10 +1481,10 @@ export function AppSidebar() {
       </div>
 
       {/* Divider */}
-      <div className="mx-auto mb-2 h-px w-8 bg-border" />
+      <div className="mx-3 mb-2 h-px bg-border" />
 
       {/* App icons: favorites, then grouped, then ungrouped */}
-      <div className="flex flex-1 flex-col items-center gap-2.5 overflow-y-auto px-2.5 pt-1">
+      <div className="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2 pt-1">
         {apps.isLoading && (
           <Loader2 className="mt-4 h-4 w-4 animate-spin text-muted-foreground" />
         )}
@@ -1485,7 +1523,7 @@ export function AppSidebar() {
                   return (
                     <SortableGroupItem key={id} id={id}>
                       {(handleProps) => (
-                        <div className="flex flex-col items-center gap-1.5">
+                        <div className="flex flex-col gap-0.5">
                           <GroupHeader
                             group={group}
                             isCollapsed={isGroupCollapsed}
@@ -1497,23 +1535,25 @@ export function AppSidebar() {
                             dragHandleProps={handleProps}
                           />
                           {!isGroupCollapsed && groupApps.length > 0 && (
-                            <DndContext
-                              sensors={sensors}
-                              collisionDetection={closestCenter}
-                              onDragEnd={handleMemberDragEnd(group.id)}
-                            >
-                              <SortableContext
-                                items={groupApps.map((a) => a.id)}
-                                strategy={verticalListSortingStrategy}
+                            <div className="flex flex-col gap-0.5 pl-3">
+                              <DndContext
+                                sensors={sensors}
+                                collisionDetection={closestCenter}
+                                onDragEnd={handleMemberDragEnd(group.id)}
                               >
-                                {groupApps.map((a) => (
-                                  <SortableAppIcon
-                                    key={a.id}
-                                    {...buildAppIconProps(a, { size: "sm" })}
-                                  />
-                                ))}
-                              </SortableContext>
-                            </DndContext>
+                                <SortableContext
+                                  items={groupApps.map((a) => a.id)}
+                                  strategy={verticalListSortingStrategy}
+                                >
+                                  {groupApps.map((a) => (
+                                    <SortableAppIcon
+                                      key={a.id}
+                                      {...buildAppIconProps(a, { size: "sm" })}
+                                    />
+                                  ))}
+                                </SortableContext>
+                              </DndContext>
+                            </div>
                           )}
                         </div>
                       )}
@@ -1525,7 +1565,7 @@ export function AppSidebar() {
             </SortableContext>
           </DndContext>
         )}
-        {sortedFavoriteIds.length > 0 && <div className="h-px w-6 bg-border/50" />}
+        {sortedFavoriteIds.length > 0 && <div className="mx-2 my-1 h-px bg-border/50" />}
 
         {/* Groups + ungrouped apps — unified drag & drop */}
         <DndContext
@@ -1553,7 +1593,7 @@ export function AppSidebar() {
                 return (
                   <SortableGroupItem key={group.id} id={group.id}>
                     {(handleProps) => (
-                      <div className="flex flex-col items-center gap-1.5">
+                      <div className="flex flex-col gap-0.5">
                         <GroupHeader
                           group={group}
                           isCollapsed={isGroupCollapsed}
@@ -1564,25 +1604,27 @@ export function AppSidebar() {
                           dragHandleProps={handleProps}
                         />
                         {!isGroupCollapsed && groupApps.length > 0 && (
-                          <DndContext
-                            sensors={sensors}
-                            collisionDetection={closestCenter}
-                            onDragEnd={handleMemberDragEnd(group.id)}
-                          >
-                            <SortableContext
-                              items={groupApps.map((a) => a.id)}
-                              strategy={verticalListSortingStrategy}
+                          <div className="flex flex-col gap-0.5 pl-3">
+                            <DndContext
+                              sensors={sensors}
+                              collisionDetection={closestCenter}
+                              onDragEnd={handleMemberDragEnd(group.id)}
                             >
-                              {groupApps.map((app) => (
-                                <SortableAppIcon
-                                  key={app.id}
-                                  {...buildAppIconProps(app, { size: "sm" })}
-                                />
-                              ))}
-                            </SortableContext>
-                          </DndContext>
+                              <SortableContext
+                                items={groupApps.map((a) => a.id)}
+                                strategy={verticalListSortingStrategy}
+                              >
+                                {groupApps.map((app) => (
+                                  <SortableAppIcon
+                                    key={app.id}
+                                    {...buildAppIconProps(app, { size: "sm" })}
+                                  />
+                                ))}
+                              </SortableContext>
+                            </DndContext>
+                          </div>
                         )}
-                        <div className="h-px w-6 bg-border/50" />
+                        <div className="mx-2 my-1 h-px bg-border/50" />
                       </div>
                     )}
                   </SortableGroupItem>
@@ -1604,68 +1646,58 @@ export function AppSidebar() {
       </div>
 
       {/* Bottom: Show hidden + Research + Settings + Version */}
-      <div className="mt-2 flex flex-col items-center gap-2">
+      <div className="mt-2 flex flex-col gap-0.5 px-2">
         {hidden.size > 0 && (
-          <Tooltip delayDuration={0}>
-            <TooltipTrigger asChild>
-              <button
-                type="button"
-                onClick={toggleShowHidden}
-                className={cn(
-                  "flex h-8 w-8 items-center justify-center rounded-lg transition-colors",
-                  showHidden
-                    ? "bg-[#2a2a2a] text-foreground"
-                    : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
-                )}
-              >
-                {showHidden ? (
-                  <Eye className="h-4 w-4" />
-                ) : (
-                  <EyeOff className="h-4 w-4" />
-                )}
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="right" sideOffset={8}>
+          <button
+            type="button"
+            onClick={toggleShowHidden}
+            className={cn(
+              "flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors",
+              showHidden
+                ? "bg-[#2a2a2a] text-foreground"
+                : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
+            )}
+          >
+            <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+              {showHidden ? (
+                <Eye className="h-5 w-5" />
+              ) : (
+                <EyeOff className="h-5 w-5" />
+              )}
+            </div>
+            <span className="text-sm">
               {showHidden ? "Hide hidden apps" : "Show hidden apps"}
-            </TooltipContent>
-          </Tooltip>
+            </span>
+          </button>
         )}
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <Link
-              href="/research"
-              className={cn(
-                "flex h-11 w-11 items-center justify-center rounded-xl transition-colors",
-                currentPath.startsWith("/research")
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
-              )}
-            >
-              <Microscope className="h-5 w-5" />
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent side="right" sideOffset={8}>
-            Research
-          </TooltipContent>
-        </Tooltip>
-        <Tooltip delayDuration={0}>
-          <TooltipTrigger asChild>
-            <Link
-              href="/settings"
-              className={cn(
-                "flex h-11 w-11 items-center justify-center rounded-xl transition-colors",
-                currentPath.startsWith("/settings")
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
-              )}
-            >
-              <Settings className="h-5 w-5" />
-            </Link>
-          </TooltipTrigger>
-          <TooltipContent side="right" sideOffset={8}>
-            Settings
-          </TooltipContent>
-        </Tooltip>
+        <Link
+          href="/research"
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors",
+            currentPath.startsWith("/research")
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
+          )}
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+            <Microscope className="h-5 w-5" />
+          </div>
+          <span className="text-sm">Research</span>
+        </Link>
+        <Link
+          href="/settings"
+          className={cn(
+            "flex w-full items-center gap-2.5 rounded-xl px-2 py-1.5 transition-colors",
+            currentPath.startsWith("/settings")
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
+          )}
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center">
+            <Settings className="h-5 w-5" />
+          </div>
+          <span className="text-sm">Settings</span>
+        </Link>
         <VersionDialog />
       </div>
 
