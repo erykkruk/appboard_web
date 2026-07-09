@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
+import { LoginLogo3d } from "@/components/login-logo-3d";
 
 type Step = "email" | "otp";
 
@@ -125,7 +126,11 @@ export default function LoginPage() {
   };
 
   return (
-    <Card className="w-full max-w-sm">
+    <>
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0">
+        <LoginLogo3d />
+      </div>
+      <Card className="relative z-10 w-full max-w-sm">
       <CardHeader className="text-center">
         <div className="mb-3 flex justify-center">
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -245,6 +250,7 @@ export default function LoginPage() {
           </div>
         )}
       </CardContent>
-    </Card>
+      </Card>
+    </>
   );
 }
