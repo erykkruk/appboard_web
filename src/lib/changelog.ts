@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.7.1",
+    serverVersion: "0.7.1",
+    date: "2026-07-09",
+    changes: [
+      "Deep research fixed for reasoning AI models (e.g. GLM 5.x): responses were truncated mid-JSON — the token cap is now high enough for thinking + the full report",
+      "Long research runs no longer die with a 500: the panel proxy now waits up to 15 minutes instead of 2 for slow backend requests",
+    ],
+  },
+  {
     version: "0.7.0",
     serverVersion: "0.7.0",
     date: "2026-07-09",

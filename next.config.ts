@@ -12,7 +12,9 @@ const nextConfig: NextConfig = {
     ];
   },
   experimental: {
-    proxyTimeout: 120_000,
+    // Deep research with reasoning models can run for many minutes — the
+    // proxy must outlive the slowest backend request or the UI sees 500s.
+    proxyTimeout: 900_000,
   },
   images: {
     remotePatterns: [
