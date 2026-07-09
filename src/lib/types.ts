@@ -179,7 +179,8 @@ export type FeatureKey =
 	| "PRIVACY"
 	| "HISTORY"
 	| "GROUPS"
-	| "MONETIZATION_CHAT";
+	| "MONETIZATION_CHAT"
+	| "RESEARCH";
 
 export interface FeatureDefinition {
 	key: FeatureKey;
@@ -1353,4 +1354,96 @@ export interface ResearchCompareResult {
 	compMeta: ResearchAppMeta;
 	compReviews: ResearchReview[];
 	model?: string;
+}
+
+// ============ Research history & Rank tracking ============
+
+export type ResearchRunKind = "manual" | "scheduled";
+
+export type AutoResearchFrequency = "daily" | "monthly" | "weekly";
+
+export const MAX_TRACKED_KEYWORDS_PER_LANGUAGE = 20;
+
+export interface ResearchRunReport {
+	analysis?: ResearchAnalysis;
+	deep?: boolean;
+	heuristics: ResearchHeuristics;
+	keywords?: ResearchKeywordPosition[];
+	meta: ResearchAppMeta;
+	reviewsCount: number;
+}
+
+// Row shape returned by list endpoints (no `report` payload).
+export interface ResearchRunSummary {
+	appId: string | null;
+	country: string | null;
+	createdAt: string;
+	externalId: string | null;
+	id: string;
+	kind: ResearchRunKind;
+	store: ResearchStoreKind | null;
+	summary: string | null;
+	title: string | null;
+}
+
+export interface ResearchRun extends ResearchRunSummary {
+	report: ResearchRunReport;
+}
+
+export interface AppTrackingConfig {
+	appId: string;
+	autoResearchEnabled: boolean;
+	autoResearchFrequency: AutoResearchFrequency;
+	emailRankDigest: boolean;
+	lastAutoResearchAt: string | null;
+	lastRankCheckAt: string | null;
+	notifyEmail: string | null;
+	rankTrackingEnabled: boolean;
+	workspaceId: string;
+}
+
+export interface TrackedKeyword {
+	appId: string;
+	country: string;
+	createdAt: string;
+	id: string;
+	keyword: string;
+}
+
+export interface LatestRankPosition {
+	capturedAt: string;
+	country: string;
+	delta: number | null;
+	keyword: string;
+	platform: ResearchStoreKind;
+	position: number | null;
+	previousPosition: number | null;
+}
+
+export interface RankSnapshot {
+	country: string;
+	createdAt: string;
+	id: string;
+	keyword: string;
+	platform: ResearchStoreKind;
+	position: number | null;
+}
+
+export interface RankAnnotation {
+	date: string | null;
+	field: string;
+	language: string;
+	newValue: string | null;
+	oldValue: string | null;
+}
+
+export interface RankHistory {
+	annotations: RankAnnotation[];
+	snapshots: RankSnapshot[];
+}
+
+export interface TrackingOverview {
+	config: AppTrackingConfig;
+	keywords: TrackedKeyword[];
+	positions: LatestRankPosition[];
 }

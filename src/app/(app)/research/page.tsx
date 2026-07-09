@@ -8,6 +8,10 @@ import { AppListSection } from "@/components/research/app-list-section";
 import { AppReport } from "@/components/research/app-report";
 import { STORE_SHORT_LABELS } from "@/components/research/shared";
 import {
+  SavedResearchList,
+  SaveResearchButton,
+} from "@/components/research/standalone-history";
+import {
   Tabs,
   TabsContent,
   TabsList,
@@ -79,11 +83,16 @@ export default function ResearchPage() {
               </TabsList>
               {results.map((result) => (
                 <TabsContent key={result.key} value={result.key}>
+                  <div className="mb-4 flex justify-end">
+                    <SaveResearchButton country={country} result={result} />
+                  </div>
                   <AppReport country={country} result={result} />
                 </TabsContent>
               ))}
             </Tabs>
           )}
+
+          <SavedResearchList />
         </div>
       </div>
     </div>

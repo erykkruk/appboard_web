@@ -47,17 +47,25 @@ import type {
 	PublishResult,
 	PushPreview,
 	PurchaseSyncResult,
+	AppTrackingConfig,
+	AutoResearchFrequency,
+	RankHistory,
 	ResearchAnalysis,
 	ResearchAppMeta,
 	ResearchCompareResult,
 	ResearchKeywordPosition,
 	ResearchMarketSnapshot,
 	ResearchReview,
+	ResearchRun,
+	ResearchRunReport,
+	ResearchRunSummary,
 	ResearchScrapeResult,
 	ResearchSearchScope,
 	ResearchStoreKind,
 	ResearchSuggestion,
 	ResearchVisualAnalysis,
+	TrackedKeyword,
+	TrackingOverview,
 	Review,
 	ReviewInfo,
 	ReviewStats,
@@ -1087,6 +1095,91 @@ export const api = {
 				"/api/research/visual",
 				{ body: JSON.stringify(body), method: "POST" },
 			).then((r) => r.visual),
+		// ── Saved research history (standalone tool) ──
+		deleteRun: (runId: string) =>
+			fetchApi<{ success: boolean }>(`/api/research/runs/${runId}`, {
+				method: "DELETE",
+			}),
+		getRun: (runId: string) =>
+			fetchApi<{ run: ResearchRun }>(`/api/research/runs/${runId}`).then(
+				(r) => r.run,
+			),
+		listRuns: () =>
+			fetchApi<{ runs: ResearchRunSummary[] }>("/api/research/runs").then(
+				(r) => r.runs,
+			),
+		saveRun: (body: {
+			appId?: string;
+			country?: string;
+			report: ResearchRunReport;
+			summary?: string;
+			title?: string;
+		}) =>
+			fetchApi<{ run: ResearchRun }>("/api/research/runs", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}).then((r) => r.run),
+	},
+
+	tracking: {
+		// ── Config + keywords + positions ──
+		addKeywords: (appId: string, body: { country: string; keywords: string[] }) =>
+			fetchApi<{ keywords: TrackedKeyword[] }>(
+				`/api/apps/${appId}/tracking/keywords`,
+				{ body: JSON.stringify(body), method: "POST" },
+			).then((r) => r.keywords),
+		check: (appId: string) =>
+			fetchApi<{ result: { checked: number; snapshots: number } }>(
+				`/api/apps/${appId}/tracking/check`,
+				{ method: "POST" },
+			).then((r) => r.result),
+		get: (appId: string) =>
+			fetchApi<TrackingOverview>(`/api/apps/${appId}/tracking`),
+		history: (appId: string, params?: { country?: string; keyword?: string }) =>
+			fetchApi<RankHistory>(
+				`/api/apps/${appId}/tracking/history${toQuery({ ...params })}`,
+			),
+		removeKeyword: (appId: string, keywordId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/tracking/keywords/${keywordId}`,
+				{ method: "DELETE" },
+			),
+		updateConfig: (
+			appId: string,
+			body: {
+				autoResearchEnabled?: boolean;
+				autoResearchFrequency?: AutoResearchFrequency;
+				emailRankDigest?: boolean;
+				notifyEmail?: string | null;
+				rankTrackingEnabled?: boolean;
+			},
+		) =>
+			fetchApi<{ config: AppTrackingConfig }>(
+				`/api/apps/${appId}/tracking/config`,
+				{ body: JSON.stringify(body), method: "PATCH" },
+			).then((r) => r.config),
+		// ── Per-app research runs ──
+		deleteRun: (appId: string, runId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/apps/${appId}/research-runs/${runId}`,
+				{ method: "DELETE" },
+			),
+		getRun: (appId: string, runId: string) =>
+			fetchApi<{ run: ResearchRun }>(
+				`/api/apps/${appId}/research-runs/${runId}`,
+			).then((r) => r.run),
+		listRuns: (appId: string) =>
+			fetchApi<{ runs: ResearchRunSummary[] }>(
+				`/api/apps/${appId}/research-runs`,
+			).then((r) => r.runs),
+		runForApp: (
+			appId: string,
+			body: { country: string; deep?: boolean; keywords?: string[] },
+		) =>
+			fetchApi<{ run: ResearchRun }>(`/api/apps/${appId}/research-runs/run`, {
+				body: JSON.stringify(body),
+				method: "POST",
+			}).then((r) => r.run),
 	},
 
 	reviews: {

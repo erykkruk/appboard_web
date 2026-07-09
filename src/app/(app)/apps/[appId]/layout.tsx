@@ -15,6 +15,7 @@ import {
   LayoutDashboard,
   Loader2,
   type LucideIcon,
+  Microscope,
   Plus,
   RefreshCw,
   Rocket,
@@ -56,6 +57,7 @@ type NavItem = {
 const NAV_ITEMS: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, suffix: "/dashboard" },
   { label: "Information", icon: Info, suffix: "/information" },
+  { label: "Research", icon: Microscope, suffix: "/research", featureKey: "RESEARCH" },
   { label: "Publish", icon: Rocket, suffix: "/publish", featureKey: "PUBLISHING" },
   { label: "Purchases", icon: CreditCard, suffix: "/purchases", featureKey: "PURCHASES" },
   { label: "Reviews", icon: Star, suffix: "/reviews", featureKey: "REVIEWS" },

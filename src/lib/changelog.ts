@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.7.0",
+    serverVersion: "0.7.0",
+    date: "2026-07-09",
+    changes: [
+      "Research is now built into every app — a new Research tab at the top of each app lets you run market research on that app and save every report to history",
+      "Keyword rank tracking: track up to 20 keywords per language, see current positions with day-over-day changes, and a history chart with amber markers showing exactly when you changed a listing",
+      "Automations: turn on daily rank tracking (measured at 00:00 and 12:00), schedule auto-research (daily/weekly/monthly), and get the results emailed to you",
+      "Add to my keywords: one click from any research report to start tracking a keyword",
+      "Standalone Research tool now lets you save reports to history and reopen them later",
+    ],
+  },
+  {
     version: "0.6.11",
     serverVersion: "0.6.3",
     date: "2026-07-09",

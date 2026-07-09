@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2 } from "lucide-react";
+import { Check, Loader2, Plus } from "lucide-react";
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -21,6 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useResearchKeywords } from "@/hooks/use-research";
+import { useAddKeywords } from "@/hooks/use-tracking";
 import {
   formatKeywordPosition,
   parseCustomKeywords,
@@ -48,22 +49,36 @@ function PositionCell({ position }: { position: number | null | undefined }) {
 
 export function ReportKeywordsCard({
   analysis,
+  appId,
   country,
   meta,
   positions,
 }: {
   analysis?: ResearchAnalysis;
+  // When set, a per-keyword "Add to my keywords" action appears (per-app view).
+  appId?: string;
   country: string;
   meta: ResearchAppMeta;
   positions: ResearchKeywordPosition[];
 }) {
   const keywords = useResearchKeywords();
+  const addKeywords = useAddKeywords(appId ?? "");
   const [customInput, setCustomInput] = useState("");
   const [customPositions, setCustomPositions] = useState<
     ResearchKeywordPosition[]
   >([]);
+  const [added, setAdded] = useState<Set<string>>(new Set());
 
   const allPositions = [...positions, ...customPositions];
+
+  function addToMyKeywords(keyword: string) {
+    addKeywords.mutate(
+      { country, keywords: [keyword] },
+      {
+        onSuccess: () => setAdded((prev) => new Set(prev).add(keyword)),
+      },
+    );
+  }
 
   function checkCustomKeywords() {
     const custom = parseCustomKeywords(customInput);
@@ -119,6 +134,7 @@ export function ReportKeywordsCard({
                 <TableHead>Keyword</TableHead>
                 <TableHead>{STORE_LABELS[meta.store]}</TableHead>
                 <TableHead>Why</TableHead>
+                {appId && <TableHead className="text-right">Track</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -143,6 +159,24 @@ export function ReportKeywordsCard({
                     <TableCell className="text-sm text-muted-foreground">
                       {reason ?? "(custom)"}
                     </TableCell>
+                    {appId && (
+                      <TableCell className="text-right">
+                        {added.has(position.keyword) ? (
+                          <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
+                            <Check className="h-3.5 w-3.5" /> Tracked
+                          </span>
+                        ) : (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={addKeywords.isPending}
+                            onClick={() => addToMyKeywords(position.keyword)}
+                          >
+                            <Plus className="h-3.5 w-3.5" /> Add
+                          </Button>
+                        )}
+                      </TableCell>
+                    )}
                   </TableRow>
                 );
               })}
