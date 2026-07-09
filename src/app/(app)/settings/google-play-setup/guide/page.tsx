@@ -11,6 +11,7 @@ import {
 	Copy,
 	ExternalLink,
 	Info,
+	MousePointerClick,
 	Sparkles,
 	Terminal,
 	TriangleAlert,
@@ -31,6 +32,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { useStoreCapabilityCatalog } from "@/hooks/use-stores";
+import { cn } from "@/lib/utils";
 
 const GCP_PROJECT_URL = "https://console.cloud.google.com/projectcreate";
 const CLOUD_SHELL_URL = "https://shell.cloud.google.com";
@@ -149,23 +151,30 @@ if [ -n "$ACTIVE_ACCOUNT" ]; then
   echo_info "Waiting 15s for the Org Policy Admin grant to propagate..."
   sleep 15
 fi
-# Set an explicit PROJECT-level override that turns enforcement OFF. This works
-# even when the constraint is inherited/enforced above the project. The modern
-# 'org-policies set-policy' replaces the deprecated 'disable-enforce'.
-cat > /tmp/appboard-key-policy.yaml <<POLICY
-name: projects/$PROJECT_ID/policies/iam.disableServiceAccountKeyCreation
+# Override BOTH the legacy constraint and the newer "managed" constraint — Google
+# migrated this control to iam.managed.disableServiceAccountKeyCreation, and if
+# only the legacy one is disabled the managed one still blocks key creation.
+POLICY_OK=false
+for CONSTRAINT in iam.disableServiceAccountKeyCreation iam.managed.disableServiceAccountKeyCreation; do
+  cat > /tmp/appboard-key-policy.yaml <<POLICY
+name: projects/$PROJECT_ID/policies/$CONSTRAINT
 spec:
   rules:
   - enforce: false
 POLICY
-if gcloud org-policies set-policy /tmp/appboard-key-policy.yaml >/dev/null 2>&1; then
-  echo_success "Org policy overridden for this project — key creation is allowed."
-  echo_info "Waiting 30s for the policy change to propagate..."
-  sleep 30
+  if gcloud org-policies set-policy /tmp/appboard-key-policy.yaml >/dev/null 2>&1; then
+    echo_success "Override set for $CONSTRAINT."
+    POLICY_OK=true
+  else
+    echo_warning "Could not override $CONSTRAINT (may not exist or is locked at the org level)."
+  fi
+done
+if [ "$POLICY_OK" = "true" ]; then
+  echo_info "Waiting 60s for the policy changes to propagate (managed policies are slower)..."
+  sleep 60
 else
-  echo_warning "Could not override 'iam.disableServiceAccountKeyCreation' automatically."
-  echo_warning "It is likely LOCKED at the organization level — a Google Workspace / Cloud org admin must allow it for this project."
-  echo_warning "Manual fix: IAM & Admin > Organization Policies > 'Disable service account key creation' > Manage policy > Override parent's policy > Off, then re-run this script."
+  echo_warning "No org policy could be overridden — key creation is likely LOCKED at the organization level."
+  echo_warning "You need an org admin (roles/orgpolicy.policyAdmin at the org), or use a Google account without a managed organization."
 fi
 
 echo_info "Generating service account key..."
@@ -219,8 +228,11 @@ function copyToClipboard(text: string, label: string) {
 	);
 }
 
+type SetupMode = "script" | "manual";
+
 function GuideContent() {
 	const [projectId, setProjectId] = useState("");
+	const [mode, setMode] = useState<SetupMode>("script");
 	const searchParams = useSearchParams();
 	const catalog = useStoreCapabilityCatalog();
 
@@ -295,6 +307,51 @@ function GuideContent() {
 				</Alert>
 			)}
 
+			{/* Mode toggle: automated script vs manual console steps */}
+			<div className="space-y-2">
+				<p className="text-sm font-medium text-foreground">
+					How do you want to set this up?
+				</p>
+				<div className="grid grid-cols-2 gap-2">
+					<button
+						type="button"
+						onClick={() => setMode("script")}
+						className={cn(
+							"flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
+							mode === "script"
+								? "border-primary bg-primary/5"
+								: "border-border hover:bg-muted/50",
+						)}
+					>
+						<span className="flex items-center gap-2 text-sm font-medium text-foreground">
+							<Terminal className="h-4 w-4" />
+							Automated (script)
+						</span>
+						<span className="text-xs text-muted-foreground">
+							Copy one script, run it in Cloud Shell. Fastest.
+						</span>
+					</button>
+					<button
+						type="button"
+						onClick={() => setMode("manual")}
+						className={cn(
+							"flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors",
+							mode === "manual"
+								? "border-primary bg-primary/5"
+								: "border-border hover:bg-muted/50",
+						)}
+					>
+						<span className="flex items-center gap-2 text-sm font-medium text-foreground">
+							<MousePointerClick className="h-4 w-4" />
+							Manual (Console)
+						</span>
+						<span className="text-xs text-muted-foreground">
+							Click through the Google Cloud Console yourself.
+						</span>
+					</button>
+				</div>
+			</div>
+
 			{/* Step 1: Prerequisites */}
 			<Card>
 				<CardHeader>
@@ -339,7 +396,8 @@ function GuideContent() {
 				</CardContent>
 			</Card>
 
-			{/* Step 2: Run Script */}
+			{/* Step 2 (script mode): Run Script */}
+			{mode === "script" && (
 			<Card>
 				<CardHeader>
 					<CardTitle className="flex items-center gap-2">
@@ -431,6 +489,160 @@ function GuideContent() {
 					</Alert>
 				</CardContent>
 			</Card>
+			)}
+
+			{/* Step 2 (manual mode): do it in the Console */}
+			{mode === "manual" && (
+				<Card>
+					<CardHeader>
+						<CardTitle className="flex items-center gap-2">
+							<Badge variant="secondary" className="tabular-nums">
+								2
+							</Badge>
+							Set up in the Google Cloud Console
+						</CardTitle>
+						<CardDescription>
+							Prefer clicking through it yourself? Do these steps in the Console
+							for your project.
+						</CardDescription>
+					</CardHeader>
+					<CardContent className="space-y-5 text-sm">
+						<div className="space-y-2">
+							<p className="font-medium text-foreground">a. Enable the APIs</p>
+							<p className="text-muted-foreground">
+								Open{" "}
+								<a
+									href="https://console.cloud.google.com/apis/library"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+								>
+									APIs &amp; Services → Library
+									<ExternalLink className="h-3 w-3" />
+								</a>{" "}
+								and enable{" "}
+								<span className="text-foreground">
+									Google Play Android Developer API
+								</span>
+								,{" "}
+								<span className="text-foreground">
+									Cloud Pub/Sub API
+								</span>{" "}
+								and{" "}
+								<span className="text-foreground">
+									Organization Policy API
+								</span>
+								.
+							</p>
+						</div>
+
+						<Separator />
+
+						<div className="space-y-2">
+							<p className="font-medium text-foreground">
+								b. Create the service account
+							</p>
+							<p className="text-muted-foreground">
+								Go to{" "}
+								<a
+									href="https://console.cloud.google.com/iam-admin/serviceaccounts"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+								>
+									IAM &amp; Admin → Service Accounts
+									<ExternalLink className="h-3 w-3" />
+								</a>{" "}
+								→ <span className="text-foreground">Create service account</span>.
+								Name it{" "}
+								<code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+									{SERVICE_ACCOUNT_NAME}
+								</code>{" "}
+								and click <span className="text-foreground">Done</span>.
+							</p>
+						</div>
+
+						<Separator />
+
+						<div className="space-y-2">
+							<p className="font-medium text-foreground">c. Grant roles</p>
+							<p className="text-muted-foreground">
+								In{" "}
+								<a
+									href="https://console.cloud.google.com/iam-admin/iam"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+								>
+									IAM &amp; Admin → IAM
+									<ExternalLink className="h-3 w-3" />
+								</a>{" "}
+								→ <span className="text-foreground">Grant access</span>, add the
+								service account email as principal and assign{" "}
+								<span className="text-foreground">Pub/Sub Editor</span> and{" "}
+								<span className="text-foreground">Monitoring Viewer</span>.
+							</p>
+						</div>
+
+						<Separator />
+
+						<div className="space-y-2">
+							<p className="font-medium text-foreground">
+								d. Allow key creation (org policy)
+							</p>
+							<p className="text-muted-foreground">
+								Open{" "}
+								<a
+									href="https://console.cloud.google.com/iam-admin/orgpolicies/iam-disableServiceAccountKeyCreation"
+									target="_blank"
+									rel="noopener noreferrer"
+									className="inline-flex items-center gap-1 text-primary underline-offset-4 hover:underline"
+								>
+									Organization Policies → &quot;Disable service account key
+									creation&quot;
+									<ExternalLink className="h-3 w-3" />
+								</a>{" "}
+								(project selected in the top picker) →{" "}
+								<span className="text-foreground">Manage policy</span> →{" "}
+								<span className="text-foreground">
+									Override parent&apos;s policy
+								</span>{" "}
+								→ add a rule with enforcement{" "}
+								<span className="text-foreground">Off</span> →{" "}
+								<span className="text-foreground">Save</span>. If a banner points
+								to the <span className="text-foreground">managed</span>{" "}
+								constraint, repeat this for{" "}
+								<code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+									iam.managed.disableServiceAccountKeyCreation
+								</code>{" "}
+								too. See the troubleshooting section below if it&apos;s locked.
+							</p>
+						</div>
+
+						<Separator />
+
+						<div className="space-y-2">
+							<p className="font-medium text-foreground">
+								e. Create &amp; download the key
+							</p>
+							<p className="text-muted-foreground">
+								Back in{" "}
+								<span className="text-foreground">Service Accounts</span>, open
+								the service account →{" "}
+								<span className="text-foreground">Keys</span> →{" "}
+								<span className="text-foreground">Add key → Create new key</span>{" "}
+								→ <span className="text-foreground">JSON</span> →{" "}
+								<span className="text-foreground">Create</span>. The{" "}
+								<code className="rounded bg-muted px-1.5 py-0.5 text-xs">
+									.json
+								</code>{" "}
+								file downloads automatically — that&apos;s the file you upload to
+								AppBoard.
+							</p>
+						</div>
+					</CardContent>
+				</Card>
+			)}
 
 			{/* Step 3: Grant Permissions */}
 			<Card>

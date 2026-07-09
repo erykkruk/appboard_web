@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.6.8",
+    serverVersion: "0.6.3",
+    date: "2026-07-09",
+    changes: [
+      "Google Play setup guide: pick between an Automated (script) path and a Manual (Console) path — the manual path walks you through every click yourself",
+      "Setup script now disables BOTH the legacy and the newer 'managed' key-creation org policy (fixes key creation still being blocked after the legacy one was turned off)",
+    ],
+  },
+  {
     version: "0.6.7",
     serverVersion: "0.6.3",
     date: "2026-07-09",
