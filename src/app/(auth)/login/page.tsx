@@ -10,16 +10,36 @@ import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
 import { LoginLogo3d } from "@/components/login-logo-3d";
 
-type Step = "email" | "otp";
+type Step = "email" | "otp" | "password";
 
 export default function LoginPage() {
   const router = useRouter();
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [otp, setOtp] = useState(["", "", "", "", "", ""]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
+
+  // Email + password sign-in — used by self-hosted instances that run without
+  // SMTP (log in with the ADMIN_EMAIL / ADMIN_PASSWORD bootstrap account).
+  const handlePasswordLogin = async () => {
+    setError("");
+    setLoading(true);
+    try {
+      const { error } = await authClient.signIn.email({ email, password });
+      if (error) {
+        setError(error.message ?? "Invalid email or password");
+        return;
+      }
+      router.push("/dashboard");
+    } catch {
+      setError("Sign-in failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSendOtp = async () => {
     setError("");
@@ -140,7 +160,9 @@ export default function LoginPage() {
         <CardDescription>
           {step === "email"
             ? "Enter your email to receive a verification code"
-            : `We sent a 6-digit code to ${email}`}
+            : step === "password"
+              ? "Sign in with your email and password"
+              : `We sent a 6-digit code to ${email}`}
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -207,6 +229,67 @@ export default function LoginPage() {
                 Google
               </Button>
             </div>
+
+            <button
+              type="button"
+              className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setStep("password");
+                setError("");
+              }}
+            >
+              Sign in with a password
+            </button>
+          </form>
+        ) : step === "password" ? (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              handlePasswordLogin();
+            }}
+            className="space-y-4"
+          >
+            <div className="space-y-2">
+              <Label htmlFor="pw-email">Email</Label>
+              <Input
+                id="pw-email"
+                type="email"
+                placeholder="you@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                autoFocus
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="pw-password">Password</Label>
+              <Input
+                id="pw-password"
+                type="password"
+                placeholder="Your password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+            </div>
+            {error && <p className="text-sm text-destructive">{error}</p>}
+            <Button
+              type="submit"
+              className="w-full"
+              disabled={loading || !email || !password}
+            >
+              {loading ? "Signing in..." : "Sign In"}
+            </Button>
+            <button
+              type="button"
+              className="w-full text-center text-sm text-muted-foreground hover:text-foreground"
+              onClick={() => {
+                setStep("email");
+                setError("");
+              }}
+            >
+              Use a verification code instead
+            </button>
           </form>
         ) : (
           <div className="space-y-4">
