@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
@@ -54,6 +54,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { CharacterCounter } from "@/components/character-counter";
+import { useAppGroups } from "@/hooks/use-app-groups";
 import { useApp, useApps } from "@/hooks/use-apps";
 import {
   useAsoProfile,
@@ -316,7 +317,37 @@ export default function AppInformationPage() {
   const updateProfile = useUpdateAsoProfile(appId);
 
   const allApps = useApps();
+  const appGroups = useAppGroups();
   const copyFrom = useCopyFromAsoProfile(appId);
+  const [copySearch, setCopySearch] = useState("");
+
+  // Apps sharing a group with the current app come first in the copy dialog.
+  const sameGroupAppIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const group of appGroups.data ?? []) {
+      if (!group.members.some((m) => m.appId === appId)) continue;
+      for (const m of group.members) ids.add(m.appId);
+    }
+    return ids;
+  }, [appGroups.data, appId]);
+
+  const copyCandidates = useMemo(() => {
+    const term = copySearch.trim().toLowerCase();
+    return (allApps.data ?? [])
+      .filter((a) => a.id !== appId)
+      .filter(
+        (a) =>
+          !term ||
+          a.name.toLowerCase().includes(term) ||
+          a.bundleId.toLowerCase().includes(term),
+      )
+      .sort((a, b) => {
+        const ga = sameGroupAppIds.has(a.id) ? 0 : 1;
+        const gb = sameGroupAppIds.has(b.id) ? 0 : 1;
+        if (ga !== gb) return ga - gb;
+        return a.name.localeCompare(b.name);
+      });
+  }, [allApps.data, appId, copySearch, sameGroupAppIds]);
 
   const isLocked = profile.data?.locked === true;
   const lockedGroupId = profile.data?.groupId;
@@ -937,7 +968,10 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
         open={showCopyDialog}
         onOpenChange={(open) => {
           setShowCopyDialog(open);
-          if (!open) setSelectedSourceAppId(null);
+          if (!open) {
+            setSelectedSourceAppId(null);
+            setCopySearch("");
+          }
         }}
       >
         <DialogContent className="max-w-md">
@@ -951,10 +985,14 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
               . This will overwrite the current profile.
             </DialogDescription>
           </DialogHeader>
+          <Input
+            autoFocus
+            placeholder="Search apps…"
+            value={copySearch}
+            onChange={(e) => setCopySearch(e.target.value)}
+          />
           <div className="max-h-64 space-y-1 overflow-y-auto py-2">
-            {allApps.data
-              ?.filter((a) => a.id !== appId)
-              .map((a) => (
+            {copyCandidates.map((a) => (
                 <button
                   key={a.id}
                   type="button"
@@ -982,14 +1020,21 @@ ${fields.map((f) => `  "${f.key}": ${f.type === "string[]" ? '["..."]' : '"..."'
                       {a.bundleId}
                     </p>
                   </div>
+                  {sameGroupAppIds.has(a.id) && (
+                    <Badge className="shrink-0 text-xs" variant="secondary">
+                      Same group
+                    </Badge>
+                  )}
                   <Badge variant="outline" className="shrink-0 text-xs">
                     {a.platform === "ios" ? "iOS" : "Android"}
                   </Badge>
                 </button>
               ))}
-            {allApps.data?.filter((a) => a.id !== appId).length === 0 && (
+            {copyCandidates.length === 0 && (
               <p className="py-4 text-center text-sm text-muted-foreground">
-                No other apps in workspace
+                {copySearch.trim()
+                  ? "No apps match your search"
+                  : "No other apps in workspace"}
               </p>
             )}
           </div>
