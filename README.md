@@ -1,6 +1,6 @@
 # AppBoard Web
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![License: PolyForm Noncommercial](https://img.shields.io/badge/license-PolyForm%20Noncommercial-blue.svg)](LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-blue.svg)](https://www.typescriptlang.org/)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black.svg)](https://nextjs.org/)
 [![Bun](https://img.shields.io/badge/Bun-1.3-black.svg)](https://bun.sh/)
@@ -121,7 +121,7 @@ bun test         # run tests
 
 Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, code style, and the PR process.
 
-By contributing you agree that your contributions will be licensed under the MIT License.
+By contributing you agree that your contributions will be licensed under the PolyForm Noncommercial License 1.0.0.
 
 Planned work and known gaps are tracked in [GitHub Issues](https://github.com/erykkruk/appboard-web/issues).
 
@@ -135,6 +135,6 @@ Found a security issue? Please **do not** open a public issue. See [SECURITY.md]
 
 ## License
 
-MIT © 2026 [Eryk Kruk](https://github.com/erykkruk)
+Source-available under the **PolyForm Noncommercial License 1.0.0** — free for personal and non-commercial use; commercial use and resale are not permitted. This is not an OSI open-source license.
 
-See [LICENSE](LICENSE) for the full text.
+© 2026 [Eryk Kruk](https://github.com/erykkruk). See [LICENSE](LICENSE) for the full text.

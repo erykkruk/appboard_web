@@ -1,129 +1,101 @@
 # Contributing to AppBoard Web
 
-First off — thanks for taking the time to contribute! 🎉
+Thanks for your interest in contributing to AppBoard! This is the admin panel
+(Next.js 16, React 19, TanStack Query, Better Auth) for the source-available,
+self-hostable ASO (App Store Optimization) tool. Contributions of all kinds are
+welcome — bug fixes, features, docs, and tests.
 
-This document describes how to set up a development environment, our code style, and the pull request process for the AppBoard admin panel.
+AppBoard is **source-available and free for personal & non-commercial use under
+the [PolyForm Noncommercial License 1.0.0](LICENSE)**. Note that this is **not**
+an OSI-approved open-source license — it restricts commercial use. By
+contributing, you agree that your contributions will be licensed under the same
+PolyForm Noncommercial License 1.0.0.
 
----
+## Code of Conduct
 
-## Ways to Contribute
+This project follows the [Contributor Covenant](CODE_OF_CONDUCT.md). By
+participating, you are expected to uphold it. Please report unacceptable
+behavior to conduct@appboard.dev.
 
-- **Report bugs** — open an issue describing the problem and how to reproduce it
-- **Request features** — open an issue describing the use case
-- **Improve docs** — README, inline docs, examples
-- **Fix bugs / implement features** — see below
-
----
-
-## Development Setup
-
-### Prerequisites
+## Prerequisites
 
 - [Bun](https://bun.sh/) `>= 1.3`
-- A running [AppBoard Backend](https://github.com/erykkruk/appboard-backend) (defaults to `http://localhost:6680`)
+- A running [AppBoard Backend](https://github.com/erykkruk/appboard_backend)
+  (defaults to `http://localhost:6680`)
 
-### Setup
+## Local Setup
 
 ```bash
-git clone https://github.com/erykkruk/appboard-web.git
-cd appboard-web
+# 1. Fork and clone the repo, then:
 bun install
+
+# 2. (Optional) create a local env file — only needed if the backend
+#    runs somewhere other than http://localhost:6680
+cp .env.example .env
+
+# 3. Start the dev server
 bun dev
 ```
 
-The admin panel listens on `http://localhost:6600`. No configuration is required as long as the backend runs on the default `http://localhost:6680`. If your backend lives elsewhere, copy `.env.example` to `.env` and set `BACKEND_URL`.
+The admin panel runs at `http://localhost:6600`. All `/api/*` requests are
+proxied server-side to the backend (`BACKEND_URL`, default
+`http://localhost:6680`), so the browser never calls the backend directly.
 
----
+## Before You Open a PR
 
-## Project Structure
-
-```
-src/
-├── app/            # Next.js App Router
-│   ├── (app)/      # Authenticated route group (dashboard, apps, groups, settings, …)
-│   └── (auth)/     # Public route group (login, register)
-├── components/     # UI components (shadcn/ui + feature components)
-├── hooks/          # TanStack Query hooks (use-apps, use-listings, use-features, …)
-├── lib/            # API client, auth client, types, CSV/diff utilities
-└── test/           # Test setup
-```
-
-The browser talks to the backend through the server-side `/api/*` proxy configured in `next.config.ts` — never call the backend host directly from client code.
-
----
-
-## Code Style
-
-- **Linter:** [ESLint](https://eslint.org/) (`eslint-config-next`) — run `bun run lint` before committing
-- **Type safety:** run `bun run typecheck` (`tsc --noEmit`) — no `any`, prefer precise types or `unknown` + narrowing
-- **Naming:**
-  - Files: `kebab-case.ts` / `kebab-case.tsx`
-  - Components: `PascalCase`
-  - Hooks: `useCamelCase` in `kebab-case` files (e.g. `use-apps.ts`)
-  - Functions/variables: `camelCase`
-  - Constants: `SCREAMING_SNAKE_CASE`
-- **Imports:** use the `@/` path alias instead of deep relative imports
-- **Data fetching:** use [TanStack Query](https://tanstack.com/query) hooks in `src/hooks/` — keep fetch logic out of components
-- **No business logic in components** — keep it in hooks / `src/lib/`
-
----
-
-## Testing
-
-Tests run with the built-in Bun test runner and [Testing Library](https://testing-library.com/).
+Run the full local check suite and make sure everything passes:
 
 ```bash
-bun test                     # all tests
-bun test src/hooks           # only hooks
+bun run lint        # ESLint
+bun run typecheck   # tsc --noEmit
+bun test            # tests
+bun run build       # production build (catches build-time issues)
 ```
 
-### Writing Tests
+- Add or update tests for any behavior you change.
+- Keep changes focused — one logical change per PR.
 
-- Follow **Arrange → Act → Assert** structure
-- Test behavior, not implementation details
-- Co-locate test files next to the code they cover (e.g. `use-history.test.ts`)
+## Branch Model
 
----
+- **`develop`** is the integration branch. Base your work on it and open PRs
+  **into `develop`**.
+- **`main`** is the released/deployed branch. Do not target it directly.
+
+```bash
+git checkout develop
+git pull
+git checkout -b feat/my-change
+```
 
 ## Commit Messages
 
 We use [Conventional Commits](https://www.conventionalcommits.org/):
 
 ```
-<type>(<scope>): <subject>
+feat: add screenshot reordering to the listings editor
+fix: preserve query cache on workspace switch
+chore: bump next to 16.2.4
+docs: update local setup instructions
 ```
 
 Common types: `feat`, `fix`, `chore`, `docs`, `refactor`, `test`, `perf`.
 
-Examples:
-```
-feat(listings): add bulk language switcher
-fix(auth): redirect stale sessions to login
-chore(deps): bump next to 16.1.6
-```
+## Pull Requests
 
----
+1. Ensure lint, type check, tests, and the build pass locally.
+2. Push your branch and open a PR **targeting `develop`**.
+3. Fill out the PR template (Summary, Changes, Related issue, Testing, Checklist).
+4. Use a Conventional Commits style PR title.
 
-## Pull Request Process
+### Review Expectations
 
-1. **Fork** the repo and create a branch from `main`: `git checkout -b feat/my-feature`
-2. **Make your changes** — keep commits focused and well-described
-3. **Add tests** for any new logic or bug fix
-4. **Run the full quality gate** locally before opening a PR:
-   ```bash
-   bun run lint
-   bun run typecheck
-   bun test
-   bun run build
-   ```
-5. **Update docs** if your change affects public behavior, config, or the UI surface
-6. **Open a PR** — link any related issue
-7. **Respond to review** — be open to feedback, we aim to be constructive
+- Every PR requires review and approval before it can be merged — direct pushes
+  to `develop`/`main` are not accepted.
+- A maintainer will review for correctness, UI/UX consistency, accessibility,
+  and adherence to the conventions in `CLAUDE.md`.
+- Be responsive to review feedback; keep the discussion constructive.
 
-All checks must pass before a PR can be merged.
+## Security
 
----
-
-## Questions?
-
-Open a [GitHub issue](https://github.com/erykkruk/appboard-web/issues). We're happy to help.
+Please do not report security vulnerabilities via public issues. See
+[SECURITY.md](SECURITY.md) for responsible disclosure.
