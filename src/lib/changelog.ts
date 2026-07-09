@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.7.2",
+    serverVersion: "0.7.1",
+    date: "2026-07-09",
+    changes: [
+      "New AppBoard branding: hexagon-A logo in the sidebar, on the sign-in page and as the favicon",
+      "Violet brand accent across the panel — primary buttons, focus rings and chart colors now match appboard.dev",
+    ],
+  },
+  {
     version: "0.7.1",
     serverVersion: "0.7.1",
     date: "2026-07-09",

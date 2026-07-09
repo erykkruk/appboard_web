@@ -5,8 +5,13 @@ const PUBLIC_PATHS = ["/login", "/demo"];
 export function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;
 
-	// Skip API routes and Next.js internals
-	if (pathname.startsWith("/api") || pathname.startsWith("/_next") || pathname.startsWith("/favicon")) {
+	// Skip API routes, Next.js internals and static assets (paths with a file extension)
+	if (
+		pathname.startsWith("/api") ||
+		pathname.startsWith("/_next") ||
+		pathname.startsWith("/favicon") ||
+		pathname.includes(".")
+	) {
 		return NextResponse.next();
 	}
 

@@ -127,6 +127,10 @@ export default function LoginPage() {
   return (
     <Card className="w-full max-w-sm">
       <CardHeader className="text-center">
+        <div className="mb-3 flex justify-center">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img alt="AppBoard" className="h-14 w-12 object-contain" src="/appboard-logo.svg" />
+        </div>
         <CardTitle className="text-2xl">Sign In</CardTitle>
         <CardDescription>
           {step === "email"
