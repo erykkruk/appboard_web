@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import { dedupeFontFamily, sanitizeFontFamilyName } from "@/lib/scene-fonts";
+import {
+	dedupeFontFamily,
+	googleFontCssUrl,
+	sanitizeFontFamilyName,
+} from "@/lib/scene-fonts";
 
 describe("sanitizeFontFamilyName", () => {
 	test("strips the font file extension", () => {
@@ -28,5 +32,25 @@ describe("dedupeFontFamily", () => {
 	test("appends a numeric suffix on collision (case-insensitive)", () => {
 		expect(dedupeFontFamily("Lato", ["lato"])).toBe("Lato 2");
 		expect(dedupeFontFamily("Lato", ["Lato", "Lato 2"])).toBe("Lato 3");
+	});
+});
+
+describe("googleFontCssUrl", () => {
+	test("encodes spaces as + and appends display=swap", () => {
+		expect(googleFontCssUrl("Luckiest Guy")).toBe(
+			"https://fonts.googleapis.com/css2?family=Luckiest+Guy&display=swap",
+		);
+	});
+
+	test("pins a single weight via the wght axis", () => {
+		expect(googleFontCssUrl("Inter", 700)).toBe(
+			"https://fonts.googleapis.com/css2?family=Inter:wght@700&display=swap",
+		);
+	});
+
+	test("trims surrounding whitespace", () => {
+		expect(googleFontCssUrl("  Lobster  ")).toBe(
+			"https://fonts.googleapis.com/css2?family=Lobster&display=swap",
+		);
 	});
 });

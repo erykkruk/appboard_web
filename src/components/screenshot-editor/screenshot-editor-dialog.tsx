@@ -29,8 +29,10 @@ import {
 	SelectValue,
 } from "@/components/ui/select";
 import { getScreenshotDimensionError } from "@/lib/api";
+import { Label } from "@/components/ui/label";
 import {
 	dedupeFontFamily,
+	loadGoogleFont,
 	registerCustomFont,
 	sanitizeFontFamilyName,
 } from "@/lib/scene-fonts";
@@ -140,6 +142,10 @@ export function ScreenshotEditorDialog({
 	const fontFileRef = useRef<HTMLInputElement>(null);
 	// Text layer that requested the font upload; its family is set on success.
 	const fontTargetRef = useRef<string | null>(null);
+	// Add-Google-Font flow: mini dialog state + the text layer that opened it.
+	const [googleFontOpen, setGoogleFontOpen] = useState(false);
+	const [googleFontLoading, setGoogleFontLoading] = useState(false);
+	const googleFontTargetRef = useRef<string | null>(null);
 
 	const createScene = useCreateScreenshotScene(appId);
 	const updateScene = useUpdateScreenshotScene(appId);
@@ -358,6 +364,38 @@ export function ScreenshotEditorDialog({
 		fontTargetRef.current = selectedLayerId;
 		fontFileRef.current?.click();
 	}, [selectedLayerId]);
+
+	const handleAddGoogleFont = useCallback(() => {
+		googleFontTargetRef.current = selectedLayerId;
+		setGoogleFontOpen(true);
+	}, [selectedLayerId]);
+
+	const handleGoogleFontSubmit = async (family: string) => {
+		const name = family.trim();
+		if (!name) return;
+		setGoogleFontLoading(true);
+		const loaded = await loadGoogleFont(name);
+		setGoogleFontLoading(false);
+		if (!loaded) {
+			toast.error(`"${name}" was not found on Google Fonts`);
+			return;
+		}
+		const targetId = googleFontTargetRef.current;
+		googleFontTargetRef.current = null;
+		setScene((prev) => ({
+			...prev,
+			googleFonts: (prev.googleFonts ?? []).includes(name)
+				? prev.googleFonts
+				: [...(prev.googleFonts ?? []), name],
+			textLayers: targetId
+				? prev.textLayers.map((l) =>
+						l.id === targetId ? { ...l, fontFamily: name } : l,
+					)
+				: prev.textLayers,
+		}));
+		setGoogleFontOpen(false);
+		toast.success(`Google Font "${name}" added`);
+	};
 
 	const handleFontFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
 		const file = e.target.files?.[0];
@@ -612,6 +650,7 @@ export function ScreenshotEditorDialog({
 						onPickScreenshot={() => screenshotFileRef.current?.click()}
 						onPickExistingScreenshot={() => setPickerOpen(true)}
 						onUploadFont={handleUploadFont}
+						onAddGoogleFont={handleAddGoogleFont}
 						onReplaceAnnotationImage={handleReplaceAnnotationImage}
 						onDeleteAnnotation={deleteAnnotation}
 					/>
@@ -667,6 +706,70 @@ export function ScreenshotEditorDialog({
 					displayType={displayType}
 					onPick={handlePickExistingScreenshot}
 				/>
+
+				<GoogleFontDialog
+					open={googleFontOpen}
+					onOpenChange={setGoogleFontOpen}
+					loading={googleFontLoading}
+					onSubmit={handleGoogleFontSubmit}
+				/>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+/**
+ * Minimal add-Google-Font prompt: type any family name from fonts.google.com
+ * (e.g. "Luckiest Guy") and it is fetched, registered on document.fonts and
+ * added to the scene's font list.
+ */
+function GoogleFontDialog({
+	open,
+	onOpenChange,
+	loading,
+	onSubmit,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	loading: boolean;
+	onSubmit: (family: string) => void;
+}) {
+	const [family, setFamily] = useState("");
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="max-w-sm">
+				<DialogHeader>
+					<DialogTitle>Add Google Font</DialogTitle>
+				</DialogHeader>
+				<form
+					className="flex flex-col gap-3"
+					onSubmit={(e) => {
+						e.preventDefault();
+						onSubmit(family);
+					}}
+				>
+					<div className="flex flex-col gap-1.5">
+						<Label htmlFor="google-font-name" className="text-xs">
+							Font name (as on fonts.google.com)
+						</Label>
+						<Input
+							id="google-font-name"
+							value={family}
+							placeholder="e.g. Luckiest Guy"
+							autoFocus
+							onChange={(e) => setFamily(e.target.value)}
+						/>
+					</div>
+					<Button type="submit" disabled={loading || !family.trim()}>
+						{loading ? (
+							<>
+								<Loader2 className="h-4 w-4 animate-spin" /> Loading…
+							</>
+						) : (
+							"Add font"
+						)}
+					</Button>
+				</form>
 			</DialogContent>
 		</Dialog>
 	);

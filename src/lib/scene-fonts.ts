@@ -58,3 +58,82 @@ export async function ensureCustomFontsLoaded(scene: SceneData): Promise<void> {
 	if (fonts.length === 0) return;
 	await Promise.all(fonts.map((font) => registerCustomFont(font)));
 }
+
+// Weights the editor's weight picker offers; each is requested from Google
+// Fonts individually so families that lack a weight (e.g. display fonts that
+// only ship 400) still load — the missing-weight requests just 404 and the
+// canvas synthesizes the weight instead.
+const GOOGLE_FONT_WEIGHTS = [400, 500, 600, 700, 900] as const;
+
+/**
+ * Build the fonts.googleapis.com CSS2 URL for a family, optionally pinned to
+ * a single weight. Pure — unit-tested without a DOM.
+ */
+export function googleFontCssUrl(family: string, weight?: number): string {
+	const name = encodeURIComponent(family.trim()).replace(/%20/g, "+");
+	const axis = weight ? `:wght@${weight}` : "";
+	return `https://fonts.googleapis.com/css2?family=${name}${axis}&display=swap`;
+}
+
+/** Inject a stylesheet link and resolve when it loads (false on error). */
+function injectStylesheet(href: string): Promise<boolean> {
+	return new Promise((resolve) => {
+		const existing = document.querySelector(`link[href="${href}"]`);
+		if (existing) {
+			resolve(true);
+			return;
+		}
+		const link = document.createElement("link");
+		link.rel = "stylesheet";
+		link.href = href;
+		link.onload = () => resolve(true);
+		link.onerror = () => {
+			link.remove();
+			resolve(false);
+		};
+		document.head.appendChild(link);
+	});
+}
+
+/**
+ * Load a Google Fonts family into the document so canvas text can use it.
+ * Requests the base family plus each editor weight (missing weights are
+ * ignored). Resolves `true` once the regular face is usable, `false` when the
+ * family doesn't exist on Google Fonts. Idempotent per family.
+ */
+export async function loadGoogleFont(family: string): Promise<boolean> {
+	if (typeof document === "undefined") return false;
+	const name = family.trim();
+	if (!name) return false;
+	if (registeredFamilies.has(name)) return true;
+
+	const baseLoaded = await injectStylesheet(googleFontCssUrl(name));
+	if (!baseLoaded) return false;
+	// Extra weights are best-effort — a 400 response just removes the link.
+	await Promise.all(
+		GOOGLE_FONT_WEIGHTS.filter((w) => w !== 400).map((w) =>
+			injectStylesheet(googleFontCssUrl(name, w)),
+		),
+	);
+
+	try {
+		await document.fonts.load(`400 16px "${name}"`, "AaBb");
+		if (!document.fonts.check(`400 16px "${name}"`)) return false;
+	} catch {
+		return false;
+	}
+	registeredFamilies.add(name);
+	return true;
+}
+
+/**
+ * Ensure every font a scene references — uploaded AND Google Fonts — is
+ * loaded before the canvas renders or exports. Supersedes
+ * {@link ensureCustomFontsLoaded} at the render/export call-sites.
+ */
+export async function ensureSceneFontsLoaded(scene: SceneData): Promise<void> {
+	await Promise.all([
+		ensureCustomFontsLoaded(scene),
+		...(scene.googleFonts ?? []).map((family) => loadGoogleFont(family)),
+	]);
+}

@@ -86,6 +86,9 @@ function annotationMeta(annotation: SceneAnnotation): {
 /** The Select value that triggers the custom-font upload flow. */
 const UPLOAD_FONT_VALUE = "__upload-font";
 
+/** The Select value that triggers the add-Google-Font flow. */
+const ADD_GOOGLE_FONT_VALUE = "__add-google-font";
+
 interface LayersPanelProps {
 	scene: SceneData;
 	selectedLayerId: string | null;
@@ -263,6 +266,7 @@ interface PropertiesPanelProps {
 	onPickScreenshot: () => void;
 	onPickExistingScreenshot: () => void;
 	onUploadFont: () => void;
+	onAddGoogleFont: () => void;
 	onReplaceAnnotationImage: (id: string) => void;
 	onDeleteAnnotation: (id: string) => void;
 }
@@ -278,6 +282,7 @@ export function PropertiesPanel({
 	onPickScreenshot,
 	onPickExistingScreenshot,
 	onUploadFont,
+	onAddGoogleFont,
 	onReplaceAnnotationImage,
 	onDeleteAnnotation,
 }: PropertiesPanelProps) {
@@ -307,8 +312,10 @@ export function PropertiesPanel({
 				<TextProperties
 					layer={selectedText}
 					customFonts={scene.customFonts}
+					googleFonts={scene.googleFonts}
 					onPatch={(patch) => onPatchTextLayer(selectedText.id, patch)}
 					onUploadFont={onUploadFont}
+					onAddGoogleFont={onAddGoogleFont}
 				/>
 			)}
 			{selectedAnnotation && selectedAnnotation.type === "image" && (
@@ -690,13 +697,17 @@ function DeviceProperties({
 function TextProperties({
 	layer,
 	customFonts,
+	googleFonts,
 	onPatch,
 	onUploadFont,
+	onAddGoogleFont,
 }: {
 	layer: SceneTextLayer;
 	customFonts?: SceneCustomFont[];
+	googleFonts?: string[];
 	onPatch: (patch: Partial<SceneTextLayer>) => void;
 	onUploadFont: () => void;
+	onAddGoogleFont: () => void;
 }) {
 	return (
 		<div className="flex flex-col gap-3">
@@ -719,6 +730,10 @@ function TextProperties({
 							onUploadFont();
 							return;
 						}
+						if (fontFamily === ADD_GOOGLE_FONT_VALUE) {
+							onAddGoogleFont();
+							return;
+						}
 						onPatch({ fontFamily });
 					}}
 				>
@@ -731,11 +746,19 @@ function TextProperties({
 								{f.label}
 							</SelectItem>
 						))}
+						{(googleFonts ?? []).map((family) => (
+							<SelectItem key={family} value={family}>
+								{family}
+							</SelectItem>
+						))}
 						{(customFonts ?? []).map((f) => (
 							<SelectItem key={f.family} value={f.family}>
 								{f.family}
 							</SelectItem>
 						))}
+						<SelectItem value={ADD_GOOGLE_FONT_VALUE}>
+							Add Google Font…
+						</SelectItem>
 						<SelectItem value={UPLOAD_FONT_VALUE}>Upload font…</SelectItem>
 					</SelectContent>
 				</Select>
@@ -779,6 +802,130 @@ function TextProperties({
 						className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
 						aria-label="Text background color"
 					/>
+				)}
+			</div>
+
+			<div className="flex flex-col gap-2 rounded-md border border-border/60 p-2.5">
+				<div className="flex items-center gap-2">
+					<Checkbox
+						id={`stroke-${layer.id}`}
+						checked={layer.strokeColor != null}
+						onCheckedChange={(checked) =>
+							onPatch(
+								checked === true
+									? {
+											strokeColor: layer.strokeColor ?? "#000000",
+											strokeWidth:
+												layer.strokeWidth ??
+												Math.max(2, Math.round(layer.fontSize * 0.1)),
+										}
+									: { strokeColor: undefined, strokeWidth: undefined },
+							)
+						}
+					/>
+					<Label htmlFor={`stroke-${layer.id}`} className="flex-1 text-xs">
+						Stroke (outline)
+					</Label>
+					{layer.strokeColor != null && (
+						<input
+							type="color"
+							value={layer.strokeColor}
+							onChange={(e) => onPatch({ strokeColor: e.target.value })}
+							className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+							aria-label="Stroke color"
+						/>
+					)}
+				</div>
+				{layer.strokeColor != null && (
+					<div className="flex flex-col gap-1.5">
+						<Label className="text-xs">Stroke width</Label>
+						<Input
+							type="number"
+							min={1}
+							value={layer.strokeWidth ?? 0}
+							onChange={(e) =>
+								onPatch({ strokeWidth: Math.max(1, Number(e.target.value) || 1) })
+							}
+						/>
+					</div>
+				)}
+			</div>
+
+			<div className="flex flex-col gap-2 rounded-md border border-border/60 p-2.5">
+				<div className="flex items-center gap-2">
+					<Checkbox
+						id={`shadow-${layer.id}`}
+						checked={layer.shadowColor != null}
+						onCheckedChange={(checked) =>
+							onPatch(
+								checked === true
+									? {
+											shadowColor: layer.shadowColor ?? "#000000",
+											shadowOffsetX: layer.shadowOffsetX ?? 0,
+											// Default reads as a shadow cast BELOW the text.
+											shadowOffsetY:
+												layer.shadowOffsetY ??
+												Math.max(2, Math.round(layer.fontSize * 0.08)),
+											shadowBlur: layer.shadowBlur ?? 0,
+										}
+									: {
+											shadowColor: undefined,
+											shadowOffsetX: undefined,
+											shadowOffsetY: undefined,
+											shadowBlur: undefined,
+										},
+							)
+						}
+					/>
+					<Label htmlFor={`shadow-${layer.id}`} className="flex-1 text-xs">
+						Drop shadow
+					</Label>
+					{layer.shadowColor != null && (
+						<input
+							type="color"
+							value={layer.shadowColor}
+							onChange={(e) => onPatch({ shadowColor: e.target.value })}
+							className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+							aria-label="Shadow color"
+						/>
+					)}
+				</div>
+				{layer.shadowColor != null && (
+					<div className="flex gap-2">
+						<div className="flex flex-1 flex-col gap-1.5">
+							<Label className="text-xs">Offset X</Label>
+							<Input
+								type="number"
+								value={layer.shadowOffsetX ?? 0}
+								onChange={(e) =>
+									onPatch({ shadowOffsetX: Number(e.target.value) || 0 })
+								}
+							/>
+						</div>
+						<div className="flex flex-1 flex-col gap-1.5">
+							<Label className="text-xs">Offset Y</Label>
+							<Input
+								type="number"
+								value={layer.shadowOffsetY ?? 0}
+								onChange={(e) =>
+									onPatch({ shadowOffsetY: Number(e.target.value) || 0 })
+								}
+							/>
+						</div>
+						<div className="flex flex-1 flex-col gap-1.5">
+							<Label className="text-xs">Blur</Label>
+							<Input
+								type="number"
+								min={0}
+								value={layer.shadowBlur ?? 0}
+								onChange={(e) =>
+									onPatch({
+										shadowBlur: Math.max(0, Number(e.target.value) || 0),
+									})
+								}
+							/>
+						</div>
+					</div>
 				)}
 			</div>
 

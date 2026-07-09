@@ -355,12 +355,48 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 			ctx.fill();
 		}
 
-		ctx.fillStyle = layer.color;
+		ctx.save();
 		ctx.textAlign = layer.align;
 		ctx.textBaseline = "middle";
+		const lineY = (i: number) => y - totalHeight / 2 + i * lineHeight;
+
+		const hasStroke = Boolean(layer.strokeColor && (layer.strokeWidth ?? 0) > 0);
+		const hasShadow = Boolean(
+			layer.shadowColor &&
+				((layer.shadowOffsetX ?? 0) !== 0 ||
+					(layer.shadowOffsetY ?? 0) !== 0 ||
+					(layer.shadowBlur ?? 0) > 0),
+		);
+		if (hasShadow && layer.shadowColor) {
+			ctx.shadowColor = layer.shadowColor;
+			ctx.shadowOffsetX = layer.shadowOffsetX ?? 0;
+			ctx.shadowOffsetY = layer.shadowOffsetY ?? 0;
+			ctx.shadowBlur = layer.shadowBlur ?? 0;
+		}
+
+		// Outline pass first (cartoon "stroke behind fill" look). The shadow rides
+		// on this pass when a stroke exists, so the fill above stays crisp.
+		if (hasStroke && layer.strokeColor) {
+			ctx.lineJoin = "round";
+			ctx.miterLimit = 2;
+			ctx.strokeStyle = layer.strokeColor;
+			// The canvas stroke straddles the glyph edge, so double the width to get
+			// the requested visible outline thickness outside the fill.
+			ctx.lineWidth = (layer.strokeWidth ?? 0) * 2;
+			lines.forEach((line, i) => {
+				ctx.strokeText(line, x, lineY(i));
+			});
+			ctx.shadowColor = "transparent";
+			ctx.shadowOffsetX = 0;
+			ctx.shadowOffsetY = 0;
+			ctx.shadowBlur = 0;
+		}
+
+		ctx.fillStyle = layer.color;
 		lines.forEach((line, i) => {
-			ctx.fillText(line, x, y - totalHeight / 2 + i * lineHeight);
+			ctx.fillText(line, x, lineY(i));
 		});
+		ctx.restore();
 	}
 }
 

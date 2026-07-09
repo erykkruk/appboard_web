@@ -1,4 +1,4 @@
-import { ensureCustomFontsLoaded } from "@/lib/scene-fonts";
+import { ensureSceneFontsLoaded } from "@/lib/scene-fonts";
 import type { SceneData } from "@/lib/types";
 
 import { type RenderImage, type RenderImages, renderScene } from "./render-scene";
@@ -52,9 +52,9 @@ function loadRenderImage(src: string): Promise<RenderImage | null> {
  * is tainted by a remote image without CORS headers (toBlob throws).
  */
 export async function exportSceneToPng(scene: SceneData): Promise<Blob | null> {
-	// Custom fonts must be registered before drawing, or the exported PNG
-	// silently falls back to a default family.
-	await ensureCustomFontsLoaded(scene);
+	// Custom and Google fonts must be registered before drawing, or the
+	// exported PNG silently falls back to a default family.
+	await ensureSceneFontsLoaded(scene);
 
 	const images: RenderImages = {};
 	if (scene.background.type === "image" && scene.background.value) {

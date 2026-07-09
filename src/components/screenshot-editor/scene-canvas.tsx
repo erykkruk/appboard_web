@@ -9,7 +9,11 @@ import {
 	useState,
 } from "react";
 
-import { ensureCustomFontsLoaded, registerCustomFont } from "@/lib/scene-fonts";
+import {
+	ensureSceneFontsLoaded,
+	loadGoogleFont,
+	registerCustomFont,
+} from "@/lib/scene-fonts";
 import {
 	computeDeviceRect,
 	computeDisplayScale,
@@ -77,19 +81,23 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 		// before the FontFace resolved is re-rendered with the real glyphs.
 		const [fontsVersion, setFontsVersion] = useState(0);
 		const customFonts = scene.customFonts;
+		const googleFonts = scene.googleFonts;
 
 		useEffect(() => {
-			if (!customFonts || customFonts.length === 0) return;
+			const hasCustom = customFonts && customFonts.length > 0;
+			const hasGoogle = googleFonts && googleFonts.length > 0;
+			if (!hasCustom && !hasGoogle) return;
 			let cancelled = false;
-			Promise.all(customFonts.map((font) => registerCustomFont(font))).then(
-				() => {
-					if (!cancelled) setFontsVersion((v) => v + 1);
-				},
-			);
+			Promise.all([
+				...(customFonts ?? []).map((font) => registerCustomFont(font)),
+				...(googleFonts ?? []).map((family) => loadGoogleFont(family)),
+			]).then(() => {
+				if (!cancelled) setFontsVersion((v) => v + 1);
+			});
 			return () => {
 				cancelled = true;
 			};
-		}, [customFonts]);
+		}, [customFonts, googleFonts]);
 
 		// Fit the canvas into the available container box while keeping the
 		// backing store at true device pixels (scene.width × scene.height).
@@ -125,9 +133,9 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 			ref,
 			() => ({
 				exportPng: async () => {
-					// Guarantee custom fonts are registered before the off-screen
-					// draw so the exported PNG uses the real glyphs.
-					await ensureCustomFontsLoaded(scene);
+					// Guarantee custom and Google fonts are registered before the
+					// off-screen draw so the exported PNG uses the real glyphs.
+					await ensureSceneFontsLoaded(scene);
 					return new Promise<Blob | null>((resolve) => {
 						const exportCanvas = document.createElement("canvas");
 						exportCanvas.width = scene.width;

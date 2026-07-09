@@ -613,6 +613,17 @@ export interface SceneTextLayer {
 	weight?: number;
 	/** Optional background color drawn as a rounded panel behind the text. */
 	bg?: string;
+	/** Optional text outline (both must be set for the stroke to draw). */
+	strokeColor?: string;
+	strokeWidth?: number;
+	/**
+	 * Optional drop shadow. Offsets are scene-space pixels (positive Y = shadow
+	 * below the text). The shadow draws when a color is set.
+	 */
+	shadowColor?: string;
+	shadowOffsetX?: number;
+	shadowOffsetY?: number;
+	shadowBlur?: number;
 	/**
 	 * When true, this layer's text is kept verbatim across language variants
 	 * (e.g. brand names, prices). Persisted inside the opaque `jsonb` scene, so
@@ -721,6 +732,12 @@ export interface SceneData {
 	annotations?: SceneAnnotation[];
 	/** User-uploaded fonts referenced by text layers/annotations. */
 	customFonts?: SceneCustomFont[];
+	/**
+	 * Google Fonts families referenced by text layers/annotations, loaded
+	 * dynamically from fonts.googleapis.com. Persisted in the opaque `jsonb`
+	 * scene — no backend migration needed.
+	 */
+	googleFonts?: string[];
 	/**
 	 * Panorama panel count (default 1). When > 1 the scene is one wide canvas
 	 * spanning N store screenshots (`width` = target width × panels); export

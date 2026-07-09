@@ -131,12 +131,17 @@
 /* Always-visible horizontal scrollbar (macOS hides overlay scrollbars until
    scroll — screenshot strips need the affordance visible immediately). */
 .scrollbar-always {
-  scrollbar-width: thin;
-  scrollbar-color: var(--muted-foreground) var(--muted);
+  /* `scroll` (not `auto`) keeps the bar area rendered even before overflow,
+     so the affordance is always on screen. */
+  overflow-x: scroll;
 }
+/* Chromium/WebKit: custom-painted scrollbar, always visible. The standard
+   scrollbar-width/color properties must NOT be set here — in Chrome they
+   disable ::-webkit-scrollbar styling entirely. */
 .scrollbar-always::-webkit-scrollbar {
-  height: 8px;
-  width: 8px;
+  height: 10px;
+  width: 10px;
+  -webkit-appearance: none;
 }
 .scrollbar-always::-webkit-scrollbar-track {
   background: var(--muted);
@@ -145,4 +150,11 @@
 .scrollbar-always::-webkit-scrollbar-thumb {
   background: var(--muted-foreground);
   border-radius: 9999px;
+}
+/* Firefox (no ::-webkit-scrollbar): fall back to the standard properties. */
+@supports not selector(::-webkit-scrollbar) {
+  .scrollbar-always {
+    scrollbar-width: thin;
+    scrollbar-color: var(--muted-foreground) var(--muted);
+  }
 }
