@@ -20,7 +20,9 @@ COPY . .
 RUN bun run build
 
 # --- runner: minimal production image ---
-FROM oven/bun:alpine AS runner
+# Next's standalone server is a Node server — run it on Node (not Bun), whose
+# rewrite/proxy internals otherwise mishandle the /api reverse proxy.
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 ENV NODE_ENV=production
@@ -34,4 +36,4 @@ COPY --from=builder /app/.next/static ./.next/static
 
 EXPOSE 6600
 
-CMD ["bun", "server.js"]
+CMD ["node", "server.js"]
