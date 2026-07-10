@@ -13,6 +13,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     changes: [
       "New Help menu in the sidebar: Documentation, FAQ and Contact support (contact@appboard.dev) — all one click away",
       "The AppBoard logo now links to appboard.dev, both on the sign-in page and in the panel sidebar",
+      "Try live demo: a visible button on the sign-in page drops you straight into the shared demo workspace",
     ],
   },
   {

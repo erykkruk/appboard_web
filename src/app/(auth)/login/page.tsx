@@ -1,5 +1,6 @@
 "use client";
 
+import { Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type KeyboardEvent } from "react";
 
@@ -247,6 +248,13 @@ export default function LoginPage() {
             >
               Sign in with a password
             </button>
+
+            <Button asChild type="button" variant="secondary" className="w-full">
+              <a href="/demo">
+                <Sparkles className="mr-2 h-4 w-4" />
+                Try live demo
+              </a>
+            </Button>
           </form>
         ) : step === "password" ? (
           <form
