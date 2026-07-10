@@ -40,3 +40,16 @@ jobs:
             ghcr.io/erykkruk/appboard-web:${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
+
+      # After the multi-arch :latest is published, tell Coolify (prod) to pull it.
+      # Set the COOLIFY_DEPLOY_WEBHOOK secret to the panel app's Deploy Webhook URL.
+      # Skipped cleanly until the secret exists, so this never fails the build.
+      - name: Trigger Coolify redeploy
+        env:
+          HOOK: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}
+        run: |
+          if [ -z "$HOOK" ]; then
+            echo "COOLIFY_DEPLOY_WEBHOOK not set — skipping prod redeploy."
+            exit 0
+          fi
+          curl -fsS -X POST "$HOOK" && echo "Coolify redeploy triggered."
