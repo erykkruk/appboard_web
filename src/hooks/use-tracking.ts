@@ -18,6 +18,20 @@ export function useTracking(appId: string) {
 	});
 }
 
+/**
+ * Dashboard summary — the backend auto-imports ASO-profile keywords and runs a
+ * first rank check on this call, so the first load can take a few seconds.
+ */
+export function useTrackingSummary(appId: string) {
+	return useQuery({
+		enabled: !!appId,
+		queryFn: () => api.tracking.summary(appId),
+		queryKey: [...trackingKey(appId), "summary"],
+		retry: false,
+		staleTime: 5 * 60 * 1000,
+	});
+}
+
 export function useRankHistory(
 	appId: string,
 	filters?: { country?: string; keyword?: string },

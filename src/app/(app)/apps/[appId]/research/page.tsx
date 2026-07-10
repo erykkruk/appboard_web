@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 
 import { AppResearchRunTab } from "@/components/tracking/app-research-run-tab";
 import { AutomationTab } from "@/components/tracking/automation-tab";
@@ -13,8 +13,18 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 
+const RESEARCH_TABS = ["run", "keywords", "history", "automation"] as const;
+type ResearchTab = (typeof RESEARCH_TABS)[number];
+
 export default function AppResearchPage() {
   const { appId } = useParams<{ appId: string }>();
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get("tab");
+  const initialTab: ResearchTab = RESEARCH_TABS.includes(
+    tabParam as ResearchTab,
+  )
+    ? (tabParam as ResearchTab)
+    : "run";
 
   return (
     <div className="space-y-6">
@@ -25,7 +35,7 @@ export default function AppResearchPage() {
         </p>
       </div>
 
-      <Tabs defaultValue="run">
+      <Tabs defaultValue={initialTab}>
         <TabsList>
           <TabsTrigger value="run">Research</TabsTrigger>
           <TabsTrigger value="keywords">Keywords &amp; Rankings</TabsTrigger>

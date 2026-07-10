@@ -3,6 +3,8 @@
 import { useParams } from "next/navigation";
 import { Apple, Download, MessageSquare, Package, Star, Store } from "lucide-react";
 
+import { KeywordRankingsCard } from "@/components/tracking/keyword-rankings-card";
+import { ReviewSentimentCard } from "@/components/tracking/review-sentiment-card";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -193,9 +195,19 @@ export default function AppDashboardPage() {
           </CardContent>
         </Card>
       )}
+
+      {/* Review sentiment from the latest research run */}
+      <ReviewSentimentCard
+        appBundleId={data.bundleId}
+        appExternalId={data.externalId}
+        appId={appId}
+      />
         </div>
 
         <div className="space-y-6">
+      {/* Keyword rankings */}
+      <KeywordRankingsCard appId={appId} />
+
       {/* Rating distribution */}
       {stats && stats.totalReviews > 0 && (
         <Card>
