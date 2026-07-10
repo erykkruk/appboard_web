@@ -1,5 +1,6 @@
 "use client";
 
+import { Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, type KeyboardEvent } from "react";
 
@@ -8,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { authClient } from "@/lib/auth-client";
+import { WEBSITE_URL } from "@/lib/external-links";
 import { LoginLogo3d } from "@/components/login-logo-3d";
 
 type Step = "email" | "otp" | "password";
@@ -153,8 +155,14 @@ export default function LoginPage() {
       <Card className="relative z-10 w-full max-w-sm">
       <CardHeader className="text-center">
         <div className="mb-3 flex justify-center">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img alt="AppBoard" className="h-14 w-12 object-contain" src="/appboard-logo.svg" />
+          <a
+            aria-label="Go to appboard.dev"
+            className="transition-opacity hover:opacity-80"
+            href={WEBSITE_URL}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img alt="AppBoard" className="h-14 w-12 object-contain" src="/appboard-logo.svg" />
+          </a>
         </div>
         <CardTitle className="text-2xl">Sign In</CardTitle>
         <CardDescription>
@@ -240,6 +248,13 @@ export default function LoginPage() {
             >
               Sign in with a password
             </button>
+
+            <Button asChild type="button" variant="secondary" className="w-full">
+              <a href="/demo">
+                <Sparkles className="mr-2 h-4 w-4" />
+                Try live demo
+              </a>
+            </Button>
           </form>
         ) : step === "password" ? (
           <form

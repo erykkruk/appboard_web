@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.8.1",
+    serverVersion: "0.8.0",
+    date: "2026-07-10",
+    changes: [
+      "New Help menu in the sidebar: Documentation, FAQ and Contact support (contact@appboard.dev) — all one click away",
+      "The AppBoard logo now links to appboard.dev, both on the sign-in page and in the panel sidebar",
+      "Try live demo: a visible button on the sign-in page drops you straight into the shared demo workspace",
+    ],
+  },
+  {
     version: "0.8.0",
     serverVersion: "0.8.0",
     date: "2026-07-10",

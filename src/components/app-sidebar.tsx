@@ -38,7 +38,9 @@ import {
 import { toast } from "sonner";
 
 import { StoreLogo } from "@/components/store-logo";
+import { HelpMenu } from "@/components/help-menu";
 import { VersionDialog } from "@/components/version-dialog";
+import { WEBSITE_URL } from "@/lib/external-links";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -1351,13 +1353,19 @@ export function AppSidebar() {
 
   return (
     <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-[#111111] py-3">
-      <div className="mb-3 flex items-center gap-2.5 px-4 pt-1">
+      <a
+        aria-label="Go to appboard.dev"
+        className="mb-3 flex items-center gap-2.5 px-4 pt-1 transition-opacity hover:opacity-80"
+        href={WEBSITE_URL}
+        rel="noreferrer"
+        target="_blank"
+      >
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img alt="AppBoard" className="h-7 w-6 object-contain" src="/appboard-logo.svg" />
         <span className="text-[15px] font-semibold tracking-tight text-foreground">
           AppBoard
         </span>
-      </div>
+      </a>
       {/* Top buttons: Store selector + Groups */}
       <div className="mb-3 flex flex-col gap-1 px-2">
         {storesList.length > 0 ? (
@@ -1705,6 +1713,7 @@ export function AppSidebar() {
           </div>
           <span className="text-sm">Settings</span>
         </Link>
+        <HelpMenu />
         <VersionDialog />
       </div>
 
