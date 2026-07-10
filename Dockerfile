@@ -11,9 +11,11 @@ FROM oven/bun:alpine AS builder
 WORKDIR /app
 ENV NEXT_TELEMETRY_DISABLED=1
 # Next evaluates rewrites() at BUILD time for standalone output, so the /api
-# proxy destination is baked in here (runtime BACKEND_URL is ignored). The
-# one-click compose names the backend service "backend"; override if needed.
-ARG BACKEND_URL=http://backend:6680
+# proxy destination is baked in. We bake a SENTINEL here and swap it for the
+# real backend URL at container start (see docker-entrypoint.sh) — that keeps a
+# single universal image whose BACKEND_URL is effectively runtime-configurable
+# on any platform (Coolify, Railway, Render, DO, Heroku, Dokploy, ...).
+ARG BACKEND_URL=http://appboard-backend-url-sentinel
 ENV BACKEND_URL=$BACKEND_URL
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
@@ -33,7 +35,9 @@ ENV PORT=6600
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next/standalone ./
 COPY --from=builder /app/.next/static ./.next/static
+COPY docker-entrypoint.sh /app/docker-entrypoint.sh
+RUN chmod +x /app/docker-entrypoint.sh
 
 EXPOSE 6600
 
-CMD ["node", "server.js"]
+ENTRYPOINT ["/app/docker-entrypoint.sh"]
