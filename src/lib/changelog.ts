@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.8.2",
+    serverVersion: "0.8.0",
+    date: "2026-07-10",
+    changes: [
+      "Self-hosting: the backend now waits for PostgreSQL on cold start (retries migrations for up to a minute) instead of crash-looping on one-click platforms",
+      "Docker images are now also tagged with their release version (next to latest), so templates can pin exact versions",
+    ],
+  },
+  {
     version: "0.8.1",
     serverVersion: "0.8.0",
     date: "2026-07-10",
