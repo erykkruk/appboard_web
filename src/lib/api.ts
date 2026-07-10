@@ -66,6 +66,7 @@ import type {
 	ResearchVisualAnalysis,
 	TrackedKeyword,
 	TrackingOverview,
+	TrackingSummary,
 	Review,
 	ReviewInfo,
 	ReviewStats,
@@ -1144,6 +1145,8 @@ export const api = {
 				`/api/apps/${appId}/tracking/keywords/${keywordId}`,
 				{ method: "DELETE" },
 			),
+		summary: (appId: string) =>
+			fetchApi<TrackingSummary>(`/api/apps/${appId}/tracking/summary`),
 		updateConfig: (
 			appId: string,
 			body: {

@@ -1447,3 +1447,20 @@ export interface TrackingOverview {
 	keywords: TrackedKeyword[];
 	positions: LatestRankPosition[];
 }
+
+export interface TrackingSummaryStats {
+	avgPosition: number | null;
+	bestPosition: number | null;
+	declinedCount: number;
+	improvedCount: number;
+	lastCheckedAt: string | null;
+	rankedKeywords: number;
+	top10Count: number;
+	trackedKeywords: number;
+}
+
+export interface TrackingSummary {
+	config: AppTrackingConfig;
+	positions: LatestRankPosition[];
+	stats: TrackingSummaryStats;
+}
