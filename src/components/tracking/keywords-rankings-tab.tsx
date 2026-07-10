@@ -1,16 +1,9 @@
 "use client";
 
-import {
-  ArrowDown,
-  ArrowUp,
-  Loader2,
-  Minus,
-  Plus,
-  RefreshCw,
-  X,
-} from "lucide-react";
+import { Loader2, Plus, RefreshCw, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { DeltaBadge } from "@/components/tracking/delta-badge";
 import { RankChart } from "@/components/tracking/rank-chart";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -48,29 +41,6 @@ import {
 } from "@/hooks/use-tracking";
 import { formatKeywordPosition, RESEARCH_COUNTRIES } from "@/lib/research";
 import { MAX_TRACKED_KEYWORDS_PER_LANGUAGE } from "@/lib/types";
-
-function DeltaBadge({ delta }: { delta: number | null }) {
-  if (delta === null) return <span className="text-muted-foreground">—</span>;
-  if (delta === 0)
-    return (
-      <span className="inline-flex items-center text-muted-foreground">
-        <Minus className="h-3.5 w-3.5" />
-      </span>
-    );
-  if (delta > 0)
-    return (
-      <span className="inline-flex items-center gap-0.5 text-emerald-600">
-        <ArrowUp className="h-3.5 w-3.5" />
-        {delta}
-      </span>
-    );
-  return (
-    <span className="inline-flex items-center gap-0.5 text-red-600">
-      <ArrowDown className="h-3.5 w-3.5" />
-      {Math.abs(delta)}
-    </span>
-  );
-}
 
 export function KeywordsRankingsTab({ appId }: { appId: string }) {
   const tracking = useTracking(appId);

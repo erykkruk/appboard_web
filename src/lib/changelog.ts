@@ -17,6 +17,18 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.8.0",
+    serverVersion: "0.8.0",
+    date: "2026-07-10",
+    changes: [
+      "Keyword Rankings on the app dashboard: a new card shows how your app ranks in store search — tracked keywords, average position, top-10 count and improving vs declining, with top keywords listed with day-over-day changes",
+      "Review Sentiment on the app dashboard: positive/neutral/negative breakdown from your latest research run, with what users love and complain about most",
+      "Zero-setup tracking: keywords added in the Information tab (must-include + long-tail) are imported into rank tracking automatically, the first position check runs on its own and the twice-daily scheduler takes over from there",
+      "Research page tabs are now linkable — 'View all' on the dashboard card jumps straight to Keywords & Rankings",
+      "Demo account ships with two weeks of realistic keyword-ranking history on Lumina and Pulse",
+    ],
+  },
+  {
     version: "0.7.2",
     serverVersion: "0.7.1",
     date: "2026-07-09",
