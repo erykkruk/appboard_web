@@ -40,12 +40,20 @@ import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
 import { useVault } from "@/components/vault/vault-provider";
+import { useIsFeatureEnabled } from "@/hooks/use-features";
 import {
   useConnectStore,
   useStoreCapabilityCatalog,
   useVerifyStoreAccess,
 } from "@/hooks/use-stores";
 import { ApiError } from "@/lib/api";
+import {
+  ALTERNATIVE_STORE_TYPES,
+  isAlternativeStoreType,
+  STORE_TYPE_BADGE,
+  STORE_TYPE_LABELS,
+  storeTypeLabel,
+} from "@/lib/stores";
 import type { CapabilityAccessResult, StoreType } from "@/lib/types";
 
 const TOTAL_STEPS = 5;
@@ -80,6 +88,7 @@ function StoreTypeStep({
   onDemo: () => void;
   isDemoLoading: boolean;
 }) {
+  const multiStore = useIsFeatureEnabled("MULTI_STORE");
   return (
     <div className="space-y-6">
       <div className="grid gap-4 md:grid-cols-2">
@@ -118,6 +127,42 @@ function StoreTypeStep({
           </CardHeader>
         </Card>
       </div>
+
+      {multiStore && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <p className="text-sm font-medium text-muted-foreground">
+              Alternative stores
+            </p>
+            <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-medium text-primary">
+              Beta
+            </span>
+          </div>
+          <div className="grid gap-4 md:grid-cols-3">
+            {ALTERNATIVE_STORE_TYPES.map((type) => (
+              <Card
+                key={type}
+                className="cursor-pointer transition-colors hover:border-foreground/30"
+                onClick={() => onSelect(type)}
+              >
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-3 text-base">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#2a2a2a]">
+                      <span className="text-xs font-bold text-muted-foreground">
+                        {STORE_TYPE_BADGE[type]}
+                      </span>
+                    </div>
+                    {STORE_TYPE_LABELS[type]}
+                  </CardTitle>
+                  <CardDescription className="text-xs">
+                    Connect with an API token. Full sync coming soon.
+                  </CardDescription>
+                </CardHeader>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
 
       <Separator />
 
@@ -425,6 +470,7 @@ export default function OnboardingPage() {
   const [keyId, setKeyId] = useState("");
   const [issuerId, setIssuerId] = useState("");
   const [privateKey, setPrivateKey] = useState("");
+  const [apiToken, setApiToken] = useState("");
 
   const [selectedCaps, setSelectedCaps] = useState<string[]>([]);
   const [accessReport, setAccessReport] = useState<CapabilityAccessResult[] | null>(
@@ -488,6 +534,9 @@ export default function OnboardingPage() {
         return null;
       }
     }
+    if (isAlternativeStoreType(storeType)) {
+      return { apiToken };
+    }
     return { keyId, issuerId, privateKey };
   };
 
@@ -511,7 +560,7 @@ export default function OnboardingPage() {
   const handleConnect = async () => {
     if (!storeType) return;
 
-    const name = accountName.trim() || (storeType === "google_play" ? "Google Play" : "App Store");
+    const name = accountName.trim() || storeTypeLabel(storeType);
     const credentials = parseCredentials();
     if (!credentials) return;
 
@@ -541,13 +590,15 @@ export default function OnboardingPage() {
   };
 
   const hasName = accountName.trim().length > 0;
-  const canProceed = hasName && (
-    storeType === "google_play"
+  const canProceed =
+    hasName &&
+    (storeType === "google_play"
       ? serviceAccountJson.trim().length > 0
-      : keyId.trim().length > 0 &&
-        issuerId.trim().length > 0 &&
-        privateKey.trim().length > 0
-  );
+      : storeType && isAlternativeStoreType(storeType)
+        ? apiToken.trim().length > 0
+        : keyId.trim().length > 0 &&
+          issuerId.trim().length > 0 &&
+          privateKey.trim().length > 0);
 
   return (
     <div className="flex flex-col">
@@ -625,6 +676,42 @@ export default function OnboardingPage() {
               onIssuerIdChange={setIssuerId}
               onPrivateKeyChange={setPrivateKey}
             />
+          </div>
+        )}
+
+        {step === 2 && storeType && isAlternativeStoreType(storeType) && (
+          <div>
+            <h2 className="mb-2 text-xl font-semibold">
+              {storeTypeLabel(storeType)} Credentials
+            </h2>
+            <p className="mb-6 text-sm text-muted-foreground">
+              Paste an API token from your {storeTypeLabel(storeType)} developer
+              console. Full publishing support is coming soon — for now the
+              connection syncs sample data so you can explore the workflow.
+            </p>
+            <div className="mb-4">
+              <label className="mb-2 block text-sm font-medium" htmlFor="account-name">
+                Developer Account Name
+              </label>
+              <Input
+                id="account-name"
+                placeholder="e.g. My Company"
+                value={accountName}
+                onChange={(e) => setAccountName(e.target.value)}
+              />
+            </div>
+            <div>
+              <label className="mb-2 block text-sm font-medium" htmlFor="api-token">
+                API Token
+              </label>
+              <Textarea
+                id="api-token"
+                placeholder={`Paste your ${storeTypeLabel(storeType)} API token here...`}
+                value={apiToken}
+                onChange={(e) => setApiToken(e.target.value)}
+                rows={4}
+              />
+            </div>
           </div>
         )}
 
@@ -728,10 +815,17 @@ export default function OnboardingPage() {
               <ArrowLeft className="mr-2 h-4 w-4" />
               Back
             </Button>
-            <Button onClick={() => setStep(3)} disabled={!canProceed}>
-              Next
-              <ArrowRight className="ml-2 h-4 w-4" />
-            </Button>
+            {storeType && isAlternativeStoreType(storeType) ? (
+              <Button onClick={handleConnect} disabled={!canProceed || connectStore.isPending}>
+                Connect
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            ) : (
+              <Button onClick={() => setStep(3)} disabled={!canProceed}>
+                Next
+                <ArrowRight className="ml-2 h-4 w-4" />
+              </Button>
+            )}
           </div>
         )}
 

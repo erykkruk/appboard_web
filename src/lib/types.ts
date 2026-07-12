@@ -1,4 +1,12 @@
-export type StoreType = "google_play" | "app_store";
+export type StoreType =
+	| "google_play"
+	| "app_store"
+	| "huawei_appgallery"
+	| "amazon_appstore"
+	| "samsung_galaxy"
+	| "xiaomi_getapps"
+	| "rustore"
+	| "onestore";
 
 export interface Store {
 	id: string;
@@ -180,6 +188,7 @@ export type FeatureKey =
 	| "HISTORY"
 	| "GROUPS"
 	| "MONETIZATION_CHAT"
+	| "MULTI_STORE"
 	| "RESEARCH";
 
 export interface FeatureDefinition {
