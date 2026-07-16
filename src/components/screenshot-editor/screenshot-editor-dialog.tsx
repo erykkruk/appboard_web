@@ -493,7 +493,10 @@ export function ScreenshotEditorDialog({
 						const styled = {
 							...a,
 							bg: source.bg,
+							borderColor: source.borderColor,
+							borderWidth: source.borderWidth,
 							color: source.color,
+							cornerRadius: source.cornerRadius,
 							fontFamily: source.fontFamily,
 							fontSize: source.fontSize,
 							weight: source.weight,

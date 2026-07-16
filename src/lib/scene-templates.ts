@@ -782,6 +782,56 @@ SCENE_TEMPLATES.push({
 	name: "Sunset Blvd",
 });
 
+SCENE_TEMPLATES.push({
+	build: (displayType) => {
+		const scene = createDefaultScene(displayType);
+		return {
+			...scene,
+			background: {
+				gradient: { angle: 180, from: "#ece3d6", to: "#cdbba4" },
+				type: "gradient",
+				value: "#ece3d6",
+			},
+			device: {
+				...scene.device!,
+				clayColor: "#d8c6ae",
+				groundShadow: true,
+				offsetY: 0.2,
+				scale: 0.66,
+				style: "clay",
+			},
+			textLayers: [
+				headline(
+					{
+						color: "#4a3b2c",
+						fontFamily: "Georgia, serif",
+						fontSize: Math.round(scene.height * 0.044),
+						text: "Breathe in.\nBreathe out.",
+						weight: 400,
+						y: 0.08,
+					},
+					scene.height,
+				),
+				headline(
+					{
+						color: "#7d6a52",
+						fontFamily: "Georgia, serif",
+						fontSize: Math.round(scene.height * 0.021),
+						id: "subline",
+						text: "Guided calm, five minutes a day",
+						weight: 400,
+						y: 0.15,
+					},
+					scene.height,
+				),
+			],
+		};
+	},
+	description: "Calming earthtones with a clay device and serif type",
+	id: "ethereal-calm",
+	name: "Ethereal",
+});
+
 /**
  * Apply a template while preserving the parts of the current scene the user
  * already invested in: the device screenshot and any loaded fonts.

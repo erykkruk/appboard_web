@@ -1324,6 +1324,31 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 	}
 }
 
+/** Resolved corner radius for an annotation box, honoring the override. */
+function annotationRadius(
+	annotation: SceneTextAnnotation,
+	fallback: number,
+): number {
+	return annotation.cornerRadius != null
+		? annotation.cornerRadius * annotation.fontSize
+		: fallback;
+}
+
+/** Stroke the annotation's border over the given path-drawing callback. */
+function strokeAnnotationBorder(
+	ctx: CanvasRenderingContext2D,
+	annotation: SceneTextAnnotation,
+	path: () => void,
+): void {
+	if (!annotation.borderColor || !(annotation.borderWidth ?? 0)) return;
+	ctx.save();
+	ctx.strokeStyle = annotation.borderColor;
+	ctx.lineWidth = annotation.borderWidth ?? 1;
+	path();
+	ctx.stroke();
+	ctx.restore();
+}
+
 /** Draw the multi-line text of an annotation centered inside `box`. */
 function drawAnnotationText(
 	ctx: CanvasRenderingContext2D,
@@ -1395,9 +1420,16 @@ function drawCallout(
 	ctx.fill();
 
 	// Bubble.
-	roundedRectPath(ctx, box, Math.min(box.height / 2, annotation.fontSize));
+	const bubbleRadius = annotationRadius(
+		annotation,
+		Math.min(box.height / 2, annotation.fontSize),
+	);
+	roundedRectPath(ctx, box, bubbleRadius);
 	ctx.fill();
 	ctx.restore();
+	strokeAnnotationBorder(ctx, annotation, () =>
+		roundedRectPath(ctx, box, bubbleRadius),
+	);
 
 	drawAnnotationText(ctx, annotation, box);
 }
@@ -1409,14 +1441,18 @@ function drawBadge(
 	scene: SceneData,
 ): void {
 	const box = measureAnnotationBox(annotation, scene);
+	const radius = annotationRadius(annotation, box.height / 2);
 	ctx.save();
 	ctx.shadowColor = "rgba(0,0,0,0.25)";
 	ctx.shadowBlur = annotation.fontSize * 0.3;
 	ctx.shadowOffsetY = annotation.fontSize * 0.1;
 	ctx.fillStyle = annotation.bg;
-	roundedRectPath(ctx, box, box.height / 2);
+	roundedRectPath(ctx, box, radius);
 	ctx.fill();
 	ctx.restore();
+	strokeAnnotationBorder(ctx, annotation, () =>
+		roundedRectPath(ctx, box, radius),
+	);
 	drawAnnotationText(ctx, annotation, box);
 }
 
@@ -1530,14 +1566,18 @@ function drawReview(
 	const family = annotation.fontFamily ?? "Inter, system-ui, sans-serif";
 
 	if (annotation.showBackground) {
+		const radius = annotationRadius(annotation, fontSize * 0.6);
 		ctx.save();
 		ctx.shadowColor = "rgba(0,0,0,0.25)";
 		ctx.shadowBlur = fontSize * 0.5;
 		ctx.shadowOffsetY = fontSize * 0.15;
 		ctx.fillStyle = annotation.bg;
-		roundedRectPath(ctx, box, fontSize * 0.6);
+		roundedRectPath(ctx, box, radius);
 		ctx.fill();
 		ctx.restore();
+		strokeAnnotationBorder(ctx, annotation, () =>
+			roundedRectPath(ctx, box, radius),
+		);
 	}
 
 	ctx.save();
@@ -1593,13 +1633,17 @@ function drawLabel(
 	scene: SceneData,
 ): void {
 	const box = measureAnnotationBox(annotation, scene);
+	const radius = annotationRadius(annotation, annotation.fontSize * 0.25);
 	if (annotation.showBackground !== false) {
 		ctx.save();
 		ctx.fillStyle = annotation.bg;
-		roundedRectPath(ctx, box, annotation.fontSize * 0.25);
+		roundedRectPath(ctx, box, radius);
 		ctx.fill();
 		ctx.restore();
 	}
+	strokeAnnotationBorder(ctx, annotation, () =>
+		roundedRectPath(ctx, box, radius),
+	);
 	drawAnnotationText(ctx, annotation, box);
 }
 

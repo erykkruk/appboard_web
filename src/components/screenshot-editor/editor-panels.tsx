@@ -2383,6 +2383,87 @@ function AnnotationProperties({
 				</p>
 			)}
 
+			{annotation.type !== "laurel" && (
+				<>
+					<div className="flex flex-col gap-2 rounded-md border border-border/60 p-2.5">
+						<div className="flex items-center gap-2">
+							<Checkbox
+								id={`border-${annotation.id}`}
+								checked={annotation.borderColor != null}
+								onCheckedChange={(checked) =>
+									onPatch(
+										checked === true
+											? {
+													borderColor: annotation.borderColor ?? "#ffffff",
+													borderWidth:
+														annotation.borderWidth ??
+														Math.max(2, Math.round(annotation.fontSize * 0.08)),
+												}
+											: { borderColor: undefined, borderWidth: undefined },
+									)
+								}
+							/>
+							<Label htmlFor={`border-${annotation.id}`} className="flex-1 text-xs">
+								Border
+							</Label>
+							{annotation.borderColor != null && (
+								<input
+									type="color"
+									value={annotation.borderColor}
+									onChange={(e) => onPatch({ borderColor: e.target.value })}
+									className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+									aria-label="Border color"
+								/>
+							)}
+						</div>
+						{annotation.borderColor != null && (
+							<div className="flex flex-col gap-1.5">
+								<Label className="text-xs">Border width</Label>
+								<Input
+									type="number"
+									min={1}
+									value={annotation.borderWidth ?? 2}
+									onChange={(e) =>
+										onPatch({
+											borderWidth: Math.max(1, Number(e.target.value) || 1),
+										})
+									}
+								/>
+							</div>
+						)}
+					</div>
+
+					<div className="flex flex-col gap-1.5">
+						<div className="flex items-center justify-between">
+							<Label className="text-xs">
+								Corner radius:{" "}
+								{annotation.cornerRadius != null
+									? `${annotation.cornerRadius.toFixed(2)}×`
+									: "auto"}
+							</Label>
+							{annotation.cornerRadius != null && (
+								<Button
+									type="button"
+									variant="ghost"
+									size="sm"
+									className="h-6 px-2 text-xs"
+									onClick={() => onPatch({ cornerRadius: undefined })}
+								>
+									Auto
+								</Button>
+							)}
+						</div>
+						<Slider
+							min={0}
+							max={200}
+							step={5}
+							value={[Math.round((annotation.cornerRadius ?? 0.6) * 100)]}
+							onValueChange={([v]) => onPatch({ cornerRadius: v / 100 })}
+						/>
+					</div>
+				</>
+			)}
+
 			{onApplyStyleToAll && (
 				<Button
 					type="button"

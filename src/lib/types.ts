@@ -758,6 +758,14 @@ interface SceneAnnotationBase {
 	 * migration needed. Mirrors {@link SceneTextLayer.doNotTranslate}.
 	 */
 	doNotTranslate?: boolean;
+	/** Optional border stroke around the pill/bubble/card (both required). */
+	borderColor?: string;
+	borderWidth?: number;
+	/**
+	 * Corner radius override as a multiple of fontSize (0 = sharp). Defaults
+	 * per annotation type when unset (pill for badges, soft for labels).
+	 */
+	cornerRadius?: number;
 }
 
 /** A text bubble with a pointer/tail aimed at a target point on the scene. */
