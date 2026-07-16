@@ -46,6 +46,7 @@ import {
 	sanitizeFontFamilyName,
 } from "@/lib/scene-fonts";
 import {
+	applyOrientation,
 	applyPanelCount,
 	createDefaultAnnotation,
 	createDefaultScene,
@@ -53,8 +54,9 @@ import {
 	createShapeAnnotation,
 	getDisplayTypeLabel,
 	getPanelCount,
-	getTargetDimensions,
+	getSceneOrientation,
 	reorderById,
+	type SceneOrientation,
 } from "@/lib/screenshot-editor";
 import { buildDimensionMessage } from "@/lib/screenshot-validation";
 import {
@@ -208,10 +210,11 @@ export function ScreenshotEditorDialog({
 		}),
 		[loaded.background, loaded.screenshot, loaded.annotations],
 	);
-	const [target0, target1] = useMemo(
-		() => getTargetDimensions(displayType),
-		[displayType],
-	);
+	// Current per-panel export dimensions, derived from the scene itself so the
+	// header and uploads always match the real canvas (orientation-aware).
+	const orientation = getSceneOrientation(scene);
+	const panelWidth = Math.round(scene.width / getPanelCount(scene));
+	const panelHeight = scene.height;
 
 	// Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z (or Ctrl+Y) redo — skipped while typing.
 	const { undo, redo } = history;
@@ -635,6 +638,15 @@ export function ScreenshotEditorDialog({
 		[displayType, setScene],
 	);
 
+	const handleOrientationChange = useCallback(
+		(value: string) => {
+			setScene((prev) =>
+				applyOrientation(prev, displayType, value as SceneOrientation),
+			);
+		},
+		[displayType, setScene],
+	);
+
 	const handleExportUpload = async () => {
 		const blob = await canvasRef.current?.exportPng();
 		if (!blob) {
@@ -643,7 +655,7 @@ export function ScreenshotEditorDialog({
 			);
 			return;
 		}
-		const [w, h] = [target0, target1];
+		const [w, h] = [panelWidth, panelHeight];
 		const file = new File([blob], `scene-${language}-${displayType}.png`, {
 			type: "image/png",
 		});
@@ -693,10 +705,19 @@ export function ScreenshotEditorDialog({
 							placeholder="Scene name"
 						/>
 						<span className="text-sm text-muted-foreground">
-							{getDisplayTypeLabel(displayType)} · {language} · {target0}×
-							{target1}px
+							{getDisplayTypeLabel(displayType)} · {language} · {panelWidth}×
+							{panelHeight}px
 							{panels > 1 ? ` × ${panels}` : ""}
 						</span>
+						<Select value={orientation} onValueChange={handleOrientationChange}>
+							<SelectTrigger className="w-[130px]" size="sm">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="portrait">Portrait</SelectItem>
+								<SelectItem value="landscape">Landscape</SelectItem>
+							</SelectContent>
+						</Select>
 						<Select value={String(panels)} onValueChange={handlePanelsChange}>
 							<SelectTrigger className="w-[150px]" size="sm">
 								<SelectValue />

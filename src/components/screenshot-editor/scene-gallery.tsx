@@ -13,11 +13,7 @@ import {
 	useDeleteScreenshotScene,
 	useScreenshotScenes,
 } from "@/hooks/use-screenshot-scenes";
-import {
-	getDisplayTypeLabel,
-	getPanelCount,
-	getTargetDimensions,
-} from "@/lib/screenshot-editor";
+import { getDisplayTypeLabel, getPanelCount } from "@/lib/screenshot-editor";
 import type { ScreenshotScene } from "@/lib/types";
 
 import { exportSceneToPng } from "./export-scene";
@@ -62,7 +58,6 @@ export function SceneGallery({
 	const handleExportAll = async () => {
 		if (filtered.length === 0 || exporting) return;
 		setExporting({ done: 0, total: filtered.length });
-		const [targetWidth, targetHeight] = getTargetDimensions(displayType);
 		let uploaded = 0;
 		let failed = 0;
 		// Sequential on purpose: uploads hit store rate limits when parallelized,
@@ -81,13 +76,14 @@ export function SceneGallery({
 				const panels = getPanelCount(row.scene);
 				try {
 					if (panels > 1) {
+						// Per-panel size straight from the scene (orientation-aware).
 						await splitUpload.mutateAsync({
 							displayType,
 							file,
 							language,
 							parts: panels,
-							targetHeight,
-							targetWidth,
+							targetHeight: row.scene.height,
+							targetWidth: Math.round(row.scene.width / panels),
 						});
 					} else {
 						await uploadScreenshot.mutateAsync({ displayType, file, language });

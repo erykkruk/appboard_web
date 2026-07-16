@@ -1,6 +1,7 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+	applyOrientation,
 	applyPanelCount,
 	computeDeviceRect,
 	computeDisplayScale,
@@ -12,7 +13,9 @@ import {
 	defaultFrameForDisplayType,
 	getDisplayTypeLabel,
 	getPanelCount,
+	getSceneOrientation,
 	getTargetDimensions,
+	getTargetDimensionsFor,
 	hitTestAnnotation,
 	hitTestCalloutTarget,
 	hitTestDevice,
@@ -689,5 +692,52 @@ describe("reorderById", () => {
 		const input = [{ id: "a" }, { id: "b" }];
 		reorderById(input, "a", 1);
 		expect(input.map((i) => i.id)).toEqual(["a", "b"]);
+	});
+});
+
+describe("orientation", () => {
+	test("getSceneOrientation detects portrait and landscape per panel", () => {
+		expect(
+			getSceneOrientation({ height: 2796, width: 1290 }),
+		).toBe("portrait");
+		expect(
+			getSceneOrientation({ height: 1290, width: 2796 }),
+		).toBe("landscape");
+		// Two-panel landscape panorama: full width 2×2796, panel 2796×1290.
+		expect(
+			getSceneOrientation({ height: 1290, panels: 2, width: 5592 }),
+		).toBe("landscape");
+	});
+
+	test("getTargetDimensionsFor swaps dimensions for landscape", () => {
+		expect(getTargetDimensionsFor("APP_IPHONE_67", "portrait")).toEqual([
+			1290, 2796,
+		]);
+		expect(getTargetDimensionsFor("APP_IPHONE_67", "landscape")).toEqual([
+			2796, 1290,
+		]);
+	});
+
+	test("applyOrientation resizes the canvas keeping panels", () => {
+		const scene = applyPanelCount(
+			createDefaultScene("APP_IPHONE_67"),
+			"APP_IPHONE_67",
+			2,
+		);
+		const landscape = applyOrientation(scene, "APP_IPHONE_67", "landscape");
+		expect(landscape.height).toBe(1290);
+		expect(landscape.width).toBe(2796 * 2);
+		expect(landscape.panels).toBe(2);
+	});
+
+	test("applyPanelCount preserves the scene's landscape orientation", () => {
+		const landscape = applyOrientation(
+			createDefaultScene("APP_IPHONE_67"),
+			"APP_IPHONE_67",
+			"landscape",
+		);
+		const panorama = applyPanelCount(landscape, "APP_IPHONE_67", 3);
+		expect(panorama.height).toBe(1290);
+		expect(panorama.width).toBe(2796 * 3);
 	});
 });

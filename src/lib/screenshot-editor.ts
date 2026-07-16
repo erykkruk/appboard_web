@@ -121,16 +121,66 @@ export function getPanelCount(scene: Pick<SceneData, "panels">): number {
 	return Number.isFinite(panels) && panels >= 1 ? Math.round(panels) : 1;
 }
 
+export type SceneOrientation = "portrait" | "landscape";
+
+/**
+ * Orientation of a scene, derived from one panel's dimensions (a panorama's
+ * full width spans several store screenshots). Square-ish panels count as
+ * portrait, matching the store defaults.
+ */
+export function getSceneOrientation(
+	scene: Pick<SceneData, "width" | "height" | "panels">,
+): SceneOrientation {
+	const panelWidth = scene.width / getPanelCount(scene);
+	return panelWidth > scene.height ? "landscape" : "portrait";
+}
+
+/** Target [width, height] for a display type in the requested orientation. */
+export function getTargetDimensionsFor(
+	displayType: string,
+	orientation: SceneOrientation,
+): [number, number] {
+	const [w, h] = getTargetDimensions(displayType);
+	return orientation === "landscape" ? [h, w] : [w, h];
+}
+
+/**
+ * Resize the scene canvas to the display type's target in the given
+ * orientation, keeping the panel count. Layers keep their normalized
+ * positions, so switching orientation re-flows instead of destroying work.
+ * Store validation accepts both orientations (backend REQUIRED_SIZES lists
+ * portrait and landscape for every iOS display type; Google Play is flexible).
+ */
+export function applyOrientation(
+	scene: SceneData,
+	displayType: string,
+	orientation: SceneOrientation,
+): SceneData {
+	const [targetWidth, targetHeight] = getTargetDimensionsFor(
+		displayType,
+		orientation,
+	);
+	return {
+		...scene,
+		height: targetHeight,
+		width: targetWidth * getPanelCount(scene),
+	};
+}
+
 /**
  * Resize a scene to span `panels` store screenshots side by side. The canvas
- * width becomes target width × panels; layers keep their normalized positions.
+ * width becomes target width × panels; layers keep their normalized positions
+ * and the scene's current orientation is preserved.
  */
 export function applyPanelCount(
 	scene: SceneData,
 	displayType: string,
 	panels: number,
 ): SceneData {
-	const [targetWidth, targetHeight] = getTargetDimensions(displayType);
+	const [targetWidth, targetHeight] = getTargetDimensionsFor(
+		displayType,
+		getSceneOrientation(scene),
+	);
 	const count = Math.max(1, Math.round(panels));
 	return {
 		...scene,
