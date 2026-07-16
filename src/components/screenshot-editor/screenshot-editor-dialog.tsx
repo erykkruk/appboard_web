@@ -1,7 +1,15 @@
 "use client";
 
-import { Languages, LayoutTemplate, Loader2, Save, Upload } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import {
+	Languages,
+	LayoutTemplate,
+	Loader2,
+	Redo2,
+	Save,
+	Undo2,
+	Upload,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -12,6 +20,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useSceneHistory } from "@/hooks/use-scene-history";
 import {
 	useCreateScreenshotScene,
 	useUpdateScreenshotScene,
@@ -123,7 +132,7 @@ export function ScreenshotEditorDialog({
 	displayType,
 	editingScene,
 }: ScreenshotEditorDialogProps) {
-	const [scene, setScene] = useState<SceneData>(
+	const [scene, setScene, history] = useSceneHistory<SceneData>(
 		() => editingScene?.scene ?? createDefaultScene(displayType),
 	);
 	const [sceneName, setSceneName] = useState(
@@ -203,9 +212,37 @@ export function ScreenshotEditorDialog({
 		[displayType],
 	);
 
-	const patchScene = useCallback((patch: Partial<SceneData>) => {
-		setScene((prev) => ({ ...prev, ...patch }));
-	}, []);
+	// Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z (or Ctrl+Y) redo — skipped while typing.
+	const { undo, redo } = history;
+	useEffect(() => {
+		if (!open) return;
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (!e.metaKey && !e.ctrlKey) return;
+			const key = e.key.toLowerCase();
+			if (key !== "z" && key !== "y") return;
+			const target = e.target as HTMLElement | null;
+			if (
+				target &&
+				(target.tagName === "INPUT" ||
+					target.tagName === "TEXTAREA" ||
+					target.isContentEditable)
+			) {
+				return;
+			}
+			e.preventDefault();
+			if (key === "y" || e.shiftKey) redo();
+			else undo();
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [open, undo, redo]);
+
+	const patchScene = useCallback(
+		(patch: Partial<SceneData>) => {
+			setScene((prev) => ({ ...prev, ...patch }));
+		},
+		[setScene],
+	);
 
 	const patchTextLayer = useCallback(
 		(id: string, patch: Partial<SceneTextLayer>) => {
@@ -216,7 +253,7 @@ export function ScreenshotEditorDialog({
 				),
 			}));
 		},
-		[],
+		[setScene],
 	);
 
 	const moveTextLayer = useCallback((id: string, x: number, y: number) => {
@@ -226,7 +263,7 @@ export function ScreenshotEditorDialog({
 				l.id === id ? { ...l, x, y } : l,
 			),
 		}));
-	}, []);
+	}, [setScene]);
 
 	const addTextLayer = useCallback(() => {
 		const id = nextTextLayerId();
@@ -248,7 +285,7 @@ export function ScreenshotEditorDialog({
 			],
 		}));
 		setSelectedLayerId(id);
-	}, []);
+	}, [setScene]);
 
 	const deleteTextLayer = useCallback(
 		(id: string) => {
@@ -258,7 +295,7 @@ export function ScreenshotEditorDialog({
 			}));
 			if (selectedLayerId === id) setSelectedLayerId(null);
 		},
-		[selectedLayerId],
+		[selectedLayerId, setScene],
 	);
 
 	const patchAnnotation = useCallback(
@@ -270,7 +307,7 @@ export function ScreenshotEditorDialog({
 				),
 			}));
 		},
-		[],
+		[setScene],
 	);
 
 	const moveAnnotation = useCallback((id: string, x: number, y: number) => {
@@ -280,7 +317,7 @@ export function ScreenshotEditorDialog({
 				a.id === id ? { ...a, x, y } : a,
 			),
 		}));
-	}, []);
+	}, [setScene]);
 
 	const moveCalloutTarget = useCallback(
 		(id: string, targetX: number, targetY: number) => {
@@ -293,7 +330,7 @@ export function ScreenshotEditorDialog({
 				),
 			}));
 		},
-		[],
+		[setScene],
 	);
 
 	const addAnnotation = useCallback((type: SceneAnnotationType) => {
@@ -306,7 +343,7 @@ export function ScreenshotEditorDialog({
 			],
 		}));
 		setSelectedLayerId(id);
-	}, []);
+	}, [setScene]);
 
 	const addShape = useCallback((shape: SceneShapeKind) => {
 		const id = nextAnnotationId();
@@ -318,7 +355,7 @@ export function ScreenshotEditorDialog({
 			],
 		}));
 		setSelectedLayerId(id);
-	}, []);
+	}, [setScene]);
 
 	const deleteAnnotation = useCallback(
 		(id: string) => {
@@ -328,7 +365,53 @@ export function ScreenshotEditorDialog({
 			}));
 			if (selectedLayerId === id) setSelectedLayerId(null);
 		},
-		[selectedLayerId],
+		[selectedLayerId, setScene],
+	);
+
+	/** Clamp a normalized coordinate so a duplicate stays on the canvas. */
+	const nudge = (v: number) => Math.min(v + 0.03, 0.97);
+
+	const duplicateTextLayer = useCallback(
+		(id: string) => {
+			const newId = nextTextLayerId();
+			setScene((prev) => {
+				const source = prev.textLayers.find((l) => l.id === id);
+				if (!source) return prev;
+				return {
+					...prev,
+					textLayers: [
+						...prev.textLayers,
+						{ ...source, id: newId, x: nudge(source.x), y: nudge(source.y) },
+					],
+				};
+			});
+			setSelectedLayerId(newId);
+		},
+		[setScene],
+	);
+
+	const duplicateAnnotation = useCallback(
+		(id: string) => {
+			const newId = nextAnnotationId();
+			setScene((prev) => {
+				const source = (prev.annotations ?? []).find((a) => a.id === id);
+				if (!source) return prev;
+				const copy: SceneAnnotation =
+					source.type === "callout"
+						? {
+								...source,
+								id: newId,
+								targetX: nudge(source.targetX),
+								targetY: nudge(source.targetY),
+								x: nudge(source.x),
+								y: nudge(source.y),
+							}
+						: { ...source, id: newId, x: nudge(source.x), y: nudge(source.y) };
+				return { ...prev, annotations: [...(prev.annotations ?? []), copy] };
+			});
+			setSelectedLayerId(newId);
+		},
+		[setScene],
 	);
 
 	const moveDevice = useCallback((offsetX: number, offsetY: number) => {
@@ -337,12 +420,12 @@ export function ScreenshotEditorDialog({
 				? { ...prev, device: { ...prev.device, offsetX, offsetY } }
 				: prev,
 		);
-	}, []);
+	}, [setScene]);
 
 	const handleAddImageLayer = useCallback(() => {
 		imageLayerTargetRef.current = null;
 		imageLayerFileRef.current?.click();
-	}, []);
+	}, [setScene]);
 
 	const handleReplaceAnnotationImage = useCallback((id: string) => {
 		imageLayerTargetRef.current = id;
@@ -485,7 +568,7 @@ export function ScreenshotEditorDialog({
 			}));
 			setPickerOpen(false);
 		},
-		[],
+		[setScene],
 	);
 
 	const handleSave = async () => {
@@ -517,7 +600,7 @@ export function ScreenshotEditorDialog({
 			setTemplatesOpen(false);
 			toast.success(`Template "${template.name}" applied`);
 		},
-		[displayType],
+		[displayType, setScene],
 	);
 
 	const panels = getPanelCount(scene);
@@ -528,7 +611,7 @@ export function ScreenshotEditorDialog({
 			if (!Number.isFinite(count) || count < 1) return;
 			setScene((prev) => applyPanelCount(prev, displayType, count));
 		},
-		[displayType],
+		[displayType, setScene],
 	);
 
 	const handleExportUpload = async () => {
@@ -608,6 +691,26 @@ export function ScreenshotEditorDialog({
 						</Select>
 					</div>
 					<div className="flex items-center gap-2">
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={undo}
+							disabled={!history.canUndo}
+							aria-label="Undo (Cmd+Z)"
+							title="Undo (Cmd+Z)"
+						>
+							<Undo2 className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={redo}
+							disabled={!history.canRedo}
+							aria-label="Redo (Cmd+Shift+Z)"
+							title="Redo (Cmd+Shift+Z)"
+						>
+							<Redo2 className="h-4 w-4" />
+						</Button>
 						<Button variant="outline" onClick={() => setTemplatesOpen(true)}>
 							<LayoutTemplate className="h-4 w-4" />
 							Templates
@@ -662,6 +765,8 @@ export function ScreenshotEditorDialog({
 						onAddShape={addShape}
 						onAddImage={handleAddImageLayer}
 						onDeleteAnnotation={deleteAnnotation}
+						onDuplicateText={duplicateTextLayer}
+						onDuplicateAnnotation={duplicateAnnotation}
 					/>
 
 					<div className="flex min-w-0 flex-1 items-center justify-center bg-muted/30 p-6">

@@ -3,6 +3,7 @@
 import {
 	ArrowUpRight,
 	Circle,
+	CopyPlus,
 	Droplet,
 	Image as ImageIcon,
 	MessageSquare,
@@ -144,6 +145,8 @@ interface LayersPanelProps {
 	onAddShape: (shape: SceneShapeKind) => void;
 	onAddImage: () => void;
 	onDeleteAnnotation: (id: string) => void;
+	onDuplicateText: (id: string) => void;
+	onDuplicateAnnotation: (id: string) => void;
 }
 
 /** Left-side layer list: background, device, screenshot and each text layer. */
@@ -157,6 +160,8 @@ export function LayersPanel({
 	onAddShape,
 	onAddImage,
 	onDeleteAnnotation,
+	onDuplicateText,
+	onDuplicateAnnotation,
 }: LayersPanelProps) {
 	const annotations = scene.annotations ?? [];
 	return (
@@ -216,6 +221,14 @@ export function LayersPanel({
 					>
 						<Type className="h-4 w-4 shrink-0 text-muted-foreground" />
 						<span className="truncate">{layer.text || "Empty text"}</span>
+					</button>
+					<button
+						type="button"
+						onClick={() => onDuplicateText(layer.id)}
+						className="opacity-0 transition-opacity group-hover:opacity-100"
+						aria-label="Duplicate text layer"
+					>
+						<CopyPlus className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
 					</button>
 					<button
 						type="button"
@@ -299,6 +312,14 @@ export function LayersPanel({
 									? label
 									: annotation.text || label}
 							</span>
+						</button>
+						<button
+							type="button"
+							onClick={() => onDuplicateAnnotation(annotation.id)}
+							className="opacity-0 transition-opacity group-hover:opacity-100"
+							aria-label="Duplicate annotation"
+						>
+							<CopyPlus className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
 						</button>
 						<button
 							type="button"

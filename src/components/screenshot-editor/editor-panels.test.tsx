@@ -31,8 +31,11 @@ const noopLayerProps = {
 	onAddText: mock(() => {}),
 	onDeleteText: mock(() => {}),
 	onAddAnnotation: mock(() => {}),
+	onAddShape: mock(() => {}),
 	onAddImage: mock(() => {}),
 	onDeleteAnnotation: mock(() => {}),
+	onDuplicateText: mock(() => {}),
+	onDuplicateAnnotation: mock(() => {}),
 };
 
 const noopPropertiesProps = {
