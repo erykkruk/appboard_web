@@ -424,6 +424,48 @@ export function ScreenshotEditorDialog({
 		[selectedLayerId, setScene],
 	);
 
+	/**
+	 * Copy the source layer's STYLE (never its text/position) onto every other
+	 * text layer — the "copy text style" flow ButterKit users asked for.
+	 */
+	const applyTextStyleToAll = useCallback(
+		(sourceId: string) => {
+			setScene((prev) => {
+				const source = prev.textLayers.find((l) => l.id === sourceId);
+				if (!source) return prev;
+				return {
+					...prev,
+					textLayers: prev.textLayers.map((l) =>
+						l.id === sourceId
+							? l
+							: {
+									...l,
+									accentColor: source.accentColor,
+									align: source.align,
+									bg: source.bg,
+									color: source.color,
+									curve: source.curve,
+									fontFamily: source.fontFamily,
+									gradient: source.gradient,
+									highlight: source.highlight,
+									letterSpacing: source.letterSpacing,
+									lineHeight: source.lineHeight,
+									shadowBlur: source.shadowBlur,
+									shadowColor: source.shadowColor,
+									shadowOffsetX: source.shadowOffsetX,
+									shadowOffsetY: source.shadowOffsetY,
+									strokeColor: source.strokeColor,
+									strokeWidth: source.strokeWidth,
+									weight: source.weight,
+								},
+					),
+				};
+			});
+			toast.success("Style applied to all text layers");
+		},
+		[setScene],
+	);
+
 	const reorderTextLayer = useCallback(
 		(id: string, delta: -1 | 1) => {
 			setScene((prev) => ({
@@ -893,6 +935,7 @@ export function ScreenshotEditorDialog({
 						onAddGoogleFont={handleAddGoogleFont}
 						onReplaceAnnotationImage={handleReplaceAnnotationImage}
 						onDeleteAnnotation={deleteAnnotation}
+						onApplyTextStyleToAll={applyTextStyleToAll}
 					/>
 				</div>
 

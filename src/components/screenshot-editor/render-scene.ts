@@ -1070,6 +1070,44 @@ function drawCurvedLine(
 	}
 }
 
+/** Normalize a token for accent-word matching (lowercase, strip punctuation). */
+function accentKey(token: string): string {
+	return token.toLowerCase().replace(/[^\p{L}\p{N}]/gu, "");
+}
+
+/**
+ * Draw one line mixing two colors: tokens listed in `accentSet` use the
+ * accent color, the rest the base fill. Tokens are laid out left-to-right
+ * with the whole line positioned per `align` around `x`.
+ */
+function drawAccentedLine(
+	ctx: CanvasRenderingContext2D,
+	line: string,
+	x: number,
+	y: number,
+	align: "left" | "center" | "right",
+	baseColor: string,
+	accentColor: string,
+	accentSet: Set<string>,
+): void {
+	const tokens = line.split(/(\s+)/);
+	const widths = tokens.map((t) => ctx.measureText(t).width);
+	const total = widths.reduce((a, b) => a + b, 0);
+	let cursor = x;
+	if (align === "center") cursor = x - total / 2;
+	else if (align === "right") cursor = x - total;
+	ctx.save();
+	ctx.textAlign = "left";
+	tokens.forEach((token, i) => {
+		if (token.trim() !== "") {
+			ctx.fillStyle = accentSet.has(accentKey(token)) ? accentColor : baseColor;
+			ctx.fillText(token, cursor, y);
+		}
+		cursor += widths[i];
+	});
+	ctx.restore();
+}
+
 function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 	for (const layer of scene.textLayers) {
 		const { x, y } = resolveTextPosition(layer, scene);
@@ -1204,10 +1242,36 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 				});
 				clearShadow();
 			}
-			ctx.fillStyle = fillStyle;
-			lines.forEach((line, i) => {
-				ctx.fillText(line, x, lineY(i));
-			});
+			// Two-color line: accent words get their own color (reddit-requested
+			// "multiple text colors in one line"). Gradient fill wins when set.
+			const accentSet =
+				layer.accentColor && layer.accentWords && !layer.gradient
+					? new Set(
+							layer.accentWords
+								.split(",")
+								.map((w) => accentKey(w.trim()))
+								.filter(Boolean),
+						)
+					: null;
+			if (accentSet && accentSet.size > 0 && layer.accentColor) {
+				lines.forEach((line, i) => {
+					drawAccentedLine(
+						ctx,
+						line,
+						x,
+						lineY(i),
+						align,
+						layer.color,
+						layer.accentColor as string,
+						accentSet,
+					);
+				});
+			} else {
+				ctx.fillStyle = fillStyle;
+				lines.forEach((line, i) => {
+					ctx.fillText(line, x, lineY(i));
+				});
+			}
 		}
 		ctx.restore();
 	}

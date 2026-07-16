@@ -707,6 +707,14 @@ export interface SceneTextLayer {
 	 * 0/undefined renders straight (legacy).
 	 */
 	curve?: number;
+	/**
+	 * Second text color applied to the words listed in `accentWords` — lets a
+	 * single line mix colors ("Make **precise** loops"). Ignored while a
+	 * gradient fill or curve is active.
+	 */
+	accentColor?: string;
+	/** Comma-separated words to paint with `accentColor` (case-insensitive). */
+	accentWords?: string;
 }
 
 export type SceneAnnotationType =

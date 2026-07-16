@@ -522,6 +522,8 @@ interface PropertiesPanelProps {
 	onAddGoogleFont: () => void;
 	onReplaceAnnotationImage: (id: string) => void;
 	onDeleteAnnotation: (id: string) => void;
+	/** Copy the selected text layer's style onto every other text layer. */
+	onApplyTextStyleToAll?: (sourceId: string) => void;
 }
 
 /** Right-side contextual properties for the currently selected layer. */
@@ -538,6 +540,7 @@ export function PropertiesPanel({
 	onAddGoogleFont,
 	onReplaceAnnotationImage,
 	onDeleteAnnotation,
+	onApplyTextStyleToAll,
 }: PropertiesPanelProps) {
 	const selectedText = scene.textLayers.find((l) => l.id === selectedLayerId);
 	const selectedAnnotation = (scene.annotations ?? []).find(
@@ -570,6 +573,11 @@ export function PropertiesPanel({
 					onPatch={(patch) => onPatchTextLayer(selectedText.id, patch)}
 					onUploadFont={onUploadFont}
 					onAddGoogleFont={onAddGoogleFont}
+					onApplyStyleToAll={
+						scene.textLayers.length > 1 && onApplyTextStyleToAll
+							? () => onApplyTextStyleToAll(selectedText.id)
+							: undefined
+					}
 				/>
 			)}
 			{selectedAnnotation && selectedAnnotation.type === "image" && (
@@ -1431,6 +1439,7 @@ function TextProperties({
 	onPatch,
 	onUploadFont,
 	onAddGoogleFont,
+	onApplyStyleToAll,
 }: {
 	layer: SceneTextLayer;
 	sceneHeight: number;
@@ -1439,6 +1448,7 @@ function TextProperties({
 	onPatch: (patch: Partial<SceneTextLayer>) => void;
 	onUploadFont: () => void;
 	onAddGoogleFont: () => void;
+	onApplyStyleToAll?: () => void;
 }) {
 	return (
 		<div className="flex flex-col gap-3">
@@ -1573,6 +1583,47 @@ function TextProperties({
 							aria-label="Text gradient bottom color"
 						/>
 					</>
+				)}
+			</div>
+
+			<div className="flex flex-col gap-2 rounded-md border border-border/60 p-2.5">
+				<div className="flex items-center gap-2">
+					<Checkbox
+						id={`accent-${layer.id}`}
+						checked={layer.accentColor != null}
+						onCheckedChange={(checked) =>
+							onPatch({
+								accentColor:
+									checked === true ? (layer.accentColor ?? "#fde047") : undefined,
+								accentWords: checked === true ? layer.accentWords : undefined,
+							})
+						}
+					/>
+					<Label htmlFor={`accent-${layer.id}`} className="flex-1 text-xs">
+						Accent words (second color)
+					</Label>
+					{layer.accentColor != null && (
+						<input
+							type="color"
+							value={layer.accentColor}
+							onChange={(e) => onPatch({ accentColor: e.target.value })}
+							className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+							aria-label="Accent color"
+						/>
+					)}
+				</div>
+				{layer.accentColor != null && (
+					<div className="flex flex-col gap-1.5">
+						<Input
+							value={layer.accentWords ?? ""}
+							placeholder="precise, loops (comma separated)"
+							onChange={(e) => onPatch({ accentWords: e.target.value })}
+						/>
+						<p className="text-[10px] text-muted-foreground">
+							Listed words render in the accent color. Not applied while a
+							gradient or curve is active.
+						</p>
+					</div>
 				)}
 			</div>
 
@@ -1832,6 +1883,18 @@ function TextProperties({
 				</div>
 			</div>
 
+			{onApplyStyleToAll && (
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onClick={onApplyStyleToAll}
+				>
+					<CopyPlus className="h-4 w-4" />
+					Apply this style to all texts
+				</Button>
+			)}
+
 			<div className="flex items-start gap-2 rounded-md border border-border/60 p-2.5">
 				<Checkbox
 					id={`dnt-${layer.id}`}
@@ -1886,6 +1949,28 @@ function ImageAnnotationProperties({
 					step={1}
 					value={[Math.round(annotation.width * 100)]}
 					onValueChange={([v]) => onPatch({ width: v / 100 })}
+				/>
+			</div>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">X: {Math.round(annotation.x * 100)}%</Label>
+				<Slider
+					min={0}
+					max={100}
+					step={1}
+					value={[Math.round(annotation.x * 100)]}
+					onValueChange={([v]) => onPatch({ x: v / 100 })}
+				/>
+			</div>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">Y: {Math.round(annotation.y * 100)}%</Label>
+				<Slider
+					min={0}
+					max={100}
+					step={1}
+					value={[Math.round(annotation.y * 100)]}
+					onValueChange={([v]) => onPatch({ y: v / 100 })}
 				/>
 			</div>
 
