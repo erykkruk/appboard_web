@@ -976,6 +976,11 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 		const lineHeight = layer.fontSize * (layer.lineHeight ?? 1.2);
 		const totalHeight = lineHeight * (lines.length - 1);
 		const lineY = (i: number) => y - totalHeight / 2 + i * lineHeight;
+		const curve = layer.curve ?? 0;
+		// Curved text always renders centered on its anchor, so the background
+		// panel and highlight bars must follow the same alignment or they drift
+		// away from the glyphs.
+		const align = curve !== 0 ? "center" : layer.align;
 
 		// Optional background panel sized to the measured text block.
 		if (layer.bg) {
@@ -988,8 +993,8 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 			const boxW = maxWidth + padX * 2;
 			const boxH = lineHeight * lines.length + padY * 2 - layer.fontSize * 0.2;
 			let boxX = x - boxW / 2;
-			if (layer.align === "left") boxX = x - padX;
-			else if (layer.align === "right") boxX = x - maxWidth - padX;
+			if (align === "left") boxX = x - padX;
+			else if (align === "right") boxX = x - maxWidth - padX;
 			const box: Rect = { x: boxX, y: y - boxH / 2, width: boxW, height: boxH };
 			ctx.fillStyle = layer.bg;
 			roundedRectPath(ctx, box, layer.fontSize * 0.25);
@@ -1004,8 +1009,8 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 				if (w <= 0) return;
 				const pad = layer.fontSize * 0.18;
 				let left = x - w / 2;
-				if (layer.align === "left") left = x;
-				else if (layer.align === "right") left = x - w;
+				if (align === "left") left = x;
+				else if (align === "right") left = x - w;
 				const barH = layer.fontSize * 0.82;
 				roundedRectPath(
 					ctx,
@@ -1021,7 +1026,7 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 			});
 		}
 
-		ctx.textAlign = layer.align;
+		ctx.textAlign = align;
 		ctx.textBaseline = "middle";
 
 		const hasStroke = Boolean(layer.strokeColor && (layer.strokeWidth ?? 0) > 0);
@@ -1053,7 +1058,6 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 				})()
 			: layer.color;
 
-		const curve = layer.curve ?? 0;
 		const strokePass = () => {
 			if (!hasStroke || !layer.strokeColor) return;
 			ctx.lineJoin = "round";
@@ -1071,9 +1075,8 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 		};
 
 		if (curve !== 0) {
-			// Curved text is centered on its anchor regardless of align (glyphs are
-			// laid out along the arc, so left/right alignment has no clear meaning).
-			ctx.textAlign = "center";
+			// Glyphs are laid out along the arc, so each one is drawn centered on
+			// its own arc position (`align` is already forced to center above).
 			lines.forEach((line, i) => {
 				if (hasStroke && layer.strokeColor) {
 					strokePass();
