@@ -118,6 +118,26 @@ function annotationMeta(annotation: SceneAnnotation): {
 	return ANNOTATION_META[annotation.type];
 }
 
+/** Curated emoji stickers added as big text layers (render on any canvas). */
+const EMOJI_STICKERS = [
+	"🔥",
+	"⭐",
+	"🚀",
+	"❤️",
+	"✨",
+	"🎉",
+	"👍",
+	"🏆",
+	"💎",
+	"⚡",
+	"😍",
+	"🎯",
+	"💰",
+	"📈",
+	"🔒",
+	"🎁",
+];
+
 /**
  * One-click text style combos. Each patch fully overrides the style-bearing
  * fields (explicit `undefined` clears leftovers from the previous style), so
@@ -226,6 +246,7 @@ interface LayersPanelProps {
 	onDuplicateAnnotation: (id: string) => void;
 	onReorderText: (id: string, delta: -1 | 1) => void;
 	onReorderAnnotation: (id: string, delta: -1 | 1) => void;
+	onAddEmoji: (emoji: string) => void;
 }
 
 /** Chevron pair moving a layer down/up the draw order (later = on top). */
@@ -271,16 +292,41 @@ export function LayersPanel({
 	onDuplicateAnnotation,
 	onReorderText,
 	onReorderAnnotation,
+	onAddEmoji,
 }: LayersPanelProps) {
 	const annotations = scene.annotations ?? [];
 	return (
 		<div className="flex w-56 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border p-3">
 			<div className="flex items-center justify-between">
 				<span className="text-sm font-semibold">Layers</span>
-				<Button size="sm" variant="ghost" onClick={onAddText}>
-					<Plus className="h-4 w-4" />
-					Text
-				</Button>
+				<div className="flex items-center">
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button size="sm" variant="ghost" aria-label="Add emoji sticker">
+								😀
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-48">
+							<div className="grid grid-cols-4 gap-0.5 p-1">
+								{EMOJI_STICKERS.map((emoji) => (
+									<button
+										key={emoji}
+										type="button"
+										onClick={() => onAddEmoji(emoji)}
+										className="rounded-md p-1.5 text-xl hover:bg-accent"
+										aria-label={`Add ${emoji} sticker`}
+									>
+										{emoji}
+									</button>
+								))}
+							</div>
+						</DropdownMenuContent>
+					</DropdownMenu>
+					<Button size="sm" variant="ghost" onClick={onAddText}>
+						<Plus className="h-4 w-4" />
+						Text
+					</Button>
+				</div>
 			</div>
 
 			<button

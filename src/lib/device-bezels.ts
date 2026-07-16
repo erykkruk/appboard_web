@@ -19,6 +19,7 @@ export interface DeviceBezel {
 const IPHONE_17_SCREEN = { h: 0.8953, w: 0.8933, x: 0.0533, y: 0.0797 };
 const IPHONE_17_PRO_MAX_SCREEN = { h: 0.9057, w: 0.898, x: 0.051, y: 0.0723 };
 const IPHONE_AIR_SCREEN = { h: 0.8913, w: 0.913, x: 0.0435, y: 0.0837 };
+const IPAD_PRO_13_SCREEN = { h: 0.9173, w: 0.8974, x: 0.0513, y: 0.0413 };
 
 export const DEVICE_BEZELS: DeviceBezel[] = [
 	{
@@ -68,6 +69,22 @@ export const DEVICE_BEZELS: DeviceBezel[] = [
 		screen: IPHONE_AIR_SCREEN,
 		src: "/device-bezels/iphone-air-space-black.png",
 		width: 1380,
+	},
+	{
+		height: 3000,
+		id: "ipad-pro-13-space-black",
+		label: 'iPad Pro 13" · Space Black',
+		screen: IPAD_PRO_13_SCREEN,
+		src: "/device-bezels/ipad-pro-13-space-black.png",
+		width: 2300,
+	},
+	{
+		height: 3000,
+		id: "ipad-pro-13-silver",
+		label: 'iPad Pro 13" · Silver',
+		screen: IPAD_PRO_13_SCREEN,
+		src: "/device-bezels/ipad-pro-13-silver.png",
+		width: 2300,
 	},
 ];
 

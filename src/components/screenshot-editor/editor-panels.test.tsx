@@ -38,6 +38,7 @@ const noopLayerProps = {
 	onDuplicateAnnotation: mock(() => {}),
 	onReorderText: mock(() => {}),
 	onReorderAnnotation: mock(() => {}),
+	onAddEmoji: mock(() => {}),
 };
 
 const noopPropertiesProps = {

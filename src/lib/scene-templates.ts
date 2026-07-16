@@ -50,12 +50,15 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
 				},
 				device: {
 					...scene.device!,
+					// Real photographic iPhone (Apple bezel) sells the hero shot.
+					bezelId: "iphone-17-pro-max-deep-blue",
+					groundShadow: true,
 					offsetY: 0.16,
 					rotation: -8,
 					rotationX: 18,
-					groundShadow: true,
 					rotationY: 26,
 					scale: 0.78,
+					style: "photo",
 				},
 				textLayers: [
 					headline(

@@ -298,6 +298,33 @@ export function ScreenshotEditorDialog({
 		setSelectedLayerId(id);
 	}, [setScene]);
 
+	const addEmoji = useCallback(
+		(emoji: string) => {
+			const id = nextTextLayerId();
+			setScene((prev) => ({
+				...prev,
+				textLayers: [
+					...prev.textLayers,
+					{
+						align: "center" as const,
+						color: "#ffffff",
+						// Emoji glyphs are colored by the font itself; keep verbatim
+						// across language variants.
+						doNotTranslate: true,
+						fontFamily: "Inter, system-ui, sans-serif",
+						fontSize: Math.round(prev.height * 0.07),
+						id,
+						text: emoji,
+						x: 0.5,
+						y: 0.4,
+					},
+				],
+			}));
+			setSelectedLayerId(id);
+		},
+		[setScene],
+	);
+
 	const deleteTextLayer = useCallback(
 		(id: string) => {
 			setScene((prev) => ({
@@ -818,6 +845,7 @@ export function ScreenshotEditorDialog({
 						onDuplicateAnnotation={duplicateAnnotation}
 						onReorderText={reorderTextLayer}
 						onReorderAnnotation={reorderAnnotation}
+						onAddEmoji={addEmoji}
 					/>
 
 					<div className="flex min-w-0 flex-1 items-center justify-center bg-muted/30 p-6">
