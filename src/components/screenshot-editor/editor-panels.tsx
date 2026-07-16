@@ -2,6 +2,8 @@
 
 import {
 	ArrowUpRight,
+	ChevronDown,
+	ChevronUp,
 	Circle,
 	CopyPlus,
 	Droplet,
@@ -147,6 +149,36 @@ interface LayersPanelProps {
 	onDeleteAnnotation: (id: string) => void;
 	onDuplicateText: (id: string) => void;
 	onDuplicateAnnotation: (id: string) => void;
+	onReorderText: (id: string, delta: -1 | 1) => void;
+	onReorderAnnotation: (id: string, delta: -1 | 1) => void;
+}
+
+/** Chevron pair moving a layer down/up the draw order (later = on top). */
+function ReorderButtons({
+	onMove,
+	label,
+}: {
+	onMove: (delta: -1 | 1) => void;
+	label: string;
+}) {
+	return (
+		<span className="flex flex-col opacity-0 transition-opacity group-hover:opacity-100">
+			<button
+				type="button"
+				onClick={() => onMove(1)}
+				aria-label={`Move ${label} up (draw above)`}
+			>
+				<ChevronUp className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+			</button>
+			<button
+				type="button"
+				onClick={() => onMove(-1)}
+				aria-label={`Move ${label} down (draw below)`}
+			>
+				<ChevronDown className="h-3 w-3 text-muted-foreground hover:text-foreground" />
+			</button>
+		</span>
+	);
 }
 
 /** Left-side layer list: background, device, screenshot and each text layer. */
@@ -162,6 +194,8 @@ export function LayersPanel({
 	onDeleteAnnotation,
 	onDuplicateText,
 	onDuplicateAnnotation,
+	onReorderText,
+	onReorderAnnotation,
 }: LayersPanelProps) {
 	const annotations = scene.annotations ?? [];
 	return (
@@ -222,6 +256,10 @@ export function LayersPanel({
 						<Type className="h-4 w-4 shrink-0 text-muted-foreground" />
 						<span className="truncate">{layer.text || "Empty text"}</span>
 					</button>
+					<ReorderButtons
+						label="text layer"
+						onMove={(delta) => onReorderText(layer.id, delta)}
+					/>
 					<button
 						type="button"
 						onClick={() => onDuplicateText(layer.id)}
@@ -313,6 +351,10 @@ export function LayersPanel({
 									: annotation.text || label}
 							</span>
 						</button>
+						<ReorderButtons
+							label="annotation"
+							onMove={(delta) => onReorderAnnotation(annotation.id, delta)}
+						/>
 						<button
 							type="button"
 							onClick={() => onDuplicateAnnotation(annotation.id)}

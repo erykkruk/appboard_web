@@ -18,8 +18,10 @@ import {
 	hitTestDevice,
 	hitTestTextLayer,
 	measureAnnotationBox,
+	reorderById,
 	resolveTextPosition,
 	SHAPE_ASPECT,
+	snapNormalizedPosition,
 } from "./screenshot-editor";
 import type { SceneAnnotation, SceneData } from "./types";
 
@@ -604,5 +606,88 @@ describe("measureAnnotationBox (shape)", () => {
 		};
 		expect(hitTestAnnotation(scene, 500, 1000)).toBe("s1");
 		expect(hitTestAnnotation(scene, 20, 20)).toBeNull();
+	});
+});
+
+describe("snapNormalizedPosition", () => {
+	const baseScene: SceneData = {
+		background: { type: "color", value: "#000" },
+		device: { frame: "iphone", offsetX: 0.2, offsetY: 0.1, scale: 0.7 },
+		height: 2000,
+		textLayers: [],
+		width: 1000,
+	};
+
+	test("snaps to the canvas center within the threshold", () => {
+		const snap = snapNormalizedPosition(0.492, 0.508, baseScene);
+		expect(snap.x).toBe(0.5);
+		expect(snap.y).toBe(0.5);
+		expect(snap.guideX).toBe(0.5);
+		expect(snap.guideY).toBe(0.5);
+	});
+
+	test("passes positions outside the threshold through unchanged", () => {
+		const snap = snapNormalizedPosition(0.42, 0.3, baseScene);
+		expect(snap.x).toBe(0.42);
+		expect(snap.y).toBe(0.3);
+		expect(snap.guideX).toBeUndefined();
+		expect(snap.guideY).toBeUndefined();
+	});
+
+	test("snaps to the device center", () => {
+		const snap = snapNormalizedPosition(0.708, 0.595, baseScene);
+		expect(snap.x).toBeCloseTo(0.7);
+		expect(snap.y).toBeCloseTo(0.6);
+	});
+
+	test("snaps to panel centers and seams in panorama mode", () => {
+		const panorama: SceneData = { ...baseScene, device: undefined, panels: 2 };
+		expect(snapNormalizedPosition(0.253, 0.3, panorama).x).toBe(0.25);
+		expect(snapNormalizedPosition(0.497, 0.3, panorama).x).toBe(0.5);
+		expect(snapNormalizedPosition(0.748, 0.3, panorama).x).toBe(0.75);
+	});
+});
+
+describe("reorderById", () => {
+	const items = [{ id: "a" }, { id: "b" }, { id: "c" }];
+
+	test("moves an item later (drawn above)", () => {
+		expect(reorderById(items, "a", 1).map((i) => i.id)).toEqual([
+			"b",
+			"a",
+			"c",
+		]);
+	});
+
+	test("moves an item earlier (drawn below)", () => {
+		expect(reorderById(items, "c", -1).map((i) => i.id)).toEqual([
+			"a",
+			"c",
+			"b",
+		]);
+	});
+
+	test("out-of-range moves and unknown ids return the array unchanged", () => {
+		expect(reorderById(items, "a", -1).map((i) => i.id)).toEqual([
+			"a",
+			"b",
+			"c",
+		]);
+		expect(reorderById(items, "c", 1).map((i) => i.id)).toEqual([
+			"a",
+			"b",
+			"c",
+		]);
+		expect(reorderById(items, "zz", 1).map((i) => i.id)).toEqual([
+			"a",
+			"b",
+			"c",
+		]);
+	});
+
+	test("does not mutate the input array", () => {
+		const input = [{ id: "a" }, { id: "b" }];
+		reorderById(input, "a", 1);
+		expect(input.map((i) => i.id)).toEqual(["a", "b"]);
 	});
 });

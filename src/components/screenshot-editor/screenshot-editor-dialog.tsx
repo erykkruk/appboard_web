@@ -54,6 +54,7 @@ import {
 	getDisplayTypeLabel,
 	getPanelCount,
 	getTargetDimensions,
+	reorderById,
 } from "@/lib/screenshot-editor";
 import { buildDimensionMessage } from "@/lib/screenshot-validation";
 import {
@@ -366,6 +367,26 @@ export function ScreenshotEditorDialog({
 			if (selectedLayerId === id) setSelectedLayerId(null);
 		},
 		[selectedLayerId, setScene],
+	);
+
+	const reorderTextLayer = useCallback(
+		(id: string, delta: -1 | 1) => {
+			setScene((prev) => ({
+				...prev,
+				textLayers: reorderById(prev.textLayers, id, delta),
+			}));
+		},
+		[setScene],
+	);
+
+	const reorderAnnotation = useCallback(
+		(id: string, delta: -1 | 1) => {
+			setScene((prev) => ({
+				...prev,
+				annotations: reorderById(prev.annotations ?? [], id, delta),
+			}));
+		},
+		[setScene],
 	);
 
 	/** Clamp a normalized coordinate so a duplicate stays on the canvas. */
@@ -767,6 +788,8 @@ export function ScreenshotEditorDialog({
 						onDeleteAnnotation={deleteAnnotation}
 						onDuplicateText={duplicateTextLayer}
 						onDuplicateAnnotation={duplicateAnnotation}
+						onReorderText={reorderTextLayer}
+						onReorderAnnotation={reorderAnnotation}
 					/>
 
 					<div className="flex min-w-0 flex-1 items-center justify-center bg-muted/30 p-6">

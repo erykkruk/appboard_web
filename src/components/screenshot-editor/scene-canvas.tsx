@@ -21,6 +21,7 @@ import {
 	hitTestCalloutTarget,
 	hitTestDevice,
 	hitTestTextLayer,
+	snapNormalizedPosition,
 } from "@/lib/screenshot-editor";
 import type { SceneData } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -77,6 +78,10 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 		const containerRef = useRef<HTMLDivElement>(null);
 		const [displayScale, setDisplayScale] = useState(1);
 		const draggingRef = useRef<DragTarget | null>(null);
+		// Active snap guide lines (normalized), shown while a drag is snapping.
+		const [guides, setGuides] = useState<{ x?: number; y?: number } | null>(
+			null,
+		);
 		// Bumped once the scene's custom fonts finish loading so text drawn
 		// before the FontFace resolved is re-rendered with the real glyphs.
 		const [fontsVersion, setFontsVersion] = useState(0);
@@ -126,8 +131,11 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 			if (!canvas) return;
 			const ctx = canvas.getContext("2d");
 			if (!ctx) return;
-			renderScene(ctx, scene, images, { splitGuides: true });
-		}, [scene, images, fontsVersion]);
+			renderScene(ctx, scene, images, {
+				guides: guides ?? undefined,
+				splitGuides: true,
+			});
+		}, [scene, images, fontsVersion, guides]);
 
 		useImperativeHandle(
 			ref,
@@ -238,32 +246,64 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 				if (drag.kind === "device") {
 					const centerX = point.x - drag.grabDx;
 					const centerY = point.y - drag.grabDy;
-					const offsetX = Math.min(
+					let offsetX = Math.min(
 						Math.max(
 							(centerX - scene.width / 2) / scene.width,
 							-DEVICE_OFFSET_LIMIT,
 						),
 						DEVICE_OFFSET_LIMIT,
 					);
-					const offsetY = Math.min(
+					let offsetY = Math.min(
 						Math.max(
 							(centerY - scene.height / 2) / scene.height,
 							-DEVICE_OFFSET_LIMIT,
 						),
 						DEVICE_OFFSET_LIMIT,
 					);
+					// Snap the device to the canvas center (Alt bypasses).
+					if (!e.altKey) {
+						const snapped: { x?: number; y?: number } = {};
+						if (Math.abs(offsetX) < 0.015) {
+							offsetX = 0;
+							snapped.x = 0.5;
+						}
+						if (Math.abs(offsetY) < 0.015) {
+							offsetY = 0;
+							snapped.y = 0.5;
+						}
+						setGuides(
+							snapped.x !== undefined || snapped.y !== undefined
+								? snapped
+								: null,
+						);
+					} else {
+						setGuides(null);
+					}
 					onMoveDevice(offsetX, offsetY);
 					return;
 				}
-				const nx = Math.min(Math.max(point.x / scene.width, 0), 1);
-				const ny = Math.min(Math.max(point.y / scene.height, 0), 1);
+				let nx = Math.min(Math.max(point.x / scene.width, 0), 1);
+				let ny = Math.min(Math.max(point.y / scene.height, 0), 1);
+				// Text and annotation boxes snap to centers/seams; the callout tail
+				// tip is a free aim point, so it never snaps.
+				if (drag.kind !== "callout-target" && !e.altKey) {
+					const snap = snapNormalizedPosition(nx, ny, scene);
+					nx = snap.x;
+					ny = snap.y;
+					setGuides(
+						snap.guideX !== undefined || snap.guideY !== undefined
+							? { x: snap.guideX, y: snap.guideY }
+							: null,
+					);
+				} else {
+					setGuides(null);
+				}
 				if (drag.kind === "text") onMoveLayer(drag.id, nx, ny);
 				else if (drag.kind === "annotation") onMoveAnnotation(drag.id, nx, ny);
 				else onMoveCalloutTarget(drag.id, nx, ny);
 			},
 			[
-				scene.width,
-				scene.height,
+				scene,
 				toScenePoint,
 				onMoveLayer,
 				onMoveAnnotation,
@@ -278,6 +318,7 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 					e.currentTarget.releasePointerCapture(e.pointerId);
 					draggingRef.current = null;
 				}
+				setGuides(null);
 			},
 			[],
 		);

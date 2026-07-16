@@ -569,6 +569,88 @@ export function hitTestDevice(
 	);
 }
 
+/** Result of snapping a dragged layer: final position + guide lines to show. */
+export interface SnapResult {
+	x: number;
+	y: number;
+	/** Normalized x of the vertical guide line, when x snapped. */
+	guideX?: number;
+	/** Normalized y of the horizontal guide line, when y snapped. */
+	guideY?: number;
+}
+
+/** Snap radius as a fraction of the scene size. */
+const SNAP_THRESHOLD = 0.015;
+
+/**
+ * Snap a normalized drag position to alignment targets: the canvas/panel
+ * centers, panorama panel seams and the device center. Returns the snapped
+ * position plus the guide lines to visualize. Pure — drives canvas drags and
+ * tests. Pass the raw position through when the user holds Alt (caller's job).
+ */
+export function snapNormalizedPosition(
+	nx: number,
+	ny: number,
+	scene: SceneData,
+	threshold = SNAP_THRESHOLD,
+): SnapResult {
+	const panels = getPanelCount(scene);
+	const xTargets: number[] = [];
+	for (let i = 0; i < panels; i++) {
+		xTargets.push((i + 0.5) / panels);
+		if (i > 0) xTargets.push(i / panels);
+	}
+	const yTargets: number[] = [0.5];
+	const device = scene.device;
+	if (device && device.frame !== "none") {
+		xTargets.push(0.5 + device.offsetX);
+		yTargets.push(0.5 + device.offsetY);
+	}
+
+	const nearest = (value: number, targets: number[]): number | undefined => {
+		let best: number | undefined;
+		let bestDist = threshold;
+		for (const target of targets) {
+			const dist = Math.abs(value - target);
+			if (dist <= bestDist) {
+				best = target;
+				bestDist = dist;
+			}
+		}
+		return best;
+	};
+
+	const snappedX = nearest(nx, xTargets);
+	const snappedY = nearest(ny, yTargets);
+	return {
+		guideX: snappedX,
+		guideY: snappedY,
+		x: snappedX ?? nx,
+		y: snappedY ?? ny,
+	};
+}
+
+/**
+ * Return a copy of `items` with the item of the given id moved `delta` places
+ * (-1 = up/earlier = drawn below, +1 = down/later = drawn above). Out-of-range
+ * moves and unknown ids return the original array unchanged. Pure.
+ */
+export function reorderById<T extends { id: string }>(
+	items: readonly T[],
+	id: string,
+	delta: -1 | 1,
+): T[] {
+	const index = items.findIndex((item) => item.id === id);
+	const target = index + delta;
+	if (index < 0 || target < 0 || target >= items.length) {
+		return [...items];
+	}
+	const next = [...items];
+	const [moved] = next.splice(index, 1);
+	next.splice(target, 0, moved);
+	return next;
+}
+
 /**
  * Compute the integer scale-to-fit factor for showing a `target`-sized canvas
  * inside an available viewport box, never upscaling past 1. Used to render the

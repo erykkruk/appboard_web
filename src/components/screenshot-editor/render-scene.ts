@@ -1341,7 +1341,11 @@ export function renderScene(
 	ctx: CanvasRenderingContext2D,
 	scene: SceneData,
 	images: RenderImages,
-	options?: { splitGuides?: boolean },
+	options?: {
+		splitGuides?: boolean;
+		/** Normalized snap guide lines shown while dragging (preview only). */
+		guides?: { x?: number; y?: number };
+	},
 ): void {
 	ctx.clearRect(0, 0, scene.width, scene.height);
 	drawBackground(ctx, scene, images);
@@ -1349,6 +1353,38 @@ export function renderScene(
 	drawTextLayers(ctx, scene);
 	drawAnnotations(ctx, scene, images);
 	if (options?.splitGuides) drawSplitGuides(ctx, scene);
+	if (options?.guides) drawSnapGuides(ctx, scene, options.guides);
+}
+
+/**
+ * Editor-only overlay: cyan alignment lines shown while a dragged layer snaps
+ * to a target (canvas/panel center, panel seam, device center). Never drawn on
+ * export.
+ */
+function drawSnapGuides(
+	ctx: CanvasRenderingContext2D,
+	scene: SceneData,
+	guides: { x?: number; y?: number },
+): void {
+	ctx.save();
+	ctx.strokeStyle = "#22d3ee";
+	ctx.lineWidth = Math.max(2, Math.round(scene.width / 1200));
+	ctx.setLineDash([scene.height * 0.012, scene.height * 0.008]);
+	if (guides.x !== undefined) {
+		const x = guides.x * scene.width;
+		ctx.beginPath();
+		ctx.moveTo(x, 0);
+		ctx.lineTo(x, scene.height);
+		ctx.stroke();
+	}
+	if (guides.y !== undefined) {
+		const y = guides.y * scene.height;
+		ctx.beginPath();
+		ctx.moveTo(0, y);
+		ctx.lineTo(scene.width, y);
+		ctx.stroke();
+	}
+	ctx.restore();
 }
 
 /**
