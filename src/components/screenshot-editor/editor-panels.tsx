@@ -117,6 +117,80 @@ function annotationMeta(annotation: SceneAnnotation): {
 	return ANNOTATION_META[annotation.type];
 }
 
+/**
+ * One-click text style combos. Each patch fully overrides the style-bearing
+ * fields (explicit `undefined` clears leftovers from the previous style), so
+ * presets are idempotent regardless of what the layer looked like before.
+ */
+const TEXT_STYLE_PRESETS: {
+	label: string;
+	patch: (sceneHeight: number) => Partial<SceneTextLayer>;
+}[] = [
+	{
+		label: "Hero",
+		patch: (h) => ({
+			color: "#ffffff",
+			fontSize: Math.round(h * 0.05),
+			gradient: undefined,
+			highlight: undefined,
+			shadowBlur: Math.round(h * 0.008),
+			shadowColor: "#000000",
+			shadowOffsetX: 0,
+			shadowOffsetY: Math.round(h * 0.003),
+			strokeColor: undefined,
+			strokeWidth: undefined,
+			weight: 900,
+		}),
+	},
+	{
+		label: "Subtitle",
+		patch: (h) => ({
+			color: "#e2e8f0",
+			fontSize: Math.round(h * 0.024),
+			gradient: undefined,
+			highlight: undefined,
+			shadowBlur: undefined,
+			shadowColor: undefined,
+			shadowOffsetX: undefined,
+			shadowOffsetY: undefined,
+			strokeColor: undefined,
+			strokeWidth: undefined,
+			weight: 500,
+		}),
+	},
+	{
+		label: "Sticker",
+		patch: (h) => ({
+			fontSize: Math.round(h * 0.045),
+			gradient: { from: "#fde047", to: "#f97316" },
+			highlight: undefined,
+			shadowBlur: 0,
+			shadowColor: "#000000",
+			shadowOffsetX: 0,
+			shadowOffsetY: Math.round(h * 0.0035),
+			strokeColor: "#1c1917",
+			strokeWidth: Math.max(3, Math.round(h * 0.004)),
+			weight: 900,
+		}),
+	},
+	{
+		label: "Marker",
+		patch: (h) => ({
+			color: "#111827",
+			fontSize: Math.round(h * 0.032),
+			gradient: undefined,
+			highlight: "#fde047",
+			shadowBlur: undefined,
+			shadowColor: undefined,
+			shadowOffsetX: undefined,
+			shadowOffsetY: undefined,
+			strokeColor: undefined,
+			strokeWidth: undefined,
+			weight: 700,
+		}),
+	},
+];
+
 /** One-click 3D pose presets (degrees) for the device rotation section. */
 const DEVICE_POSE_PRESETS: {
 	label: string;
@@ -433,6 +507,7 @@ export function PropertiesPanel({
 			{selectedText && (
 				<TextProperties
 					layer={selectedText}
+					sceneHeight={scene.height}
 					customFonts={scene.customFonts}
 					googleFonts={scene.googleFonts}
 					onPatch={(patch) => onPatchTextLayer(selectedText.id, patch)}
@@ -863,6 +938,7 @@ function BackgroundProperties({
 									<SelectItem value="diagonal">Diagonal lines</SelectItem>
 									<SelectItem value="waves">Waves</SelectItem>
 									<SelectItem value="rings">Rings</SelectItem>
+									<SelectItem value="noise">Noise (grain)</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>
@@ -1075,6 +1151,23 @@ function DeviceProperties({
 				</div>
 			)}
 
+			{device.frame !== "none" && (
+				<div className="flex items-center gap-2 rounded-md border border-border/60 p-2.5">
+					<Checkbox
+						id="device-glare"
+						checked={device.glare ?? false}
+						onCheckedChange={(checked) =>
+							onPatchScene({
+								device: { ...device, glare: checked === true },
+							})
+						}
+					/>
+					<Label htmlFor="device-glare" className="flex-1 text-xs">
+						Screen glare (glass reflection)
+					</Label>
+				</div>
+			)}
+
 			<div className="flex flex-col gap-2 rounded-md border border-border/60 p-2.5">
 				<div className="flex items-center justify-between">
 					<Label className="text-xs font-medium">3D rotation</Label>
@@ -1210,6 +1303,7 @@ function DeviceProperties({
 
 function TextProperties({
 	layer,
+	sceneHeight,
 	customFonts,
 	googleFonts,
 	onPatch,
@@ -1217,6 +1311,7 @@ function TextProperties({
 	onAddGoogleFont,
 }: {
 	layer: SceneTextLayer;
+	sceneHeight: number;
 	customFonts?: SceneCustomFont[];
 	googleFonts?: string[];
 	onPatch: (patch: Partial<SceneTextLayer>) => void;
@@ -1233,6 +1328,24 @@ function TextProperties({
 					rows={2}
 					onChange={(e) => onPatch({ text: e.target.value })}
 				/>
+			</div>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">Style presets</Label>
+				<div className="flex flex-wrap gap-1">
+					{TEXT_STYLE_PRESETS.map((preset) => (
+						<Button
+							key={preset.label}
+							type="button"
+							size="sm"
+							variant="outline"
+							className="h-6 px-2 text-[11px]"
+							onClick={() => onPatch(preset.patch(sceneHeight))}
+						>
+							{preset.label}
+						</Button>
+					))}
+				</div>
 			</div>
 
 			<div className="flex flex-col gap-1.5">

@@ -592,7 +592,8 @@ export type SceneBackgroundPatternType =
 	| "grid"
 	| "diagonal"
 	| "waves"
-	| "rings";
+	| "rings"
+	| "noise";
 
 /** Decorative procedural pattern drawn over the base background fill. */
 export interface SceneBackgroundPattern {
@@ -647,6 +648,8 @@ export interface SceneDevice {
 	clayColor?: string;
 	/** Soft elliptical shadow on the "floor" under the device. */
 	groundShadow?: boolean;
+	/** Diagonal glass reflection over the screen. */
+	glare?: boolean;
 }
 
 export interface SceneScreenshot {
