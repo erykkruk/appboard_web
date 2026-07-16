@@ -1,0 +1,361 @@
+import {
+	applyPanelCount,
+	createDefaultScene,
+	createShapeAnnotation,
+	getTargetDimensions,
+} from "@/lib/screenshot-editor";
+import type { SceneData, SceneTextLayer } from "@/lib/types";
+
+// One-click scene templates. Each template builds a complete SceneData for the
+// requested display type, so it works for every iOS (App Store) and Android
+// (Google Play) target size. Layer ids are template-scoped constants — a
+// template is applied to a fresh scene, so they never collide.
+
+export interface SceneTemplate {
+	id: string;
+	name: string;
+	description: string;
+	build: (displayType: string) => SceneData;
+}
+
+function headline(
+	overrides: Partial<SceneTextLayer> & { text: string },
+	height: number,
+): SceneTextLayer {
+	return {
+		align: "center",
+		color: "#ffffff",
+		fontFamily: "Inter, system-ui, sans-serif",
+		fontSize: Math.round(height * 0.045),
+		id: "headline",
+		weight: 700,
+		x: 0.5,
+		y: 0.08,
+		...overrides,
+	};
+}
+
+export const SCENE_TEMPLATES: SceneTemplate[] = [
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				background: {
+					gradient: { angle: 0, from: "#4c1d95", to: "#8b5cf6" },
+					gradientType: "mesh",
+					mesh: ["#8b5cf6", "#ec4899", "#312e81", "#7c3aed"],
+					type: "gradient",
+					value: "#4c1d95",
+				},
+				device: {
+					...scene.device!,
+					offsetY: 0.16,
+					rotation: -8,
+					rotationX: 18,
+					rotationY: 26,
+					scale: 0.78,
+				},
+				textLayers: [
+					headline(
+						{
+							fontSize: Math.round(scene.height * 0.052),
+							text: "Meet your new\nfavorite app",
+							y: 0.09,
+						},
+						scene.height,
+					),
+				],
+			};
+		},
+		description: "3D-tilted device over a violet mesh wash",
+		id: "hero-3d",
+		name: "Hero 3D",
+	},
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				annotations: [
+					{
+						bg: "#111827",
+						color: "#ffffff",
+						fontFamily: "Inter, system-ui, sans-serif",
+						fontSize: Math.round(scene.height * 0.028),
+						id: "tpl-callout",
+						targetX: 0.5,
+						targetY: 0.58,
+						text: "Everything in one tap",
+						type: "callout",
+						weight: 600,
+						x: 0.28,
+						y: 0.36,
+					},
+					{
+						...createShapeAnnotation("tpl-arrow", "arrow", scene),
+						color: "#fde047",
+						x: 0.72,
+						y: 0.42,
+						width: 0.2,
+					},
+				],
+				background: {
+					gradient: { angle: 150, from: "#0ea5e9", to: "#2563eb" },
+					type: "gradient",
+					value: "#0ea5e9",
+				},
+				device: {
+					...scene.device!,
+					offsetY: 0.2,
+					rotationY: -14,
+					scale: 0.72,
+				},
+				textLayers: [
+					headline({ text: "Find it faster" }, scene.height),
+				],
+			};
+		},
+		description: "Callout + hand-drawn arrow pointing at the screen",
+		id: "feature-callout",
+		name: "Feature callout",
+	},
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				background: { type: "color", value: "#f8fafc" },
+				device: {
+					...scene.device!,
+					clayColor: "#c7d2fe",
+					offsetY: 0.18,
+					scale: 0.7,
+					style: "clay",
+				},
+				textLayers: [
+					headline(
+						{
+							color: "#0f172a",
+							text: "Simple. Fast. Yours.",
+							weight: 800,
+						},
+						scene.height,
+					),
+					headline(
+						{
+							color: "#475569",
+							fontSize: Math.round(scene.height * 0.024),
+							id: "subline",
+							text: "No setup required",
+							weight: 500,
+							y: 0.13,
+						},
+						scene.height,
+					),
+				],
+			};
+		},
+		description: "Light minimal look with a pastel clay device",
+		id: "minimal-light",
+		name: "Minimal light",
+	},
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				background: {
+					pattern: { color: "#ffffff", opacity: 0.08, scale: 0.8, type: "dots" },
+					type: "color",
+					value: "#0b1120",
+				},
+				device: {
+					...scene.device!,
+					color: "black",
+					offsetY: 0.18,
+					scale: 0.72,
+				},
+				textLayers: [
+					headline(
+						{
+							gradient: { from: "#a5b4fc", to: "#22d3ee" },
+							text: "Work in dark mode",
+						},
+						scene.height,
+					),
+				],
+			};
+		},
+		description: "Dark dotted backdrop with gradient headline",
+		id: "minimal-dark",
+		name: "Minimal dark",
+	},
+	{
+		build: (displayType) => {
+			const base = createDefaultScene(displayType);
+			const scene = applyPanelCount(base, displayType, 2);
+			return {
+				...scene,
+				background: {
+					gradient: { angle: 0, from: "#0c4a6e", to: "#22d3ee" },
+					gradientType: "mesh",
+					mesh: ["#22d3ee", "#3b82f6", "#0f766e", "#6366f1"],
+					type: "gradient",
+					value: "#0c4a6e",
+				},
+				device: {
+					...scene.device!,
+					offsetX: 0,
+					offsetY: 0.1,
+					rotationY: 12,
+					scale: 0.8,
+				},
+				textLayers: [
+					headline({ text: "One flow", x: 0.25 }, scene.height),
+					headline({ id: "headline-2", text: "Zero friction", x: 0.75 }, scene.height),
+				],
+			};
+		},
+		description: "Two-panel panorama, device crossing the seam",
+		id: "panorama-duo",
+		name: "Panorama duo",
+	},
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				annotations: [
+					{
+						...createShapeAnnotation("tpl-underline", "underline", scene),
+						color: "#fde047",
+						width: 0.42,
+						x: 0.5,
+						y: 0.125,
+					},
+					{
+						...createShapeAnnotation("tpl-sparkle", "sparkle", scene),
+						color: "#fde047",
+						width: 0.07,
+						x: 0.85,
+						y: 0.06,
+					},
+				],
+				background: {
+					gradient: { angle: 135, from: "#c026d3", to: "#4c1d95" },
+					type: "gradient",
+					value: "#c026d3",
+				},
+				device: {
+					...scene.device!,
+					offsetY: 0.2,
+					rotation: 6,
+					scale: 0.7,
+				},
+				textLayers: [
+					headline(
+						{
+							fontSize: Math.round(scene.height * 0.05),
+							text: "Loved by 1M+ users",
+							weight: 800,
+						},
+						scene.height,
+					),
+				],
+			};
+		},
+		description: "Bold headline with marker underline + sparkle",
+		id: "bold-statement",
+		name: "Bold statement",
+	},
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				background: {
+					gradient: { angle: 0, from: "#fde68a", to: "#ea580c" },
+					gradientType: "radial",
+					type: "gradient",
+					value: "#fde68a",
+					via: "#fb923c",
+				},
+				device: {
+					...scene.device!,
+					offsetY: 0.22,
+					rotationX: -10,
+					scale: 0.68,
+				},
+				textLayers: [
+					headline(
+						{
+							color: "#7c2d12",
+							curve: 60,
+							fontSize: Math.round(scene.height * 0.042),
+							text: "Start your journey",
+							weight: 800,
+							y: 0.075,
+						},
+						scene.height,
+					),
+				],
+			};
+		},
+		description: "Curved headline over a sunrise radial wash",
+		id: "curved-promo",
+		name: "Curved promo",
+	},
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				background: {
+					gradient: { angle: 160, from: "#0d9488", to: "#134e4a" },
+					pattern: { color: "#ffffff", opacity: 0.1, scale: 1.2, type: "waves" },
+					type: "gradient",
+					value: "#0d9488",
+				},
+				device: {
+					...scene.device!,
+					clayColor: "#99f6e4",
+					offsetY: 0.16,
+					rotationY: 18,
+					scale: 0.74,
+					style: "clay",
+				},
+				textLayers: [
+					headline(
+						{ highlight: "#134e4a", text: "Track everything" },
+						scene.height,
+					),
+				],
+			};
+		},
+		description: "Clay device on waves with highlighted headline",
+		id: "clay-showcase",
+		name: "Clay showcase",
+	},
+];
+
+/**
+ * Apply a template while preserving the parts of the current scene the user
+ * already invested in: the device screenshot and any loaded fonts.
+ */
+export function applyTemplate(
+	template: SceneTemplate,
+	current: SceneData,
+	displayType: string,
+): SceneData {
+	const built = template.build(displayType);
+	const [width] = getTargetDimensions(displayType);
+	return {
+		...built,
+		customFonts: current.customFonts,
+		googleFonts: current.googleFonts,
+		screenshot: current.screenshot,
+		// Safety: template width must stay a multiple of the target width.
+		width: built.width || width,
+	};
+}

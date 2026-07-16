@@ -1,6 +1,6 @@
 "use client";
 
-import { Languages, Loader2, Save, Upload } from "lucide-react";
+import { Languages, LayoutTemplate, Loader2, Save, Upload } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
@@ -47,6 +47,11 @@ import {
 	getTargetDimensions,
 } from "@/lib/screenshot-editor";
 import { buildDimensionMessage } from "@/lib/screenshot-validation";
+import {
+	applyTemplate,
+	SCENE_TEMPLATES,
+	type SceneTemplate,
+} from "@/lib/scene-templates";
 import type {
 	SceneAnnotation,
 	SceneAnnotationType,
@@ -61,6 +66,7 @@ import { LayersPanel, PropertiesPanel } from "./editor-panels";
 import type { RenderImages } from "./render-scene";
 import { SceneCanvas, type SceneCanvasHandle } from "./scene-canvas";
 import { SceneLocalizationDialog } from "./scene-localization-dialog";
+import { ScenePreview } from "./scene-preview";
 import { useSceneImages } from "./use-scene-images";
 
 interface ScreenshotEditorDialogProps {
@@ -134,6 +140,7 @@ export function ScreenshotEditorDialog({
 	);
 	const [localizeOpen, setLocalizeOpen] = useState(false);
 	const [pickerOpen, setPickerOpen] = useState(false);
+	const [templatesOpen, setTemplatesOpen] = useState(false);
 
 	const canvasRef = useRef<SceneCanvasHandle>(null);
 	const bgFileRef = useRef<HTMLInputElement>(null);
@@ -503,6 +510,16 @@ export function ScreenshotEditorDialog({
 		}
 	};
 
+	const handleApplyTemplate = useCallback(
+		(template: SceneTemplate) => {
+			setScene((prev) => applyTemplate(template, prev, displayType));
+			setSelectedLayerId("__device");
+			setTemplatesOpen(false);
+			toast.success(`Template "${template.name}" applied`);
+		},
+		[displayType],
+	);
+
 	const panels = getPanelCount(scene);
 
 	const handlePanelsChange = useCallback(
@@ -591,6 +608,10 @@ export function ScreenshotEditorDialog({
 						</Select>
 					</div>
 					<div className="flex items-center gap-2">
+						<Button variant="outline" onClick={() => setTemplatesOpen(true)}>
+							<LayoutTemplate className="h-4 w-4" />
+							Templates
+						</Button>
 						<Button
 							variant="outline"
 							onClick={() => setLocalizeOpen(true)}
@@ -724,12 +745,77 @@ export function ScreenshotEditorDialog({
 					onPick={handlePickExistingScreenshot}
 				/>
 
+				<TemplateGalleryDialog
+					open={templatesOpen}
+					onOpenChange={setTemplatesOpen}
+					displayType={displayType}
+					onPick={handleApplyTemplate}
+				/>
+
 				<GoogleFontDialog
 					open={googleFontOpen}
 					onOpenChange={setGoogleFontOpen}
 					loading={googleFontLoading}
 					onSubmit={handleGoogleFontSubmit}
 				/>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+/**
+ * Template gallery: live canvas thumbnails of every built-in template rendered
+ * at the CURRENT display type, so the preview matches what applying it does.
+ * Applying replaces the scene layout but keeps the screenshot and fonts.
+ */
+function TemplateGalleryDialog({
+	open,
+	onOpenChange,
+	displayType,
+	onPick,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	displayType: string;
+	onPick: (template: SceneTemplate) => void;
+}) {
+	// Build preview scenes lazily — only while the dialog is open.
+	const previews = useMemo(
+		() =>
+			open
+				? SCENE_TEMPLATES.map((template) => ({
+						scene: template.build(displayType),
+						template,
+					}))
+				: [],
+		[open, displayType],
+	);
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="max-w-4xl">
+				<DialogHeader>
+					<DialogTitle>Scene templates</DialogTitle>
+				</DialogHeader>
+				<p className="text-xs text-muted-foreground">
+					Applying a template replaces the current layout. Your screenshot and
+					fonts are kept.
+				</p>
+				<div className="grid max-h-[65vh] grid-cols-2 gap-3 overflow-y-auto p-1 sm:grid-cols-4">
+					{previews.map(({ template, scene }) => (
+						<button
+							key={template.id}
+							type="button"
+							onClick={() => onPick(template)}
+							className="group flex flex-col items-center gap-1.5 rounded-lg border border-border p-2 transition-colors hover:border-primary hover:bg-accent/40"
+						>
+							<ScenePreview scene={scene} className="max-h-56" />
+							<span className="text-xs font-medium">{template.name}</span>
+							<span className="text-center text-[10px] text-muted-foreground">
+								{template.description}
+							</span>
+						</button>
+					))}
+				</div>
 			</DialogContent>
 		</Dialog>
 	);
