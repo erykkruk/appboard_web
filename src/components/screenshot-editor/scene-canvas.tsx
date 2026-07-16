@@ -56,6 +56,15 @@ interface SceneCanvasProps {
 	onMoveAnnotation: (id: string, x: number, y: number) => void;
 	onMoveCalloutTarget: (id: string, targetX: number, targetY: number) => void;
 	onMoveDevice: (offsetX: number, offsetY: number) => void;
+	/**
+	 * An image file was dropped on the canvas. `overDevice` is true when the
+	 * drop landed on the device frame (callers typically set the screenshot);
+	 * otherwise `nx`/`ny` give the normalized drop point for an image layer.
+	 */
+	onDropImageFile?: (
+		dataUrl: string,
+		drop: { nx: number; ny: number; overDevice: boolean },
+	) => void;
 	className?: string;
 }
 
@@ -70,6 +79,7 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 			onMoveAnnotation,
 			onMoveCalloutTarget,
 			onMoveDevice,
+			onDropImageFile,
 			className,
 		},
 		ref,
@@ -323,6 +333,42 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 			[],
 		);
 
+		// OS drag & drop: drop a PNG/JPG straight onto the canvas — on the
+		// device it becomes the screenshot, elsewhere an image layer.
+		const handleDragOver = useCallback(
+			(e: React.DragEvent<HTMLCanvasElement>) => {
+				if (onDropImageFile && e.dataTransfer.types.includes("Files")) {
+					e.preventDefault();
+					e.dataTransfer.dropEffect = "copy";
+				}
+			},
+			[onDropImageFile],
+		);
+
+		const handleDrop = useCallback(
+			(e: React.DragEvent<HTMLCanvasElement>) => {
+				if (!onDropImageFile) return;
+				const file = Array.from(e.dataTransfer.files).find((f) =>
+					f.type.startsWith("image/"),
+				);
+				if (!file) return;
+				e.preventDefault();
+				const point = toScenePoint(e.clientX, e.clientY);
+				if (!point) return;
+				const overDevice = hitTestDevice(scene, point.x, point.y);
+				const reader = new FileReader();
+				reader.onload = () => {
+					onDropImageFile(reader.result as string, {
+						nx: Math.min(Math.max(point.x / scene.width, 0), 1),
+						ny: Math.min(Math.max(point.y / scene.height, 0), 1),
+						overDevice,
+					});
+				};
+				reader.readAsDataURL(file);
+			},
+			[onDropImageFile, scene, toScenePoint],
+		);
+
 		return (
 			<div
 				ref={containerRef}
@@ -338,6 +384,8 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 					onPointerDown={handlePointerDown}
 					onPointerMove={handlePointerMove}
 					onPointerUp={handlePointerUp}
+					onDragOver={handleDragOver}
+					onDrop={handleDrop}
 					style={{
 						width: scene.width * displayScale,
 						height: scene.height * displayScale,

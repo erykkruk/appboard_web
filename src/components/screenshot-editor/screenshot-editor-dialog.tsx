@@ -553,6 +553,38 @@ export function ScreenshotEditorDialog({
 		imageLayerFileRef.current?.click();
 	}, []);
 
+	const handleDropImageFile = useCallback(
+		async (
+			dataUrl: string,
+			drop: { nx: number; ny: number; overDevice: boolean },
+		) => {
+			if (drop.overDevice) {
+				setScreenshotSrc(dataUrl);
+				setScene((prev) => ({
+					...prev,
+					screenshot: { ...prev.screenshot, url: dataUrl },
+				}));
+				toast.success("Screenshot set from the dropped image");
+				return;
+			}
+			const aspect = await readImageAspect(dataUrl);
+			const id = nextAnnotationId();
+			setScene((prev) => ({
+				...prev,
+				annotations: [
+					...(prev.annotations ?? []),
+					{
+						...createImageAnnotation(id, dataUrl, aspect),
+						x: drop.nx,
+						y: drop.ny,
+					},
+				],
+			}));
+			setSelectedLayerId(id);
+		},
+		[setScene],
+	);
+
 	const handleReplaceAnnotationImage = useCallback((id: string) => {
 		imageLayerTargetRef.current = id;
 		imageLayerFileRef.current?.click();
@@ -966,6 +998,7 @@ export function ScreenshotEditorDialog({
 							onMoveAnnotation={moveAnnotation}
 							onMoveCalloutTarget={moveCalloutTarget}
 							onMoveDevice={moveDevice}
+							onDropImageFile={handleDropImageFile}
 						/>
 					</div>
 

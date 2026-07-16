@@ -519,6 +519,143 @@ SCENE_TEMPLATES.push(
 	},
 );
 
+SCENE_TEMPLATES.push(
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				background: {
+					pattern: { color: "#8a6b48", opacity: 0.08, scale: 0.9, type: "noise" },
+					type: "color",
+					value: "#f4e9d8",
+				},
+				device: {
+					...scene.device!,
+					color: "silver",
+					groundShadow: true,
+					offsetY: 0.19,
+					scale: 0.66,
+				},
+				textLayers: [
+					headline(
+						{
+							color: "#3f2d1d",
+							fontFamily: "Georgia, serif",
+							fontSize: Math.round(scene.height * 0.046),
+							text: "Chapter one:\nyour best reads",
+							weight: 700,
+							y: 0.075,
+						},
+						scene.height,
+					),
+					headline(
+						{
+							color: "#7a5c3e",
+							fontFamily: "Georgia, serif",
+							fontSize: Math.round(scene.height * 0.022),
+							id: "subline",
+							text: "A library that feels like paper",
+							weight: 400,
+							y: 0.145,
+						},
+						scene.height,
+					),
+				],
+			};
+		},
+		description: "Warm paperback look with serif typography",
+		id: "serif-paperback",
+		name: "Serif",
+	},
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				background: {
+					gradient: { angle: 0, from: "#111827", to: "#030712" },
+					gradientType: "radial",
+					type: "gradient",
+					value: "#111827",
+					via: "#1f2937",
+				},
+				device: {
+					...scene.device!,
+					color: "black",
+					glare: true,
+					groundShadow: true,
+					offsetY: 0.2,
+					rotationY: 8,
+					scale: 0.7,
+				},
+				textLayers: [
+					headline(
+						{
+							gradient: { from: "#f9fafb", to: "#9ca3af" },
+							text: "After hours,\nin style",
+							weight: 800,
+						},
+						scene.height,
+					),
+				],
+			};
+		},
+		description: "Premium dark look with glass glare and silver text",
+		id: "midnight-premium",
+		name: "Midnight",
+	},
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				annotations: [
+					{
+						bg: "#0c4a6e",
+						color: "#e0f2fe",
+						fontFamily: '"Courier New", monospace',
+						fontSize: Math.round(scene.height * 0.02),
+						id: "tpl-spec",
+						showBackground: true,
+						text: "fig. 01 — main view",
+						type: "label",
+						weight: 600,
+						x: 0.5,
+						y: 0.155,
+					},
+				],
+				background: {
+					pattern: { color: "#7dd3fc", opacity: 0.16, scale: 0.75, type: "grid" },
+					type: "color",
+					value: "#0c4a6e",
+				},
+				device: {
+					...scene.device!,
+					offsetY: 0.21,
+					scale: 0.66,
+				},
+				textLayers: [
+					headline(
+						{
+							color: "#e0f2fe",
+							fontFamily: '"Courier New", monospace',
+							fontSize: Math.round(scene.height * 0.04),
+							text: "Engineered for focus",
+							weight: 700,
+							y: 0.08,
+						},
+						scene.height,
+					),
+				],
+			};
+		},
+		description: "Technical blueprint grid with monospace labels",
+		id: "blueprint-grid",
+		name: "Blueprint",
+	},
+);
+
 /**
  * Apply a template while preserving the parts of the current scene the user
  * already invested in: the device screenshot and any loaded fonts.
