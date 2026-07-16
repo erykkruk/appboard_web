@@ -449,7 +449,7 @@ export function ScreenshotEditorDialog({
 	const handleAddImageLayer = useCallback(() => {
 		imageLayerTargetRef.current = null;
 		imageLayerFileRef.current?.click();
-	}, [setScene]);
+	}, []);
 
 	const handleReplaceAnnotationImage = useCallback((id: string) => {
 		imageLayerTargetRef.current = id;
