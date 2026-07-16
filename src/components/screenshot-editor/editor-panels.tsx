@@ -2,6 +2,7 @@
 
 import {
 	ArrowUpRight,
+	Award,
 	Check,
 	ChevronDown,
 	ChevronUp,
@@ -9,6 +10,7 @@ import {
 	CopyPlus,
 	Droplet,
 	Heart,
+	Quote,
 	Image as ImageIcon,
 	MessageSquare,
 	Minus,
@@ -93,6 +95,8 @@ const ANNOTATION_META: Record<
 	badge: { label: "Badge", icon: Tag },
 	callout: { label: "Callout", icon: MessageSquare },
 	label: { label: "Label", icon: Type },
+	laurel: { label: "Award laurel", icon: Award },
+	review: { label: "Review card", icon: Quote },
 };
 
 /** Icon + label for each decorative shape, shared by list and add-menu. */
@@ -2103,6 +2107,80 @@ function AnnotationProperties({
 				/>
 			</div>
 
+			{annotation.type === "laurel" && (
+				<div className="flex gap-2">
+					<div className="flex flex-1 flex-col gap-1.5">
+						<Label className="text-xs">Top line</Label>
+						<Input
+							value={annotation.textTop ?? ""}
+							placeholder="2026"
+							onChange={(e) =>
+								onPatch({ textTop: e.target.value || undefined })
+							}
+						/>
+					</div>
+					<div className="flex flex-1 flex-col gap-1.5">
+						<Label className="text-xs">Bottom line</Label>
+						<Input
+							value={annotation.textBottom ?? ""}
+							placeholder="Design Award"
+							onChange={(e) =>
+								onPatch({ textBottom: e.target.value || undefined })
+							}
+						/>
+					</div>
+				</div>
+			)}
+
+			{annotation.type === "review" && (
+				<>
+					<div className="flex flex-col gap-1.5">
+						<Label className="text-xs">Author</Label>
+						<Input
+							value={annotation.author ?? ""}
+							placeholder="Mark — App Reviewer"
+							onChange={(e) =>
+								onPatch({ author: e.target.value || undefined })
+							}
+						/>
+					</div>
+					<div className="flex flex-col gap-1.5">
+						<Label className="text-xs">Stars: {annotation.stars ?? 5}</Label>
+						<Slider
+							min={0}
+							max={5}
+							step={1}
+							value={[annotation.stars ?? 5]}
+							onValueChange={([stars]) => onPatch({ stars })}
+						/>
+					</div>
+					<div className="flex items-center gap-2 rounded-md border border-border/60 p-2.5">
+						<Checkbox
+							id={`quote-${annotation.id}`}
+							checked={annotation.showQuoteMark !== false}
+							onCheckedChange={(checked) =>
+								onPatch({ showQuoteMark: checked === true })
+							}
+						/>
+						<Label htmlFor={`quote-${annotation.id}`} className="text-xs">
+							Big quote mark
+						</Label>
+					</div>
+					<div className="flex items-center gap-2 rounded-md border border-border/60 p-2.5">
+						<Checkbox
+							id={`cardbg-${annotation.id}`}
+							checked={annotation.showBackground === true}
+							onCheckedChange={(checked) =>
+								onPatch({ showBackground: checked === true })
+							}
+						/>
+						<Label htmlFor={`cardbg-${annotation.id}`} className="flex-1 text-xs">
+							Card background
+						</Label>
+					</div>
+				</>
+			)}
+
 			<div className="flex gap-2">
 				<div className="flex flex-1 flex-col gap-1.5">
 					<Label className="text-xs">Size</Label>
@@ -2143,14 +2221,17 @@ function AnnotationProperties({
 					value={annotation.color}
 					onChange={(color) => onPatch({ color })}
 				/>
-				{(annotation.type !== "label" ||
-					annotation.showBackground !== false) && (
-					<ColorField
-						label="Background"
-						value={annotation.bg}
-						onChange={(bg) => onPatch({ bg })}
-					/>
-				)}
+				{annotation.type !== "laurel" &&
+					(annotation.type === "review"
+						? annotation.showBackground === true
+						: annotation.type !== "label" ||
+							annotation.showBackground !== false) && (
+						<ColorField
+							label="Background"
+							value={annotation.bg}
+							onChange={(bg) => onPatch({ bg })}
+						/>
+					)}
 			</div>
 
 			{annotation.type === "label" && (

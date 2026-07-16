@@ -345,6 +345,94 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
 	},
 ];
 
+SCENE_TEMPLATES.push(
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				annotations: [
+					{
+						author: "Franklin B. — developer",
+						bg: "#111827",
+						color: "#ffffff",
+						fontSize: Math.round(scene.height * 0.028),
+						id: "tpl-review",
+						showBackground: false,
+						showQuoteMark: true,
+						stars: 5,
+						text: "Best software purchase\nI made this year.",
+						type: "review",
+						weight: 600,
+						x: 0.5,
+						y: 0.24,
+					},
+				],
+				background: {
+					gradient: { angle: 160, from: "#7c2d12", to: "#431407" },
+					type: "gradient",
+					value: "#7c2d12",
+				},
+				device: {
+					...scene.device!,
+					groundShadow: true,
+					offsetY: 0.27,
+					rotationX: 8,
+					scale: 0.62,
+				},
+				textLayers: [
+					headline({ text: "Loved by thousands", y: 0.06 }, scene.height),
+				],
+			};
+		},
+		description: "Big testimonial quote with stars over the device",
+		id: "social-proof",
+		name: "Social proof",
+	},
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				annotations: [
+					{
+						bg: "#000000",
+						color: "#fde68a",
+						fontSize: Math.round(scene.height * 0.03),
+						id: "tpl-laurel",
+						text: "App of the Day",
+						textBottom: "Editor's Choice",
+						textTop: "2026",
+						type: "laurel",
+						weight: 800,
+						x: 0.5,
+						y: 0.115,
+					},
+				],
+				background: {
+					gradient: { angle: 0, from: "#1e1b4b", to: "#6d28d9" },
+					gradientType: "radial",
+					type: "gradient",
+					value: "#1e1b4b",
+				},
+				device: {
+					...scene.device!,
+					groundShadow: true,
+					offsetY: 0.22,
+					rotationY: 10,
+					scale: 0.68,
+				},
+				textLayers: [
+					headline({ text: "Award-winning design", y: 0.05 }, scene.height),
+				],
+			};
+		},
+		description: "Laurel award badge with a radial premium wash",
+		id: "award-laurel",
+		name: "Award laurel",
+	},
+);
+
 /**
  * Apply a template while preserving the parts of the current scene the user
  * already invested in: the device screenshot and any loaded fonts.

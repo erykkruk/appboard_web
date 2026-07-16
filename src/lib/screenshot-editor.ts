@@ -383,6 +383,8 @@ const ANNOTATION_DEFAULT_TEXT: Record<SceneAnnotationType, string> = {
 	badge: "NEW",
 	callout: "Your description",
 	label: "Label",
+	laurel: "Finalist",
+	review: "This solves so many\nof my problems.",
 };
 
 /**
@@ -421,6 +423,29 @@ export function createDefaultAnnotation(
 			type: "badge",
 			bg: "#ef4444",
 			fontSize: Math.round(scene.height * 0.026),
+		};
+	}
+	if (type === "laurel") {
+		return {
+			...base,
+			type: "laurel",
+			bg: "#000000",
+			fontSize: Math.round(scene.height * 0.03),
+			textBottom: "Design Award",
+			textTop: "2026",
+			weight: 800,
+		};
+	}
+	if (type === "review") {
+		return {
+			...base,
+			author: "Mark — App Reviewer",
+			bg: "#111827",
+			fontSize: Math.round(scene.height * 0.026),
+			showBackground: false,
+			showQuoteMark: true,
+			stars: 5,
+			type: "review",
 		};
 	}
 	return {
@@ -546,6 +571,29 @@ export function measureAnnotationBox(
 	const padY = annotation.fontSize * ANNOTATION_PADDING_Y;
 	const textWidth = longest * annotation.fontSize * ANNOTATION_GLYPH_RATIO;
 	const textHeight = lines.length * annotation.fontSize * 1.2;
+
+	if (annotation.type === "laurel") {
+		// Wreath branches flank the text block; small lines above/below.
+		const extraLines =
+			(annotation.textTop ? 1 : 0) + (annotation.textBottom ? 1 : 0);
+		const width = textWidth + annotation.fontSize * 4.4;
+		const height =
+			textHeight + extraLines * annotation.fontSize * 0.95 + padY * 2;
+		return { x: cx - width / 2, y: cy - height / 2, width, height };
+	}
+	if (annotation.type === "review") {
+		// Quote mark + quote + stars + author stack vertically.
+		const quoteMark = annotation.showQuoteMark !== false ? 1.4 : 0;
+		const stars = (annotation.stars ?? 5) > 0 ? 1.1 : 0;
+		const author = annotation.author ? 1.5 : 0;
+		const width = Math.max(textWidth, annotation.fontSize * 8) + padX * 2;
+		const height =
+			textHeight +
+			(quoteMark + stars + author) * annotation.fontSize +
+			padY * 2.6;
+		return { x: cx - width / 2, y: cy - height / 2, width, height };
+	}
+
 	const width = textWidth + padX * 2;
 	const height = textHeight + padY * 2;
 	return { x: cx - width / 2, y: cy - height / 2, width, height };

@@ -709,7 +709,12 @@ export interface SceneTextLayer {
 	curve?: number;
 }
 
-export type SceneAnnotationType = "callout" | "badge" | "label";
+export type SceneAnnotationType =
+	| "callout"
+	| "badge"
+	| "label"
+	| "laurel"
+	| "review";
 
 /**
  * Properties shared by every annotation variant. Positions (`x`/`y`) are
@@ -756,6 +761,34 @@ export interface SceneBadgeAnnotation extends SceneAnnotationBase {
 export interface SceneLabelAnnotation extends SceneAnnotationBase {
 	type: "label";
 	/** When false, the label is drawn without a background fill. */
+	showBackground?: boolean;
+}
+
+/**
+ * Award/featured laurel: mirrored wreath branches around up to three lines of
+ * text ("2026" / "Finalist" / "Design Award"). `text` is the main middle line.
+ */
+export interface SceneLaurelAnnotation extends SceneAnnotationBase {
+	type: "laurel";
+	/** Small line above the main text (e.g. a year). */
+	textTop?: string;
+	/** Small line below the main text (e.g. "Design Award"). */
+	textBottom?: string;
+}
+
+/**
+ * Review/testimonial card: big quote mark, the quote (`text`), a star row and
+ * an author line — the App Store social-proof classic.
+ */
+export interface SceneReviewAnnotation extends SceneAnnotationBase {
+	type: "review";
+	/** Attribution line under the stars (e.g. "Mark — App Reviewer"). */
+	author?: string;
+	/** Star count 0–5 (0 hides the row). Defaults to 5. */
+	stars?: number;
+	/** Show the big decorative quote mark above the text. Defaults to true. */
+	showQuoteMark?: boolean;
+	/** When true, draw the rounded card background (`bg`). */
 	showBackground?: boolean;
 }
 
@@ -827,7 +860,9 @@ export interface SceneShapeAnnotation {
 export type SceneTextAnnotation =
 	| SceneCalloutAnnotation
 	| SceneBadgeAnnotation
-	| SceneLabelAnnotation;
+	| SceneLabelAnnotation
+	| SceneLaurelAnnotation
+	| SceneReviewAnnotation;
 
 export type SceneAnnotation =
 	| SceneTextAnnotation

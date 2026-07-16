@@ -1309,6 +1309,172 @@ function drawBadge(
 	drawAnnotationText(ctx, annotation, box);
 }
 
+/**
+ * Draw one laurel branch: a curved stem with leaf pairs along it. Drawn in
+ * local coordinates rising from (0,0); the caller mirrors it for the right
+ * side. `height` is the branch's vertical extent.
+ */
+function drawLaurelBranch(
+	ctx: CanvasRenderingContext2D,
+	height: number,
+	color: string,
+): void {
+	const leafLength = height * 0.16;
+	const leafWidth = leafLength * 0.42;
+	ctx.strokeStyle = color;
+	ctx.fillStyle = color;
+	ctx.lineWidth = Math.max(1.5, height * 0.02);
+	// Stem: arc bending outward (to the left).
+	ctx.beginPath();
+	ctx.moveTo(0, height / 2);
+	ctx.quadraticCurveTo(-height * 0.32, 0, 0, -height / 2);
+	ctx.stroke();
+	// Leaf pairs along the stem.
+	const steps = 6;
+	for (let i = 0; i < steps; i++) {
+		const t = (i + 0.5) / steps;
+		// Point on the quadratic curve.
+		const mt = 1 - t;
+		const px = 2 * mt * t * -height * 0.32;
+		const py = mt * mt * (height / 2) + t * t * (-height / 2);
+		// Tangent angle of the curve at t.
+		const dx = 2 * (1 - 2 * t) * -height * 0.32;
+		const dy = -height;
+		const angle = Math.atan2(dy, dx);
+		for (const side of [-1, 1]) {
+			ctx.save();
+			ctx.translate(px, py);
+			ctx.rotate(angle + (side * Math.PI) / 3.2);
+			ctx.beginPath();
+			ctx.ellipse(leafLength / 2, 0, leafLength / 2, leafWidth / 2, 0, 0, Math.PI * 2);
+			ctx.fill();
+			ctx.restore();
+		}
+	}
+}
+
+/** Draw an award laurel: mirrored branches around up to three text lines. */
+function drawLaurel(
+	ctx: CanvasRenderingContext2D,
+	annotation: SceneTextAnnotation & { type: "laurel" },
+	scene: SceneData,
+): void {
+	const box = measureAnnotationBox(annotation, scene);
+	const cx = box.x + box.width / 2;
+	const cy = box.y + box.height / 2;
+	const branchHeight = box.height * 0.92;
+
+	ctx.save();
+	ctx.translate(cx - box.width / 2 + annotation.fontSize * 1.1, cy);
+	drawLaurelBranch(ctx, branchHeight, annotation.color);
+	ctx.restore();
+	ctx.save();
+	ctx.translate(cx + box.width / 2 - annotation.fontSize * 1.1, cy);
+	ctx.scale(-1, 1);
+	drawLaurelBranch(ctx, branchHeight, annotation.color);
+	ctx.restore();
+
+	ctx.save();
+	ctx.textAlign = "center";
+	ctx.textBaseline = "middle";
+	ctx.fillStyle = annotation.color;
+	const family = annotation.fontFamily ?? "Inter, system-ui, sans-serif";
+	const smallSize = Math.round(annotation.fontSize * 0.55);
+	const lines = annotation.text.split("\n");
+	const mainHeight = lines.length * annotation.fontSize * 1.15;
+	let y = cy - mainHeight / 2;
+	if (annotation.textTop) {
+		ctx.font = `600 ${smallSize}px ${family}`;
+		ctx.fillText(annotation.textTop, cx, y - smallSize * 0.75);
+	}
+	ctx.font = buildFontString({
+		fontFamily: family,
+		fontSize: annotation.fontSize,
+		weight: annotation.weight ?? 800,
+	});
+	lines.forEach((line, i) => {
+		ctx.fillText(
+			line,
+			cx,
+			y + annotation.fontSize * 0.575 + i * annotation.fontSize * 1.15,
+		);
+	});
+	y += mainHeight;
+	if (annotation.textBottom) {
+		ctx.font = `600 ${smallSize}px ${family}`;
+		ctx.fillText(annotation.textBottom, cx, y + smallSize * 0.85);
+	}
+	ctx.restore();
+}
+
+/** Draw a review card: quote mark, quote, star row and author line. */
+function drawReview(
+	ctx: CanvasRenderingContext2D,
+	annotation: SceneTextAnnotation & { type: "review" },
+	scene: SceneData,
+): void {
+	const box = measureAnnotationBox(annotation, scene);
+	const cx = box.x + box.width / 2;
+	const fontSize = annotation.fontSize;
+	const family = annotation.fontFamily ?? "Inter, system-ui, sans-serif";
+
+	if (annotation.showBackground) {
+		ctx.save();
+		ctx.shadowColor = "rgba(0,0,0,0.25)";
+		ctx.shadowBlur = fontSize * 0.5;
+		ctx.shadowOffsetY = fontSize * 0.15;
+		ctx.fillStyle = annotation.bg;
+		roundedRectPath(ctx, box, fontSize * 0.6);
+		ctx.fill();
+		ctx.restore();
+	}
+
+	ctx.save();
+	ctx.textAlign = "center";
+	ctx.textBaseline = "middle";
+	ctx.fillStyle = annotation.color;
+	let y = box.y + fontSize * 1.1;
+
+	if (annotation.showQuoteMark !== false) {
+		ctx.font = `900 ${Math.round(fontSize * 2.4)}px Georgia, serif`;
+		ctx.fillText("“", cx, y + fontSize * 0.45);
+		y += fontSize * 1.5;
+	}
+
+	ctx.font = buildFontString({
+		fontFamily: family,
+		fontSize,
+		weight: annotation.weight ?? 600,
+	});
+	const lines = annotation.text.split("\n");
+	lines.forEach((line) => {
+		ctx.fillText(line, cx, y + fontSize * 0.6);
+		y += fontSize * 1.2;
+	});
+
+	const stars = Math.max(0, Math.min(5, annotation.stars ?? 5));
+	if (stars > 0) {
+		y += fontSize * 0.55;
+		const starR = fontSize * 0.38;
+		const gap = starR * 0.7;
+		const step = starR * 2 + gap;
+		const startX = cx - ((stars - 1) * step) / 2;
+		for (let i = 0; i < stars; i++) {
+			starPath(ctx, startX + i * step, y, starR);
+			ctx.fill();
+		}
+		y += fontSize * 0.75;
+	}
+
+	if (annotation.author) {
+		y += fontSize * 0.45;
+		ctx.globalAlpha *= 0.75;
+		ctx.font = `500 ${Math.round(fontSize * 0.62)}px ${family}`;
+		ctx.fillText(annotation.author, cx, y);
+	}
+	ctx.restore();
+}
+
 /** Draw a label: centered text with an optional rounded background panel. */
 function drawLabel(
 	ctx: CanvasRenderingContext2D,
@@ -1517,6 +1683,10 @@ function drawAnnotations(
 			drawCallout(ctx, annotation, scene);
 		} else if (annotation.type === "badge") {
 			drawBadge(ctx, annotation, scene);
+		} else if (annotation.type === "laurel") {
+			drawLaurel(ctx, annotation, scene);
+		} else if (annotation.type === "review") {
+			drawReview(ctx, annotation, scene);
 		} else {
 			drawLabel(ctx, annotation, scene);
 		}
