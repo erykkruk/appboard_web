@@ -1,17 +1,30 @@
 "use client";
 
-import { Loader2, Pencil, Plus, Trash2 } from "lucide-react";
+import { Loader2, Pencil, Plus, Trash2, UploadCloud } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import {
+	useSplitUploadScreenshots,
+	useUploadScreenshot,
+} from "@/hooks/use-publishing";
 import {
 	useDeleteScreenshotScene,
 	useScreenshotScenes,
 } from "@/hooks/use-screenshot-scenes";
-import { getDisplayTypeLabel } from "@/lib/screenshot-editor";
+import {
+	getDisplayTypeLabel,
+	getPanelCount,
+	getTargetDimensions,
+} from "@/lib/screenshot-editor";
 import type { ScreenshotScene } from "@/lib/types";
+
+import { exportSceneToPng } from "./export-scene";
 
 interface SceneGalleryProps {
 	appId: string;
+	versionId: string;
 	language: string;
 	displayType: string;
 	onNew: () => void;
@@ -20,10 +33,13 @@ interface SceneGalleryProps {
 
 /**
  * Gallery of saved editor scenes for the current language + display type, with
- * actions to start a new scene, reopen an existing one, or delete it.
+ * actions to start a new scene, reopen an existing one, delete it — or export
+ * and upload ALL of them to the store in one click (panoramas are split
+ * server-side into their store screenshots).
  */
 export function SceneGallery({
 	appId,
+	versionId,
 	language,
 	displayType,
 	onNew,
@@ -31,10 +47,71 @@ export function SceneGallery({
 }: SceneGalleryProps) {
 	const scenes = useScreenshotScenes(appId);
 	const deleteScene = useDeleteScreenshotScene(appId);
+	const uploadScreenshot = useUploadScreenshot(appId, versionId);
+	const splitUpload = useSplitUploadScreenshots(appId, versionId);
+	// Batch export progress: null = idle, otherwise done/total counters.
+	const [exporting, setExporting] = useState<{
+		done: number;
+		total: number;
+	} | null>(null);
 
-	const filtered = (scenes.data ?? []).filter(
-		(s) => s.language === language && s.displayType === displayType,
-	);
+	const filtered = (scenes.data ?? [])
+		.filter((s) => s.language === language && s.displayType === displayType)
+		.sort((a, b) => a.sortOrder - b.sortOrder);
+
+	const handleExportAll = async () => {
+		if (filtered.length === 0 || exporting) return;
+		setExporting({ done: 0, total: filtered.length });
+		const [targetWidth, targetHeight] = getTargetDimensions(displayType);
+		let uploaded = 0;
+		let failed = 0;
+		// Sequential on purpose: uploads hit store rate limits when parallelized,
+		// and the progress counter stays meaningful.
+		for (const row of filtered) {
+			const blob = await exportSceneToPng(row.scene);
+			if (!blob) {
+				failed += 1;
+			} else {
+				const safeName = row.name.replace(/\s+/g, "-").toLowerCase();
+				const file = new File(
+					[blob],
+					`${safeName}-${language}-${displayType}.png`,
+					{ type: "image/png" },
+				);
+				const panels = getPanelCount(row.scene);
+				try {
+					if (panels > 1) {
+						await splitUpload.mutateAsync({
+							displayType,
+							file,
+							language,
+							parts: panels,
+							targetHeight,
+							targetWidth,
+						});
+					} else {
+						await uploadScreenshot.mutateAsync({ displayType, file, language });
+					}
+					uploaded += 1;
+				} catch {
+					failed += 1;
+				}
+			}
+			setExporting((prev) =>
+				prev ? { ...prev, done: prev.done + 1 } : prev,
+			);
+		}
+		setExporting(null);
+		if (failed === 0) {
+			toast.success(
+				`Exported and uploaded ${uploaded} scene${uploaded === 1 ? "" : "s"}`,
+			);
+		} else {
+			toast.error(
+				`Uploaded ${uploaded}, failed ${failed} — check remote images (CORS) and store screenshot limits`,
+			);
+		}
+	};
 
 	return (
 		<div className="rounded-lg border border-border p-4">
@@ -46,10 +123,32 @@ export function SceneGallery({
 						export at exact dimensions.
 					</p>
 				</div>
-				<Button size="sm" onClick={onNew} disabled={!language}>
-					<Plus className="h-4 w-4" />
-					Open editor
-				</Button>
+				<div className="flex items-center gap-2">
+					{filtered.length > 0 && (
+						<Button
+							size="sm"
+							variant="outline"
+							onClick={handleExportAll}
+							disabled={!language || exporting !== null}
+						>
+							{exporting ? (
+								<>
+									<Loader2 className="h-4 w-4 animate-spin" />
+									{exporting.done}/{exporting.total}
+								</>
+							) : (
+								<>
+									<UploadCloud className="h-4 w-4" />
+									Export all
+								</>
+							)}
+						</Button>
+					)}
+					<Button size="sm" onClick={onNew} disabled={!language}>
+						<Plus className="h-4 w-4" />
+						Open editor
+					</Button>
+				</div>
 			</div>
 
 			{scenes.isLoading && (

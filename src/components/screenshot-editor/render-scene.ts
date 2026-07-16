@@ -419,6 +419,28 @@ function drawDeviceFrame(
 	const frame = computeDeviceRect(scene);
 	if (!frame) return;
 
+	// Ground shadow first, on the untransformed canvas, so it stays "on the
+	// floor" no matter how the device above it is rotated or tilted.
+	if (device.groundShadow) {
+		const cx = frame.x + frame.width / 2;
+		const cy = frame.y + frame.height * 1.03;
+		const rx = frame.width * 0.62;
+		const ry = frame.width * 0.085;
+		const grad = ctx.createRadialGradient(cx, cy, 0, cx, cy, rx);
+		grad.addColorStop(0, "rgba(0,0,0,0.38)");
+		grad.addColorStop(0.7, "rgba(0,0,0,0.14)");
+		grad.addColorStop(1, "rgba(0,0,0,0)");
+		ctx.save();
+		ctx.translate(cx, cy);
+		ctx.scale(1, ry / rx);
+		ctx.translate(-cx, -cy);
+		ctx.fillStyle = grad;
+		ctx.beginPath();
+		ctx.arc(cx, cy, rx, 0, Math.PI * 2);
+		ctx.fill();
+		ctx.restore();
+	}
+
 	if (!deviceHas3DTilt(device)) {
 		// Flat path (legacy): optional Z rotation via a plain 2D transform.
 		ctx.save();

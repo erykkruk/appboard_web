@@ -53,6 +53,7 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
 					offsetY: 0.16,
 					rotation: -8,
 					rotationX: 18,
+					groundShadow: true,
 					rotationY: 26,
 					scale: 0.78,
 				},
@@ -129,6 +130,7 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
 				device: {
 					...scene.device!,
 					clayColor: "#c7d2fe",
+					groundShadow: true,
 					offsetY: 0.18,
 					scale: 0.7,
 					style: "clay",
@@ -320,6 +322,7 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
 				device: {
 					...scene.device!,
 					clayColor: "#99f6e4",
+					groundShadow: true,
 					offsetY: 0.16,
 					rotationY: 18,
 					scale: 0.74,

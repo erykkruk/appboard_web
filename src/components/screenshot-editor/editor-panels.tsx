@@ -1058,6 +1058,23 @@ function DeviceProperties({
 				/>
 			</div>
 
+			{device.frame !== "none" && (
+				<div className="flex items-center gap-2 rounded-md border border-border/60 p-2.5">
+					<Checkbox
+						id="device-ground-shadow"
+						checked={device.groundShadow ?? false}
+						onCheckedChange={(checked) =>
+							onPatchScene({
+								device: { ...device, groundShadow: checked === true },
+							})
+						}
+					/>
+					<Label htmlFor="device-ground-shadow" className="flex-1 text-xs">
+						Ground shadow under device
+					</Label>
+				</div>
+			)}
+
 			<div className="flex flex-col gap-2 rounded-md border border-border/60 p-2.5">
 				<div className="flex items-center justify-between">
 					<Label className="text-xs font-medium">3D rotation</Label>

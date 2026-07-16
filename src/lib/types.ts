@@ -645,6 +645,8 @@ export interface SceneDevice {
 	style?: SceneDeviceStyle;
 	/** Flat body color used when style is "clay". */
 	clayColor?: string;
+	/** Soft elliptical shadow on the "floor" under the device. */
+	groundShadow?: boolean;
 }
 
 export interface SceneScreenshot {
