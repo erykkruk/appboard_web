@@ -2,11 +2,13 @@
 
 import {
 	ArrowUpRight,
+	Check,
 	ChevronDown,
 	ChevronUp,
 	Circle,
 	CopyPlus,
 	Droplet,
+	Heart,
 	Image as ImageIcon,
 	MessageSquare,
 	Minus,
@@ -97,7 +99,10 @@ const SHAPE_META: Record<SceneShapeKind, { label: string; icon: typeof Tag }> =
 	{
 		arrow: { icon: ArrowUpRight, label: "Arrow" },
 		blob: { icon: Droplet, label: "Blob" },
+		check: { icon: Check, label: "Checkmark" },
 		circle: { icon: Circle, label: "Circle mark" },
+		heart: { icon: Heart, label: "Heart" },
+		rating: { icon: Star, label: "5-star rating" },
 		sparkle: { icon: Sparkles, label: "Sparkle" },
 		squiggle: { icon: Waves, label: "Squiggle" },
 		star: { icon: Star, label: "Star" },

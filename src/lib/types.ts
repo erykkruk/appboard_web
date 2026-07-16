@@ -791,6 +791,9 @@ export type SceneShapeKind =
 	| "circle"
 	| "sparkle"
 	| "star"
+	| "rating"
+	| "heart"
+	| "check"
 	| "blob";
 
 /**

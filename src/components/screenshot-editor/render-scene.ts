@@ -176,6 +176,26 @@ function deviceButtons(frame: Rect, isAndroid: boolean): Rect[] {
 	return [left(0.185, 0.05), left(0.28, 0.08), left(0.385, 0.08), right(0.27, 0.13)];
 }
 
+/** 5-point star path centered at (cx, cy) with the given outer radius. */
+function starPath(
+	ctx: CanvasRenderingContext2D,
+	cx: number,
+	cy: number,
+	outer: number,
+): void {
+	const inner = outer * 0.42;
+	ctx.beginPath();
+	for (let i = 0; i < 10; i++) {
+		const r = i % 2 === 0 ? outer : inner;
+		const a = (i * Math.PI) / 5 - Math.PI / 2;
+		const px = cx + r * Math.cos(a);
+		const py = cy + r * Math.sin(a);
+		if (i === 0) ctx.moveTo(px, py);
+		else ctx.lineTo(px, py);
+	}
+	ctx.closePath();
+}
+
 function fillCircle(
 	ctx: CanvasRenderingContext2D,
 	cx: number,
@@ -617,7 +637,17 @@ function paintScreen(
 			dest.height,
 		);
 	} else {
-		ctx.fillStyle = "#1c1c22";
+		// No screenshot yet: a soft gradient placeholder reads better than a
+		// flat gray slab (and exports fine if the user ships without one).
+		const g = ctx.createLinearGradient(
+			screen.x,
+			screen.y,
+			screen.x,
+			screen.y + screen.height,
+		);
+		g.addColorStop(0, "#26262e");
+		g.addColorStop(1, "#131318");
+		ctx.fillStyle = g;
 		ctx.fillRect(screen.x, screen.y, screen.width, screen.height);
 	}
 
@@ -1393,19 +1423,42 @@ function drawShapeAnnotation(
 			break;
 		}
 		case "star": {
-			const outer = Math.min(w, h) / 2;
-			const inner = outer * 0.42;
-			ctx.beginPath();
-			for (let i = 0; i < 10; i++) {
-				const r = i % 2 === 0 ? outer : inner;
-				const a = (i * Math.PI) / 5 - Math.PI / 2;
-				const px = r * Math.cos(a);
-				const py = r * Math.sin(a);
-				if (i === 0) ctx.moveTo(px, py);
-				else ctx.lineTo(px, py);
+			starPath(ctx, 0, 0, Math.min(w, h) / 2);
+			ctx.fill();
+			break;
+		}
+		case "rating": {
+			// Five-star review row — the classic ASO social-proof element.
+			const starOuter = Math.min(w / 11, h / 2);
+			const gap = starOuter * 0.6;
+			const step = starOuter * 2 + gap;
+			const startX = -2 * step;
+			for (let i = 0; i < 5; i++) {
+				starPath(ctx, startX + i * step, 0, starOuter);
+				ctx.fill();
 			}
+			break;
+		}
+		case "heart": {
+			const r = Math.min(w, h) / 2;
+			ctx.beginPath();
+			ctx.moveTo(0, r * 0.75);
+			ctx.bezierCurveTo(-r * 1.25, -r * 0.1, -r * 0.65, -r, 0, -r * 0.35);
+			ctx.bezierCurveTo(r * 0.65, -r, r * 1.25, -r * 0.1, 0, r * 0.75);
 			ctx.closePath();
 			ctx.fill();
+			break;
+		}
+		case "check": {
+			ctx.lineWidth = Math.max(
+				ctx.lineWidth,
+				Math.min(w, h) * 0.18,
+			);
+			ctx.beginPath();
+			ctx.moveTo(-w * 0.34, h * 0.02);
+			ctx.lineTo(-w * 0.08, h * 0.3);
+			ctx.lineTo(w * 0.38, -h * 0.32);
+			ctx.stroke();
 			break;
 		}
 		default: {

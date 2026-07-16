@@ -437,7 +437,10 @@ export function createDefaultAnnotation(
 const SHAPE_DEFAULT_COLOR: Record<SceneShapeKind, string> = {
 	arrow: "#facc15",
 	blob: "#f472b6",
+	check: "#22c55e",
 	circle: "#ef4444",
+	heart: "#ef4444",
+	rating: "#fbbf24",
 	sparkle: "#fde047",
 	squiggle: "#facc15",
 	star: "#facc15",
@@ -453,7 +456,11 @@ export function createShapeAnnotation(
 	shape: SceneShapeKind,
 	scene: Pick<SceneData, "height" | "width">,
 ): SceneShapeAnnotation {
-	const isMark = shape === "sparkle" || shape === "star";
+	const isMark =
+		shape === "sparkle" ||
+		shape === "star" ||
+		shape === "heart" ||
+		shape === "check";
 	return {
 		color: SHAPE_DEFAULT_COLOR[shape],
 		id,
@@ -462,7 +469,7 @@ export function createShapeAnnotation(
 		shape,
 		strokeWidth: Math.max(4, Math.round(scene.height * 0.008)),
 		type: "shape",
-		width: isMark ? 0.1 : 0.3,
+		width: isMark ? 0.1 : shape === "rating" ? 0.42 : 0.3,
 		x: 0.5,
 		y: 0.5,
 	};
@@ -507,7 +514,10 @@ const ANNOTATION_GLYPH_RATIO = 0.58;
 export const SHAPE_ASPECT: Record<SceneShapeKind, number> = {
 	arrow: 0.55,
 	blob: 0.75,
+	check: 0.8,
 	circle: 0.5,
+	heart: 0.9,
+	rating: 0.2,
 	sparkle: 1,
 	squiggle: 0.22,
 	star: 1,

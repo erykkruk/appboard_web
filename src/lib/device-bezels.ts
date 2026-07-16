@@ -20,6 +20,7 @@ const IPHONE_17_SCREEN = { h: 0.8953, w: 0.8933, x: 0.0533, y: 0.0797 };
 const IPHONE_17_PRO_MAX_SCREEN = { h: 0.9057, w: 0.898, x: 0.051, y: 0.0723 };
 const IPHONE_AIR_SCREEN = { h: 0.8913, w: 0.913, x: 0.0435, y: 0.0837 };
 const IPAD_PRO_13_SCREEN = { h: 0.9173, w: 0.8974, x: 0.0513, y: 0.0413 };
+const WATCH_S11_SCREEN = { h: 0.5636, w: 0.7429, x: 0.1286, y: 0.2182 };
 
 export const DEVICE_BEZELS: DeviceBezel[] = [
 	{
@@ -85,6 +86,22 @@ export const DEVICE_BEZELS: DeviceBezel[] = [
 		screen: IPAD_PRO_13_SCREEN,
 		src: "/device-bezels/ipad-pro-13-silver.png",
 		width: 2300,
+	},
+	{
+		height: 880,
+		id: "apple-watch-s11-slate-milanese",
+		label: "Apple Watch S11 · Slate + Milanese",
+		screen: WATCH_S11_SCREEN,
+		src: "/device-bezels/apple-watch-s11-slate-milanese.png",
+		width: 560,
+	},
+	{
+		height: 880,
+		id: "apple-watch-s11-natural-caramel",
+		label: "Apple Watch S11 · Natural + Caramel",
+		screen: WATCH_S11_SCREEN,
+		src: "/device-bezels/apple-watch-s11-natural-caramel.png",
+		width: 560,
 	},
 ];
 
