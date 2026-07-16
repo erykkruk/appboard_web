@@ -12,8 +12,13 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-07-16",
     changes: [
       "Screenshot editor got a major upgrade: new device mockups — iPad, Android tablet, Apple Watch (with band and digital crown) and a laptop — next to the existing iPhone and Android phone frames",
+      "True 3D devices: iPhone 15 Pro Max and Galaxy S25 Ultra as real WebGL models that rotate in X/Y/Z, plus photographic Apple bezels (iPhone 17 family, iPad Pro 13\", Apple Watch S11) with your screenshot composited into the real screen cutout",
       "3D device rotation: tilt any mockup in X/Y/Z with one-click pose presets (Hero, Tilt left/right, Lean back) — the export matches the preview pixel-for-pixel",
       "Clay device style: render the frame in any color you pick, ButterKit-style, next to the realistic titanium look",
+      "Social-proof elements: review cards (quote, stars, author), award laurels, 5-star rows, hearts, checkmarks and emoji stickers",
+      "Text power-ups: accent words in a second color, style presets, lock layers, copy a text's or annotation's style to all others, annotation borders and corner radius",
+      "20 scene templates inspired by the best App Store pages (Ascent, Sahara, Serif, Midnight, Blueprint, Sunset Blvd, Ethereal, Pinecrest and more) with topographic, dune and grain backgrounds",
+      "Drag & drop an image onto the canvas: on the device it becomes the screenshot, elsewhere an image layer",
       "Background gallery: 28 one-click presets — linear, radial and mesh gradients plus pattern combos (dots, grid, waves, diagonal lines, rings) with color, opacity and density controls",
       "Decorative text: gradient fills, marker highlights, curved text, letter spacing, line height and one-click style presets (Hero, Subtitle, Sticker, Marker)",
       "Hand-drawn shapes: arrows, underlines, squiggles, circle marks, sparkles, stars and blobs — recolor, rotate, flip and resize them like any layer",

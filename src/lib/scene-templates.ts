@@ -832,6 +832,58 @@ SCENE_TEMPLATES.push({
 	name: "Ethereal",
 });
 
+SCENE_TEMPLATES.push({
+	build: (displayType) => {
+		const scene = createDefaultScene(displayType);
+		return {
+			...scene,
+			annotations: [
+				{
+					bg: "#14532d",
+					color: "#dcfce7",
+					fontSize: Math.round(scene.height * 0.022),
+					id: "tpl-pine-badge",
+					text: "OFFLINE READY",
+					type: "badge",
+					weight: 700,
+					x: 0.5,
+					y: 0.155,
+				},
+			],
+			background: {
+				gradient: { angle: 180, from: "#1a2e1a", to: "#0b150d" },
+				pattern: { color: "#4ade80", opacity: 0.07, scale: 1.8, type: "topo" },
+				type: "gradient",
+				value: "#1a2e1a",
+			},
+			device: {
+				...scene.device!,
+				clayColor: "#2f4a33",
+				groundShadow: true,
+				offsetY: 0.21,
+				rotationY: -8,
+				scale: 0.66,
+				style: "clay",
+			},
+			textLayers: [
+				headline(
+					{
+						color: "#ecfdf5",
+						fontSize: Math.round(scene.height * 0.046),
+						text: "Into the woods",
+						weight: 800,
+						y: 0.08,
+					},
+					scene.height,
+				),
+			],
+		};
+	},
+	description: "Deep forest greens with topo contours and a clay device",
+	id: "pinecrest-forest",
+	name: "Pinecrest",
+});
+
 /**
  * Apply a template while preserving the parts of the current scene the user
  * already invested in: the device screenshot and any loaded fonts.
