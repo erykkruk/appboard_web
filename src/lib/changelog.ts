@@ -7,6 +7,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.9.0",
+    serverVersion: "0.8.0",
+    date: "2026-07-16",
+    changes: [
+      "Screenshot editor got a major upgrade: new device mockups — iPad, Android tablet, Apple Watch (with band and digital crown) and a laptop — next to the existing iPhone and Android phone frames",
+      "3D device rotation: tilt any mockup in X/Y/Z with one-click pose presets (Hero, Tilt left/right, Lean back) — the export matches the preview pixel-for-pixel",
+      "Clay device style: render the frame in any color you pick, ButterKit-style, next to the realistic titanium look",
+      "Background gallery: 28 one-click presets — linear, radial and mesh gradients plus pattern combos (dots, grid, waves, diagonal lines, rings) with color, opacity and density controls",
+      "Decorative text: gradient fills, marker highlights, curved text, letter spacing and line height",
+      "Hand-drawn shapes: arrows, underlines, squiggles, circle marks, sparkles, stars and blobs — recolor, rotate, flip and resize them like any layer",
+      "Scene templates: 8 ready-made layouts (Hero 3D, Feature callout, Minimal light/dark, Panorama duo, Bold statement, Curved promo, Clay showcase) that adapt to every App Store and Google Play size and keep your screenshot and fonts when applied",
+    ],
+  },
+  {
     version: "0.8.2",
     serverVersion: "0.8.0",
     date: "2026-07-10",
