@@ -41,6 +41,7 @@ import {
 	createDefaultAnnotation,
 	createDefaultScene,
 	createImageAnnotation,
+	createShapeAnnotation,
 	getDisplayTypeLabel,
 	getPanelCount,
 	getTargetDimensions,
@@ -50,6 +51,7 @@ import type {
 	SceneAnnotation,
 	SceneAnnotationType,
 	SceneData,
+	SceneShapeKind,
 	SceneTextLayer,
 	ScreenshotScene,
 	VersionScreenshot,
@@ -294,6 +296,18 @@ export function ScreenshotEditorDialog({
 			annotations: [
 				...(prev.annotations ?? []),
 				createDefaultAnnotation(type, prev, id),
+			],
+		}));
+		setSelectedLayerId(id);
+	}, []);
+
+	const addShape = useCallback((shape: SceneShapeKind) => {
+		const id = nextAnnotationId();
+		setScene((prev) => ({
+			...prev,
+			annotations: [
+				...(prev.annotations ?? []),
+				createShapeAnnotation(id, shape, prev),
 			],
 		}));
 		setSelectedLayerId(id);
@@ -582,7 +596,9 @@ export function ScreenshotEditorDialog({
 							onClick={() => setLocalizeOpen(true)}
 							disabled={
 								scene.textLayers.length === 0 &&
-								!(scene.annotations ?? []).some((a) => a.type !== "image")
+								!(scene.annotations ?? []).some(
+									(a) => a.type !== "image" && a.type !== "shape",
+								)
 							}
 						>
 							<Languages className="h-4 w-4" />
@@ -622,6 +638,7 @@ export function ScreenshotEditorDialog({
 						onAddText={addTextLayer}
 						onDeleteText={deleteTextLayer}
 						onAddAnnotation={addAnnotation}
+						onAddShape={addShape}
 						onAddImage={handleAddImageLayer}
 						onDeleteAnnotation={deleteAnnotation}
 					/>

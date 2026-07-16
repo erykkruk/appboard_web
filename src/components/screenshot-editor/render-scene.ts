@@ -17,6 +17,7 @@ import type {
 	SceneDevice,
 	SceneDeviceColor,
 	SceneImageAnnotation,
+	SceneShapeAnnotation,
 	SceneTextAnnotation,
 } from "@/lib/types";
 
@@ -854,13 +855,65 @@ function paintLaptop(
 	ctx.fill();
 }
 
+/** Apply optional letterSpacing (not in the lib's ctx type in every TS env). */
+function applyLetterSpacing(
+	ctx: CanvasRenderingContext2D,
+	spacing: number | undefined,
+): void {
+	if (!spacing) return;
+	const target = ctx as CanvasRenderingContext2D & { letterSpacing?: string };
+	if ("letterSpacing" in target) target.letterSpacing = `${spacing}px`;
+}
+
+/**
+ * Draw one line of text bent along a circular arc spanning `curveDeg` degrees
+ * (positive arches upward). Each glyph is positioned and rotated individually;
+ * `paint` runs per glyph so stroke and fill passes share the layout.
+ */
+function drawCurvedLine(
+	ctx: CanvasRenderingContext2D,
+	line: string,
+	cx: number,
+	cy: number,
+	curveDeg: number,
+	paint: (ch: string) => void,
+): void {
+	const chars = [...line];
+	if (chars.length === 0) return;
+	const widths = chars.map((ch) => ctx.measureText(ch).width);
+	const total = widths.reduce((a, b) => a + b, 0);
+	if (total <= 0) return;
+	const arc = (Math.min(Math.abs(curveDeg), 180) * Math.PI) / 180;
+	if (arc < 0.01) return;
+	const radius = total / arc;
+	const up = curveDeg > 0;
+	let traveled = 0;
+	for (let i = 0; i < chars.length; i++) {
+		const mid = traveled + widths[i] / 2;
+		const theta = (mid / total - 0.5) * arc;
+		const px = cx + radius * Math.sin(theta);
+		const py = up
+			? cy + radius - radius * Math.cos(theta)
+			: cy - radius + radius * Math.cos(theta);
+		ctx.save();
+		ctx.translate(px, py);
+		ctx.rotate(up ? theta : -theta);
+		paint(chars[i]);
+		ctx.restore();
+		traveled += widths[i];
+	}
+}
+
 function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 	for (const layer of scene.textLayers) {
 		const { x, y } = resolveTextPosition(layer, scene);
+		ctx.save();
 		ctx.font = buildFontString(layer);
+		applyLetterSpacing(ctx, layer.letterSpacing);
 		const lines = layer.text.split("\n");
-		const lineHeight = layer.fontSize * 1.2;
+		const lineHeight = layer.fontSize * (layer.lineHeight ?? 1.2);
 		const totalHeight = lineHeight * (lines.length - 1);
+		const lineY = (i: number) => y - totalHeight / 2 + i * lineHeight;
 
 		// Optional background panel sized to the measured text block.
 		if (layer.bg) {
@@ -881,10 +934,33 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 			ctx.fill();
 		}
 
-		ctx.save();
+		// Marker-style highlight bar behind each line.
+		if (layer.highlight) {
+			ctx.fillStyle = layer.highlight;
+			lines.forEach((line, i) => {
+				const w = ctx.measureText(line).width;
+				if (w <= 0) return;
+				const pad = layer.fontSize * 0.18;
+				let left = x - w / 2;
+				if (layer.align === "left") left = x;
+				else if (layer.align === "right") left = x - w;
+				const barH = layer.fontSize * 0.82;
+				roundedRectPath(
+					ctx,
+					{
+						x: left - pad,
+						y: lineY(i) - barH / 2 + layer.fontSize * 0.06,
+						width: w + pad * 2,
+						height: barH,
+					},
+					barH * 0.28,
+				);
+				ctx.fill();
+			});
+		}
+
 		ctx.textAlign = layer.align;
 		ctx.textBaseline = "middle";
-		const lineY = (i: number) => y - totalHeight / 2 + i * lineHeight;
 
 		const hasStroke = Boolean(layer.strokeColor && (layer.strokeWidth ?? 0) > 0);
 		const hasShadow = Boolean(
@@ -900,28 +976,70 @@ function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
 			ctx.shadowBlur = layer.shadowBlur ?? 0;
 		}
 
-		// Outline pass first (cartoon "stroke behind fill" look). The shadow rides
-		// on this pass when a stroke exists, so the fill above stays crisp.
-		if (hasStroke && layer.strokeColor) {
+		// Gradient fill spans the whole text block vertically (overrides color).
+		const fillStyle: string | CanvasGradient = layer.gradient
+			? (() => {
+					const g = ctx.createLinearGradient(
+						0,
+						y - totalHeight / 2 - layer.fontSize * 0.6,
+						0,
+						y + totalHeight / 2 + layer.fontSize * 0.6,
+					);
+					g.addColorStop(0, layer.gradient.from);
+					g.addColorStop(1, layer.gradient.to);
+					return g;
+				})()
+			: layer.color;
+
+		const curve = layer.curve ?? 0;
+		const strokePass = () => {
+			if (!hasStroke || !layer.strokeColor) return;
 			ctx.lineJoin = "round";
 			ctx.miterLimit = 2;
 			ctx.strokeStyle = layer.strokeColor;
 			// The canvas stroke straddles the glyph edge, so double the width to get
 			// the requested visible outline thickness outside the fill.
 			ctx.lineWidth = (layer.strokeWidth ?? 0) * 2;
-			lines.forEach((line, i) => {
-				ctx.strokeText(line, x, lineY(i));
-			});
+		};
+		const clearShadow = () => {
 			ctx.shadowColor = "transparent";
 			ctx.shadowOffsetX = 0;
 			ctx.shadowOffsetY = 0;
 			ctx.shadowBlur = 0;
-		}
+		};
 
-		ctx.fillStyle = layer.color;
-		lines.forEach((line, i) => {
-			ctx.fillText(line, x, lineY(i));
-		});
+		if (curve !== 0) {
+			// Curved text is centered on its anchor regardless of align (glyphs are
+			// laid out along the arc, so left/right alignment has no clear meaning).
+			ctx.textAlign = "center";
+			lines.forEach((line, i) => {
+				if (hasStroke && layer.strokeColor) {
+					strokePass();
+					drawCurvedLine(ctx, line, x, lineY(i), curve, (ch) =>
+						ctx.strokeText(ch, 0, 0),
+					);
+					clearShadow();
+				}
+				ctx.fillStyle = fillStyle;
+				drawCurvedLine(ctx, line, x, lineY(i), curve, (ch) =>
+					ctx.fillText(ch, 0, 0),
+				);
+			});
+		} else {
+			// Outline pass first (cartoon "stroke behind fill" look). The shadow
+			// rides on this pass when a stroke exists, so the fill stays crisp.
+			if (hasStroke && layer.strokeColor) {
+				strokePass();
+				lines.forEach((line, i) => {
+					ctx.strokeText(line, x, lineY(i));
+				});
+				clearShadow();
+			}
+			ctx.fillStyle = fillStyle;
+			lines.forEach((line, i) => {
+				ctx.fillText(line, x, lineY(i));
+			});
+		}
 		ctx.restore();
 	}
 }
@@ -1067,6 +1185,127 @@ function drawImageAnnotation(
 	ctx.restore();
 }
 
+/**
+ * Draw a decorative hand-drawn shape. Paths are defined in the shape's local
+ * box (centered at 0,0) so rotation/flip compose naturally. Deterministic —
+ * the same scene always exports the same pixels.
+ */
+function drawShapeAnnotation(
+	ctx: CanvasRenderingContext2D,
+	annotation: SceneShapeAnnotation,
+	scene: SceneData,
+): void {
+	const box = measureAnnotationBox(annotation, scene);
+	const w = box.width;
+	const h = box.height;
+	ctx.save();
+	ctx.globalAlpha = Math.min(Math.max(annotation.opacity ?? 1, 0), 1);
+	ctx.translate(box.x + w / 2, box.y + h / 2);
+	if (annotation.rotation) ctx.rotate((annotation.rotation * Math.PI) / 180);
+	if (annotation.flip) ctx.scale(-1, 1);
+	ctx.strokeStyle = annotation.color;
+	ctx.fillStyle = annotation.color;
+	ctx.lineWidth = Math.max(2, annotation.strokeWidth ?? h * 0.16);
+	ctx.lineCap = "round";
+	ctx.lineJoin = "round";
+
+	switch (annotation.shape) {
+		case "underline": {
+			ctx.beginPath();
+			ctx.moveTo(-w * 0.48, h * 0.2);
+			ctx.quadraticCurveTo(0, -h * 0.4, w * 0.48, h * 0.05);
+			ctx.stroke();
+			break;
+		}
+		case "squiggle": {
+			const bumps = 4;
+			const step = (w * 0.94) / bumps;
+			ctx.beginPath();
+			ctx.moveTo(-w * 0.47, 0);
+			for (let i = 0; i < bumps; i++) {
+				const x0 = -w * 0.47 + step * i;
+				const dir = i % 2 === 0 ? -1 : 1;
+				ctx.quadraticCurveTo(x0 + step / 2, dir * h * 0.9, x0 + step, 0);
+			}
+			ctx.stroke();
+			break;
+		}
+		case "arrow": {
+			// Curved shaft ending bottom-right, plus a two-line head.
+			ctx.beginPath();
+			ctx.moveTo(-w * 0.45, -h * 0.38);
+			ctx.quadraticCurveTo(w * 0.15, -h * 0.55, w * 0.42, h * 0.3);
+			ctx.stroke();
+			// Tangent at the end of the quadratic points from the control point.
+			const angle = Math.atan2(h * 0.3 - -h * 0.55, w * 0.42 - w * 0.15);
+			const headLen = Math.min(w, h) * 0.32;
+			const tipX = w * 0.42;
+			const tipY = h * 0.3;
+			ctx.beginPath();
+			ctx.moveTo(
+				tipX - headLen * Math.cos(angle - 0.5),
+				tipY - headLen * Math.sin(angle - 0.5),
+			);
+			ctx.lineTo(tipX, tipY);
+			ctx.lineTo(
+				tipX - headLen * Math.cos(angle + 0.5),
+				tipY - headLen * Math.sin(angle + 0.5),
+			);
+			ctx.stroke();
+			break;
+		}
+		case "circle": {
+			// Hand-drawn emphasis ellipse: slightly tilted, over-closed arc.
+			ctx.beginPath();
+			ctx.ellipse(0, 0, w * 0.46, h * 0.4, -0.08, 0.35, Math.PI * 2 + 0.75);
+			ctx.stroke();
+			break;
+		}
+		case "sparkle": {
+			// 4-point concave star.
+			const r = Math.min(w, h) / 2;
+			const pinch = r * 0.18;
+			ctx.beginPath();
+			ctx.moveTo(0, -r);
+			ctx.quadraticCurveTo(pinch, -pinch, r, 0);
+			ctx.quadraticCurveTo(pinch, pinch, 0, r);
+			ctx.quadraticCurveTo(-pinch, pinch, -r, 0);
+			ctx.quadraticCurveTo(-pinch, -pinch, 0, -r);
+			ctx.closePath();
+			ctx.fill();
+			break;
+		}
+		case "star": {
+			const outer = Math.min(w, h) / 2;
+			const inner = outer * 0.42;
+			ctx.beginPath();
+			for (let i = 0; i < 10; i++) {
+				const r = i % 2 === 0 ? outer : inner;
+				const a = (i * Math.PI) / 5 - Math.PI / 2;
+				const px = r * Math.cos(a);
+				const py = r * Math.sin(a);
+				if (i === 0) ctx.moveTo(px, py);
+				else ctx.lineTo(px, py);
+			}
+			ctx.closePath();
+			ctx.fill();
+			break;
+		}
+		default: {
+			// blob: organic filled shape from four bezier lobes.
+			ctx.beginPath();
+			ctx.moveTo(-w * 0.42, 0);
+			ctx.bezierCurveTo(-w * 0.45, -h * 0.55, -w * 0.05, -h * 0.5, w * 0.3, -h * 0.32);
+			ctx.bezierCurveTo(w * 0.52, -h * 0.18, w * 0.46, h * 0.28, w * 0.18, h * 0.42);
+			ctx.bezierCurveTo(-w * 0.08, h * 0.55, -w * 0.38, h * 0.35, -w * 0.42, 0);
+			ctx.closePath();
+			ctx.fill();
+			break;
+		}
+	}
+	ctx.restore();
+}
+
 function drawAnnotations(
 	ctx: CanvasRenderingContext2D,
 	scene: SceneData,
@@ -1080,6 +1319,8 @@ function drawAnnotations(
 				scene,
 				images.annotations?.[annotation.id],
 			);
+		} else if (annotation.type === "shape") {
+			drawShapeAnnotation(ctx, annotation, scene);
 		} else if (annotation.type === "callout") {
 			drawCallout(ctx, annotation, scene);
 		} else if (annotation.type === "badge") {

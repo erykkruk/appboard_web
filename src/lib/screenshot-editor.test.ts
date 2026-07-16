@@ -8,6 +8,7 @@ import {
 	createDefaultAnnotation,
 	createDefaultScene,
 	createImageAnnotation,
+	createShapeAnnotation,
 	defaultFrameForDisplayType,
 	getDisplayTypeLabel,
 	getPanelCount,
@@ -18,6 +19,7 @@ import {
 	hitTestTextLayer,
 	measureAnnotationBox,
 	resolveTextPosition,
+	SHAPE_ASPECT,
 } from "./screenshot-editor";
 import type { SceneAnnotation, SceneData } from "./types";
 
@@ -562,5 +564,45 @@ describe("computeDeviceRect in panorama mode", () => {
 		const panoramaRect = computeDeviceRect(panorama);
 		expect(panoramaRect?.width).toBeCloseTo(singleRect?.width ?? 0);
 		expect(panoramaRect?.height).toBeCloseTo(singleRect?.height ?? 0);
+	});
+});
+
+describe("createShapeAnnotation", () => {
+	test("builds a stroked shape with defaults scaled to the scene", () => {
+		const scene = { height: 2796, width: 1290 };
+		const shape = createShapeAnnotation("s1", "underline", scene);
+		expect(shape.type).toBe("shape");
+		expect(shape.shape).toBe("underline");
+		expect(shape.width).toBeCloseTo(0.3);
+		expect(shape.strokeWidth).toBeGreaterThan(1);
+		expect(shape.x).toBe(0.5);
+	});
+
+	test("marks (sparkle/star) start smaller than strokes", () => {
+		const scene = { height: 2796, width: 1290 };
+		expect(createShapeAnnotation("s2", "sparkle", scene).width).toBeCloseTo(0.1);
+		expect(createShapeAnnotation("s3", "star", scene).width).toBeCloseTo(0.1);
+	});
+});
+
+describe("measureAnnotationBox (shape)", () => {
+	test("uses the per-shape aspect for the bounding box", () => {
+		const scene = { height: 2000, width: 1000 };
+		const shape = createShapeAnnotation("s1", "underline", scene);
+		const box = measureAnnotationBox(shape, scene);
+		expect(box.width).toBeCloseTo(shape.width * scene.width);
+		expect(box.height).toBeCloseTo(box.width * SHAPE_ASPECT.underline);
+	});
+
+	test("shape annotations are hit-testable through hitTestAnnotation", () => {
+		const scene: SceneData = {
+			annotations: [createShapeAnnotation("s1", "star", { height: 2000, width: 1000 })],
+			background: { type: "color", value: "#000" },
+			height: 2000,
+			textLayers: [],
+			width: 1000,
+		};
+		expect(hitTestAnnotation(scene, 500, 1000)).toBe("s1");
+		expect(hitTestAnnotation(scene, 20, 20)).toBeNull();
 	});
 });

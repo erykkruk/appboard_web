@@ -682,6 +682,20 @@ export interface SceneTextLayer {
 	 * no backend migration is needed.
 	 */
 	doNotTranslate?: boolean;
+	/** Gradient text fill (overrides `color` when set). Drawn top→bottom. */
+	gradient?: { from: string; to: string };
+	/** Marker-style highlight bar drawn behind each text line. */
+	highlight?: string;
+	/** Extra spacing between glyphs in px (canvas letterSpacing). */
+	letterSpacing?: number;
+	/** Line height as a multiple of fontSize. Defaults to 1.2. */
+	lineHeight?: number;
+	/**
+	 * Arc curvature in degrees (-180..180). The text bends along a circle
+	 * spanning this many degrees: positive arches upward, negative downward,
+	 * 0/undefined renders straight (legacy).
+	 */
+	curve?: number;
 }
 
 export type SceneAnnotationType = "callout" | "badge" | "label";
@@ -760,13 +774,51 @@ export interface SceneImageAnnotation {
 	aspect?: number;
 }
 
+/** Hand-drawn decorative shape variants. */
+export type SceneShapeKind =
+	| "arrow"
+	| "underline"
+	| "squiggle"
+	| "circle"
+	| "sparkle"
+	| "star"
+	| "blob";
+
+/**
+ * A decorative vector shape (hand-drawn arrow, marker underline, squiggle,
+ * circled emphasis, sparkles…) rendered procedurally — no image asset needed.
+ * Positions/width are normalized (0..1) like other annotations.
+ */
+export interface SceneShapeAnnotation {
+	type: "shape";
+	id: string;
+	shape: SceneShapeKind;
+	/** Normalized (0..1) center position. */
+	x: number;
+	y: number;
+	/** Normalized (0..1) width as a fraction of scene width. */
+	width: number;
+	color: string;
+	/** Stroke thickness in scene px (stroked shapes only). */
+	strokeWidth?: number;
+	/** Rotation in degrees, default 0. */
+	rotation?: number;
+	/** 0..1 opacity, default 1. */
+	opacity?: number;
+	/** Mirror horizontally (e.g. flip an arrow's direction). */
+	flip?: boolean;
+}
+
 /** Text-bearing annotation variants (everything except image layers). */
 export type SceneTextAnnotation =
 	| SceneCalloutAnnotation
 	| SceneBadgeAnnotation
 	| SceneLabelAnnotation;
 
-export type SceneAnnotation = SceneTextAnnotation | SceneImageAnnotation;
+export type SceneAnnotation =
+	| SceneTextAnnotation
+	| SceneImageAnnotation
+	| SceneShapeAnnotation;
 
 /** A custom font uploaded by the user, embedded in the scene as a dataURL. */
 export interface SceneCustomFont {

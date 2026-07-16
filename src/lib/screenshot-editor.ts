@@ -6,6 +6,8 @@ import type {
 	SceneData,
 	SceneDeviceFrame,
 	SceneImageAnnotation,
+	SceneShapeAnnotation,
+	SceneShapeKind,
 	SceneTextAnnotation,
 } from "@/lib/types";
 
@@ -366,6 +368,41 @@ export function createDefaultAnnotation(
 	};
 }
 
+/** Default colors giving each shape a distinct, legible starting look. */
+const SHAPE_DEFAULT_COLOR: Record<SceneShapeKind, string> = {
+	arrow: "#facc15",
+	blob: "#f472b6",
+	circle: "#ef4444",
+	sparkle: "#fde047",
+	squiggle: "#facc15",
+	star: "#facc15",
+	underline: "#facc15",
+};
+
+/**
+ * Build a fresh decorative shape annotation centered on the scene. Pure — the
+ * caller injects `id` so the factory stays deterministic and testable.
+ */
+export function createShapeAnnotation(
+	id: string,
+	shape: SceneShapeKind,
+	scene: Pick<SceneData, "height" | "width">,
+): SceneShapeAnnotation {
+	const isMark = shape === "sparkle" || shape === "star";
+	return {
+		color: SHAPE_DEFAULT_COLOR[shape],
+		id,
+		opacity: 1,
+		rotation: 0,
+		shape,
+		strokeWidth: Math.max(4, Math.round(scene.height * 0.008)),
+		type: "shape",
+		width: isMark ? 0.1 : 0.3,
+		x: 0.5,
+		y: 0.5,
+	};
+}
+
 /**
  * Build a fresh image annotation centered on the scene. `aspect` is the
  * uploaded image's natural height/width so the box (and hit-test) match the
@@ -401,6 +438,17 @@ const ANNOTATION_GLYPH_RATIO = 0.58;
  * line; height accounts for line count. Used for both rendering and hit-testing
  * so the visible box and the clickable box stay in sync. Pure.
  */
+/** Height/width aspect of each decorative shape's bounding box. */
+export const SHAPE_ASPECT: Record<SceneShapeKind, number> = {
+	arrow: 0.55,
+	blob: 0.75,
+	circle: 0.5,
+	sparkle: 1,
+	squiggle: 0.22,
+	star: 1,
+	underline: 0.16,
+};
+
 export function measureAnnotationBox(
 	annotation: SceneAnnotation,
 	scene: Pick<SceneData, "width" | "height">,
@@ -410,6 +458,11 @@ export function measureAnnotationBox(
 	if (annotation.type === "image") {
 		const width = annotation.width * scene.width;
 		const height = width * (annotation.aspect ?? 1);
+		return { x: cx - width / 2, y: cy - height / 2, width, height };
+	}
+	if (annotation.type === "shape") {
+		const width = annotation.width * scene.width;
+		const height = width * SHAPE_ASPECT[annotation.shape];
 		return { x: cx - width / 2, y: cy - height / 2, width, height };
 	}
 	const lines = annotation.text.split("\n");

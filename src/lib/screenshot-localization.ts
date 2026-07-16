@@ -39,7 +39,7 @@ export function buildTranslatedScene(
 			text: translate(layer.id, layer.text, layer.doNotTranslate),
 		})),
 		annotations: sourceScene.annotations?.map((annotation) =>
-			annotation.type === "image"
+			annotation.type === "image" || annotation.type === "shape"
 				? { ...annotation }
 				: {
 						...annotation,
@@ -67,7 +67,7 @@ export function translatableLayers(scene: SceneData): SceneTextLayer[] {
 /**
  * The annotations that should be sent to the translator: text-bearing variants
  * (callout/badge/label) with non-empty text and no Do-Not-Translate flag.
- * Image annotations are never translatable.
+ * Image and shape annotations carry no text and are never translatable.
  */
 export function translatableAnnotations(
 	scene: SceneData,
@@ -75,6 +75,7 @@ export function translatableAnnotations(
 	return (scene.annotations ?? []).filter(
 		(annotation): annotation is SceneTextAnnotation =>
 			annotation.type !== "image" &&
+			annotation.type !== "shape" &&
 			!annotation.doNotTranslate &&
 			annotation.text.trim() !== "",
 	);

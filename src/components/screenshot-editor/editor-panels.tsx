@@ -1,13 +1,20 @@
 "use client";
 
 import {
+	ArrowUpRight,
+	Circle,
+	Droplet,
 	Image as ImageIcon,
 	MessageSquare,
+	Minus,
 	Plus,
 	Smartphone,
+	Sparkles,
+	Star,
 	Tag,
 	Trash2,
 	Type,
+	Waves,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -46,6 +53,8 @@ import type {
 	SceneDeviceStyle,
 	SceneGradientType,
 	SceneImageAnnotation,
+	SceneShapeAnnotation,
+	SceneShapeKind,
 	SceneTextAlign,
 	SceneTextAnnotation,
 	SceneTextLayer,
@@ -79,13 +88,28 @@ const ANNOTATION_META: Record<
 	label: { label: "Label", icon: Type },
 };
 
-/** List/panel meta for any annotation, including image layers. */
+/** Icon + label for each decorative shape, shared by list and add-menu. */
+const SHAPE_META: Record<SceneShapeKind, { label: string; icon: typeof Tag }> =
+	{
+		arrow: { icon: ArrowUpRight, label: "Arrow" },
+		blob: { icon: Droplet, label: "Blob" },
+		circle: { icon: Circle, label: "Circle mark" },
+		sparkle: { icon: Sparkles, label: "Sparkle" },
+		squiggle: { icon: Waves, label: "Squiggle" },
+		star: { icon: Star, label: "Star" },
+		underline: { icon: Minus, label: "Underline" },
+	};
+
+/** List/panel meta for any annotation, including image and shape layers. */
 function annotationMeta(annotation: SceneAnnotation): {
 	label: string;
 	icon: typeof Tag;
 } {
 	if (annotation.type === "image") {
 		return { label: "Image", icon: ImageIcon };
+	}
+	if (annotation.type === "shape") {
+		return SHAPE_META[annotation.shape];
 	}
 	return ANNOTATION_META[annotation.type];
 }
@@ -117,6 +141,7 @@ interface LayersPanelProps {
 	onAddText: () => void;
 	onDeleteText: (id: string) => void;
 	onAddAnnotation: (type: SceneAnnotationType) => void;
+	onAddShape: (shape: SceneShapeKind) => void;
 	onAddImage: () => void;
 	onDeleteAnnotation: (id: string) => void;
 }
@@ -129,6 +154,7 @@ export function LayersPanel({
 	onAddText,
 	onDeleteText,
 	onAddAnnotation,
+	onAddShape,
 	onAddImage,
 	onDeleteAnnotation,
 }: LayersPanelProps) {
@@ -232,6 +258,18 @@ export function LayersPanel({
 								);
 							},
 						)}
+						{(Object.keys(SHAPE_META) as SceneShapeKind[]).map((shape) => {
+							const { label, icon: Icon } = SHAPE_META[shape];
+							return (
+								<DropdownMenuItem
+									key={shape}
+									onSelect={() => onAddShape(shape)}
+								>
+									<Icon className="h-4 w-4" />
+									{label}
+								</DropdownMenuItem>
+							);
+						})}
 					</DropdownMenuContent>
 				</DropdownMenu>
 			</div>
@@ -257,7 +295,7 @@ export function LayersPanel({
 						>
 							<Icon className="h-4 w-4 shrink-0 text-muted-foreground" />
 							<span className="truncate">
-								{annotation.type === "image"
+								{annotation.type === "image" || annotation.type === "shape"
 									? label
 									: annotation.text || label}
 							</span>
@@ -349,12 +387,21 @@ export function PropertiesPanel({
 					onDelete={() => onDeleteAnnotation(selectedAnnotation.id)}
 				/>
 			)}
-			{selectedAnnotation && selectedAnnotation.type !== "image" && (
-				<AnnotationProperties
+			{selectedAnnotation && selectedAnnotation.type === "shape" && (
+				<ShapeAnnotationProperties
 					annotation={selectedAnnotation}
 					onPatch={(patch) => onPatchAnnotation(selectedAnnotation.id, patch)}
+					onDelete={() => onDeleteAnnotation(selectedAnnotation.id)}
 				/>
 			)}
+			{selectedAnnotation &&
+				selectedAnnotation.type !== "image" &&
+				selectedAnnotation.type !== "shape" && (
+					<AnnotationProperties
+						annotation={selectedAnnotation}
+						onPatch={(patch) => onPatchAnnotation(selectedAnnotation.id, patch)}
+					/>
+				)}
 			{!selectedLayerId && (
 				<p className="text-sm text-muted-foreground">
 					Select a layer from the list on the left, or click a text layer in
@@ -1172,6 +1219,123 @@ function TextProperties({
 
 			<div className="flex items-center gap-2 rounded-md border border-border/60 p-2.5">
 				<Checkbox
+					id={`grad-${layer.id}`}
+					checked={layer.gradient != null}
+					onCheckedChange={(checked) =>
+						onPatch({
+							gradient:
+								checked === true
+									? (layer.gradient ?? { from: "#fde047", to: "#f97316" })
+									: undefined,
+						})
+					}
+				/>
+				<Label htmlFor={`grad-${layer.id}`} className="flex-1 text-xs">
+					Gradient text
+				</Label>
+				{layer.gradient != null && (
+					<>
+						<input
+							type="color"
+							value={layer.gradient.from}
+							onChange={(e) =>
+								onPatch({
+									gradient: { ...layer.gradient!, from: e.target.value },
+								})
+							}
+							className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+							aria-label="Text gradient top color"
+						/>
+						<input
+							type="color"
+							value={layer.gradient.to}
+							onChange={(e) =>
+								onPatch({
+									gradient: { ...layer.gradient!, to: e.target.value },
+								})
+							}
+							className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+							aria-label="Text gradient bottom color"
+						/>
+					</>
+				)}
+			</div>
+
+			<div className="flex items-center gap-2 rounded-md border border-border/60 p-2.5">
+				<Checkbox
+					id={`hl-${layer.id}`}
+					checked={layer.highlight != null}
+					onCheckedChange={(checked) =>
+						onPatch({
+							highlight: checked === true ? (layer.highlight ?? "#fde047") : undefined,
+						})
+					}
+				/>
+				<Label htmlFor={`hl-${layer.id}`} className="flex-1 text-xs">
+					Highlight (marker)
+				</Label>
+				{layer.highlight != null && (
+					<input
+						type="color"
+						value={layer.highlight}
+						onChange={(e) => onPatch({ highlight: e.target.value })}
+						className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+						aria-label="Highlight color"
+					/>
+				)}
+			</div>
+
+			<div className="flex flex-col gap-1.5">
+				<div className="flex items-center justify-between">
+					<Label className="text-xs">Curve: {Math.round(layer.curve ?? 0)}°</Label>
+					{(layer.curve ?? 0) !== 0 && (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-6 px-2 text-xs"
+							onClick={() => onPatch({ curve: 0 })}
+						>
+							Reset
+						</Button>
+					)}
+				</div>
+				<Slider
+					min={-180}
+					max={180}
+					step={5}
+					value={[Math.round(layer.curve ?? 0)]}
+					onValueChange={([v]) => onPatch({ curve: v })}
+				/>
+			</div>
+
+			<div className="flex gap-2">
+				<div className="flex flex-1 flex-col gap-1.5">
+					<Label className="text-xs">Letter spacing</Label>
+					<Input
+						type="number"
+						value={layer.letterSpacing ?? 0}
+						onChange={(e) =>
+							onPatch({ letterSpacing: Number(e.target.value) || 0 })
+						}
+					/>
+				</div>
+				<div className="flex flex-1 flex-col gap-1.5">
+					<Label className="text-xs">Line height</Label>
+					<Input
+						type="number"
+						step={0.05}
+						min={0.6}
+						value={layer.lineHeight ?? 1.2}
+						onChange={(e) =>
+							onPatch({ lineHeight: Number(e.target.value) || 1.2 })
+						}
+					/>
+				</div>
+			</div>
+
+			<div className="flex items-center gap-2 rounded-md border border-border/60 p-2.5">
+				<Checkbox
 					id={`bg-${layer.id}`}
 					checked={layer.bg != null}
 					onCheckedChange={(checked) =>
@@ -1453,6 +1617,146 @@ function ImageAnnotationProperties({
 				<ImageIcon className="h-4 w-4" />
 				Replace image
 			</Button>
+
+			<Button
+				variant="outline"
+				size="sm"
+				className="text-red-500 hover:text-red-600"
+				onClick={onDelete}
+			>
+				<Trash2 className="h-4 w-4" />
+				Delete
+			</Button>
+		</div>
+	);
+}
+
+/** Properties for a decorative shape: kind, color, size, stroke, rotation. */
+function ShapeAnnotationProperties({
+	annotation,
+	onPatch,
+	onDelete,
+}: {
+	annotation: SceneShapeAnnotation;
+	onPatch: (patch: Partial<SceneShapeAnnotation>) => void;
+	onDelete: () => void;
+}) {
+	const isStroked =
+		annotation.shape === "arrow" ||
+		annotation.shape === "underline" ||
+		annotation.shape === "squiggle" ||
+		annotation.shape === "circle";
+	return (
+		<div className="flex flex-col gap-3">
+			<h4 className="text-sm font-semibold">
+				Shape · {SHAPE_META[annotation.shape].label}
+			</h4>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">Shape</Label>
+				<Select
+					value={annotation.shape}
+					onValueChange={(shape) =>
+						onPatch({ shape: shape as SceneShapeKind })
+					}
+				>
+					<SelectTrigger>
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						{(Object.keys(SHAPE_META) as SceneShapeKind[]).map((shape) => (
+							<SelectItem key={shape} value={shape}>
+								{SHAPE_META[shape].label}
+							</SelectItem>
+						))}
+					</SelectContent>
+				</Select>
+			</div>
+
+			<ColorField
+				label="Color"
+				value={annotation.color}
+				onChange={(color) => onPatch({ color })}
+			/>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">
+					Width: {Math.round(annotation.width * 100)}%
+				</Label>
+				<Slider
+					min={3}
+					max={100}
+					step={1}
+					value={[Math.round(annotation.width * 100)]}
+					onValueChange={([v]) => onPatch({ width: v / 100 })}
+				/>
+			</div>
+
+			{isStroked && (
+				<div className="flex flex-col gap-1.5">
+					<Label className="text-xs">Stroke width</Label>
+					<Input
+						type="number"
+						min={1}
+						value={annotation.strokeWidth ?? 6}
+						onChange={(e) =>
+							onPatch({
+								strokeWidth: Math.max(1, Number(e.target.value) || 1),
+							})
+						}
+					/>
+				</div>
+			)}
+
+			<div className="flex flex-col gap-1.5">
+				<div className="flex items-center justify-between">
+					<Label className="text-xs">
+						Rotation: {Math.round(annotation.rotation ?? 0)}°
+					</Label>
+					{(annotation.rotation ?? 0) !== 0 && (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-6 px-2 text-xs"
+							onClick={() => onPatch({ rotation: 0 })}
+						>
+							Reset
+						</Button>
+					)}
+				</div>
+				<Slider
+					min={-180}
+					max={180}
+					step={1}
+					value={[Math.round(annotation.rotation ?? 0)]}
+					onValueChange={([v]) => onPatch({ rotation: v })}
+				/>
+			</div>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">
+					Opacity: {Math.round((annotation.opacity ?? 1) * 100)}%
+				</Label>
+				<Slider
+					min={5}
+					max={100}
+					step={1}
+					value={[Math.round((annotation.opacity ?? 1) * 100)]}
+					onValueChange={([v]) => onPatch({ opacity: v / 100 })}
+				/>
+			</div>
+
+			<div className="flex items-center gap-2 rounded-md border border-border/60 p-2.5">
+				<Checkbox
+					id={`flip-${annotation.id}`}
+					checked={annotation.flip ?? false}
+					onCheckedChange={(checked) => onPatch({ flip: checked === true })}
+				/>
+				<Label htmlFor={`flip-${annotation.id}`} className="text-xs">
+					Flip horizontally
+				</Label>
+			</div>
 
 			<Button
 				variant="outline"
