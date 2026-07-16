@@ -39,6 +39,12 @@ export interface RenderImages {
 	screenshot?: RenderImage;
 	/** Photographic device bezel PNG ("photo" device style). */
 	bezel?: RenderImage;
+	/**
+	 * Pre-rendered true-3D device ("3d" style): a transparent canvas produced
+	 * by the WebGL model renderer, already rotated — drawn centered on the
+	 * device rect with no further transforms.
+	 */
+	deviceModel?: RenderImage;
 	/** Decoded image-annotation sources keyed by annotation id. */
 	annotations?: Record<string, RenderImage | undefined>;
 }
@@ -486,6 +492,22 @@ function drawDeviceFrame(
 		ctx.arc(cx, cy, rx, 0, Math.PI * 2);
 		ctx.fill();
 		ctx.restore();
+	}
+
+	// True-3D style: the WebGL renderer already applied all rotations, so the
+	// pre-rendered transparent canvas just lands centered on the device rect
+	// (bypasses both the flat path and the 2.5D warp below).
+	if (device.style === "3d" && images.deviceModel) {
+		const cx = frame.x + frame.width / 2;
+		const cy = frame.y + frame.height / 2;
+		ctx.drawImage(
+			images.deviceModel.source,
+			cx - images.deviceModel.width / 2,
+			cy - images.deviceModel.height / 2,
+			images.deviceModel.width,
+			images.deviceModel.height,
+		);
+		return;
 	}
 
 	if (!deviceHas3DTilt(device)) {

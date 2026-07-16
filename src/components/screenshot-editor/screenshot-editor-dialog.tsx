@@ -20,6 +20,7 @@ import {
 	DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { useDeviceModel } from "@/hooks/use-device-model";
 import { useSceneHistory } from "@/hooks/use-scene-history";
 import {
 	useCreateScreenshotScene,
@@ -177,10 +178,21 @@ export function ScreenshotEditorDialog({
 	const existingScreenshots = useVersionScreenshots(appId, versionId);
 
 	const loaded = useSceneImages(scene, screenshotSrc);
+	const deviceModelImage = useDeviceModel(
+		scene,
+		loaded.screenshot
+			? {
+					source: loaded.screenshot.element,
+					width: loaded.screenshot.width,
+					height: loaded.screenshot.height,
+				}
+			: undefined,
+	);
 	// Wrap each decoded image with its natural pixel dimensions so the renderer's
 	// fit math is correct regardless of the element's layout size.
 	const renderImages = useMemo<RenderImages>(
 		() => ({
+			deviceModel: deviceModelImage,
 			background: loaded.background
 				? {
 						source: loaded.background.element,
@@ -215,7 +227,13 @@ export function ScreenshotEditorDialog({
 					)
 				: undefined,
 		}),
-		[loaded.background, loaded.screenshot, loaded.bezel, loaded.annotations],
+		[
+			loaded.background,
+			loaded.screenshot,
+			loaded.bezel,
+			loaded.annotations,
+			deviceModelImage,
+		],
 	);
 	// Current per-panel export dimensions, derived from the scene itself so the
 	// header and uploads always match the real canvas (orientation-aware).

@@ -29,6 +29,7 @@ import {
 	cssPreviewForBackground,
 } from "@/lib/background-presets";
 import { DEFAULT_BEZEL_ID, DEVICE_BEZELS } from "@/lib/device-bezels";
+import { DEFAULT_MODEL_ID, DEVICE_MODELS } from "@/lib/device-models";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -1099,6 +1100,10 @@ function DeviceProperties({
 											style === "photo"
 												? (device.bezelId ?? DEFAULT_BEZEL_ID)
 												: device.bezelId,
+										modelId:
+											style === "3d"
+												? (device.modelId ?? DEFAULT_MODEL_ID)
+												: device.modelId,
 										style: style as SceneDeviceStyle,
 									},
 								})
@@ -1108,12 +1113,39 @@ function DeviceProperties({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
+								<SelectItem value="3d">3D model (rotates for real)</SelectItem>
 								<SelectItem value="photo">Photo (real iPhone)</SelectItem>
 								<SelectItem value="realistic">Realistic (drawn)</SelectItem>
 								<SelectItem value="clay">Clay (custom color)</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
+
+					{device.style === "3d" && (
+						<div className="flex flex-col gap-1.5">
+							<Label className="text-xs">Model</Label>
+							<Select
+								value={device.modelId ?? DEFAULT_MODEL_ID}
+								onValueChange={(modelId) =>
+									onPatchScene({ device: { ...device, modelId } })
+								}
+							>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{DEVICE_MODELS.map((model) => (
+										<SelectItem key={model.id} value={model.id}>
+											{model.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<p className="text-[10px] text-muted-foreground">
+								True WebGL render — use the 3D rotation sliders below.
+							</p>
+						</div>
+					)}
 
 					{device.style === "photo" && (
 						<div className="flex flex-col gap-1.5">
@@ -1149,7 +1181,7 @@ function DeviceProperties({
 								onPatchScene({ device: { ...device, clayColor } })
 							}
 						/>
-					) : device.style === "photo" ? null : (
+					) : device.style === "photo" || device.style === "3d" ? null : (
 						<div className="flex flex-col gap-1.5">
 							<Label className="text-xs">Frame color</Label>
 							<Select
