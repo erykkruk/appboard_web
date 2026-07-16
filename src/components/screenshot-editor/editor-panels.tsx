@@ -13,6 +13,10 @@ import {
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
+	BACKGROUND_PRESETS,
+	cssPreviewForBackground,
+} from "@/lib/background-presets";
+import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -34,11 +38,13 @@ import type {
 	SceneAnnotation,
 	SceneAnnotationType,
 	SceneBackgroundFit,
+	SceneBackgroundPatternType,
 	SceneCustomFont,
 	SceneData,
 	SceneDeviceColor,
 	SceneDeviceFrame,
 	SceneDeviceStyle,
+	SceneGradientType,
 	SceneImageAnnotation,
 	SceneTextAlign,
 	SceneTextAnnotation,
@@ -372,6 +378,26 @@ function BackgroundProperties({
 	return (
 		<div className="flex flex-col gap-3">
 			<h4 className="text-sm font-semibold">Background</h4>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">Presets</Label>
+				<div className="grid grid-cols-6 gap-1.5">
+					{BACKGROUND_PRESETS.map((preset) => (
+						<button
+							key={preset.name}
+							type="button"
+							title={preset.name}
+							aria-label={`Background preset: ${preset.name}`}
+							onClick={() =>
+								onPatchScene({ background: { ...preset.background } })
+							}
+							className="h-8 w-full rounded-md border border-border/60 transition-transform hover:scale-110"
+							style={{ background: cssPreviewForBackground(preset.background) }}
+						/>
+					))}
+				</div>
+			</div>
+
 			<div className="flex flex-col gap-1.5">
 				<Label className="text-xs">Type</Label>
 				<Select
@@ -423,8 +449,36 @@ function BackgroundProperties({
 
 			{bg.type === "gradient" && bg.gradient && (
 				<>
+					<div className="flex flex-col gap-1.5">
+						<Label className="text-xs">Gradient style</Label>
+						<Select
+							value={bg.gradientType ?? "linear"}
+							onValueChange={(gradientType) =>
+								onPatchScene({
+									background: {
+										...bg,
+										gradientType: gradientType as SceneGradientType,
+										mesh:
+											gradientType === "mesh"
+												? (bg.mesh ?? [bg.gradient!.to, "#ec4899", "#312e81"])
+												: bg.mesh,
+									},
+								})
+							}
+						>
+							<SelectTrigger>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="linear">Linear</SelectItem>
+								<SelectItem value="radial">Radial</SelectItem>
+								<SelectItem value="mesh">Mesh (soft blobs)</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+
 					<ColorField
-						label="From"
+						label={(bg.gradientType ?? "linear") === "mesh" ? "Base" : "From"}
 						value={bg.gradient.from}
 						onChange={(from) =>
 							onPatchScene({
@@ -436,35 +490,130 @@ function BackgroundProperties({
 							})
 						}
 					/>
-					<ColorField
-						label="To"
-						value={bg.gradient.to}
-						onChange={(to) =>
-							onPatchScene({
-								background: {
-									...bg,
-									gradient: { ...bg.gradient!, to },
-								},
-							})
-						}
-					/>
-					<div className="flex flex-col gap-1.5">
-						<Label className="text-xs">Angle: {bg.gradient.angle}°</Label>
-						<Slider
-							min={0}
-							max={360}
-							step={1}
-							value={[bg.gradient.angle]}
-							onValueChange={([angle]) =>
-								onPatchScene({
-									background: {
-										...bg,
-										gradient: { ...bg.gradient!, angle },
-									},
-								})
-							}
-						/>
-					</div>
+
+					{(bg.gradientType ?? "linear") === "mesh" ? (
+						<div className="flex flex-col gap-1.5">
+							<Label className="text-xs">Blob colors</Label>
+							<div className="flex flex-wrap items-center gap-1.5">
+								{(bg.mesh ?? []).map((color, i) => (
+									<input
+										// Index keys are fine: slots are appended/removed at the end only.
+										key={`mesh-${i}`}
+										type="color"
+										value={color}
+										onChange={(e) => {
+											const next = [...(bg.mesh ?? [])];
+											next[i] = e.target.value;
+											onPatchScene({ background: { ...bg, mesh: next } });
+										}}
+										className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+										aria-label={`Mesh blob color ${i + 1}`}
+									/>
+								))}
+								{(bg.mesh ?? []).length < 5 && (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="h-8 px-2"
+										onClick={() =>
+											onPatchScene({
+												background: {
+													...bg,
+													mesh: [...(bg.mesh ?? []), "#8b5cf6"],
+												},
+											})
+										}
+									>
+										<Plus className="h-3.5 w-3.5" />
+									</Button>
+								)}
+								{(bg.mesh ?? []).length > 1 && (
+									<Button
+										type="button"
+										variant="outline"
+										size="sm"
+										className="h-8 px-2"
+										onClick={() =>
+											onPatchScene({
+												background: {
+													...bg,
+													mesh: (bg.mesh ?? []).slice(0, -1),
+												},
+											})
+										}
+									>
+										<Trash2 className="h-3.5 w-3.5" />
+									</Button>
+								)}
+							</div>
+						</div>
+					) : (
+						<>
+							<div className="flex items-center gap-2 rounded-md border border-border/60 p-2.5">
+								<Checkbox
+									id="bg-via"
+									checked={bg.via != null}
+									onCheckedChange={(checked) =>
+										onPatchScene({
+											background: {
+												...bg,
+												via: checked === true ? (bg.via ?? "#a78bfa") : undefined,
+											},
+										})
+									}
+								/>
+								<Label htmlFor="bg-via" className="flex-1 text-xs">
+									Middle color stop
+								</Label>
+								{bg.via != null && (
+									<input
+										type="color"
+										value={bg.via}
+										onChange={(e) =>
+											onPatchScene({
+												background: { ...bg, via: e.target.value },
+											})
+										}
+										className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+										aria-label="Middle gradient color"
+									/>
+								)}
+							</div>
+							<ColorField
+								label="To"
+								value={bg.gradient.to}
+								onChange={(to) =>
+									onPatchScene({
+										background: {
+											...bg,
+											gradient: { ...bg.gradient!, to },
+										},
+									})
+								}
+							/>
+						</>
+					)}
+
+					{(bg.gradientType ?? "linear") === "linear" && (
+						<div className="flex flex-col gap-1.5">
+							<Label className="text-xs">Angle: {bg.gradient.angle}°</Label>
+							<Slider
+								min={0}
+								max={360}
+								step={1}
+								value={[bg.gradient.angle]}
+								onValueChange={([angle]) =>
+									onPatchScene({
+										background: {
+											...bg,
+											gradient: { ...bg.gradient!, angle },
+										},
+									})
+								}
+							/>
+						</div>
+					)}
 				</>
 			)}
 
@@ -534,6 +683,120 @@ function BackgroundProperties({
 					)}
 				</>
 			)}
+
+			<div className="flex flex-col gap-2 rounded-md border border-border/60 p-2.5">
+				<div className="flex items-center gap-2">
+					<Checkbox
+						id="bg-pattern"
+						checked={bg.pattern != null}
+						onCheckedChange={(checked) =>
+							onPatchScene({
+								background: {
+									...bg,
+									pattern:
+										checked === true
+											? (bg.pattern ?? {
+													color: "#ffffff",
+													opacity: 0.12,
+													scale: 1,
+													type: "dots",
+												})
+											: undefined,
+								},
+							})
+						}
+					/>
+					<Label htmlFor="bg-pattern" className="flex-1 text-xs">
+						Pattern overlay
+					</Label>
+					{bg.pattern != null && (
+						<input
+							type="color"
+							value={bg.pattern.color}
+							onChange={(e) =>
+								onPatchScene({
+									background: {
+										...bg,
+										pattern: { ...bg.pattern!, color: e.target.value },
+									},
+								})
+							}
+							className="h-8 w-10 cursor-pointer rounded border border-border bg-transparent"
+							aria-label="Pattern color"
+						/>
+					)}
+				</div>
+				{bg.pattern != null && (
+					<>
+						<div className="flex flex-col gap-1.5">
+							<Label className="text-xs">Pattern</Label>
+							<Select
+								value={bg.pattern.type}
+								onValueChange={(type) =>
+									onPatchScene({
+										background: {
+											...bg,
+											pattern: {
+												...bg.pattern!,
+												type: type as SceneBackgroundPatternType,
+											},
+										},
+									})
+								}
+							>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="dots">Dots</SelectItem>
+									<SelectItem value="grid">Grid</SelectItem>
+									<SelectItem value="diagonal">Diagonal lines</SelectItem>
+									<SelectItem value="waves">Waves</SelectItem>
+									<SelectItem value="rings">Rings</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+						<div className="flex flex-col gap-1.5">
+							<Label className="text-xs">
+								Opacity: {Math.round(bg.pattern.opacity * 100)}%
+							</Label>
+							<Slider
+								min={2}
+								max={100}
+								step={1}
+								value={[Math.round(bg.pattern.opacity * 100)]}
+								onValueChange={([v]) =>
+									onPatchScene({
+										background: {
+											...bg,
+											pattern: { ...bg.pattern!, opacity: v / 100 },
+										},
+									})
+								}
+							/>
+						</div>
+						<div className="flex flex-col gap-1.5">
+							<Label className="text-xs">
+								Density: {Math.round((bg.pattern.scale || 1) * 100)}%
+							</Label>
+							<Slider
+								min={30}
+								max={300}
+								step={5}
+								value={[Math.round((bg.pattern.scale || 1) * 100)]}
+								onValueChange={([v]) =>
+									onPatchScene({
+										background: {
+											...bg,
+											pattern: { ...bg.pattern!, scale: v / 100 },
+										},
+									})
+								}
+							/>
+						</div>
+					</>
+				)}
+			</div>
 		</div>
 	);
 }

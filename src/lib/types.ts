@@ -584,10 +584,38 @@ export type SceneDeviceColor = "black" | "silver";
  */
 export type SceneDeviceStyle = "realistic" | "clay";
 
+/** Gradient shape: linear (legacy default), radial or a soft multi-blob mesh. */
+export type SceneGradientType = "linear" | "radial" | "mesh";
+
+export type SceneBackgroundPatternType =
+	| "dots"
+	| "grid"
+	| "diagonal"
+	| "waves"
+	| "rings";
+
+/** Decorative procedural pattern drawn over the base background fill. */
+export interface SceneBackgroundPattern {
+	type: SceneBackgroundPatternType;
+	color: string;
+	/** 0..1 overlay opacity. */
+	opacity: number;
+	/** Pattern density multiplier (~0.5 fine .. 3 chunky). */
+	scale: number;
+}
+
 export interface SceneBackground {
 	type: SceneBackgroundType;
 	value: string;
 	gradient?: { from: string; to: string; angle: number };
+	/** Gradient shape (gradient type only). Defaults to "linear". */
+	gradientType?: SceneGradientType;
+	/** Optional middle gradient stop (linear/radial only). */
+	via?: string;
+	/** Blob colors for the "mesh" gradient (2–5 colors over `gradient.from`). */
+	mesh?: string[];
+	/** Optional procedural pattern overlay drawn over any background type. */
+	pattern?: SceneBackgroundPattern;
 	/** Image fill mode (image type only). Defaults to "cover". */
 	fit?: SceneBackgroundFit;
 	/**

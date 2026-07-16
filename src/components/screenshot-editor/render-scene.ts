@@ -222,22 +222,161 @@ function drawBackground(
 
 	if (background.type === "gradient" && background.gradient) {
 		const { from, to, angle } = background.gradient;
-		const rad = (angle * Math.PI) / 180;
+		const kind = background.gradientType ?? "linear";
 		const cx = scene.width / 2;
 		const cy = scene.height / 2;
-		const half = Math.max(scene.width, scene.height);
-		const dx = (Math.cos(rad) * half) / 2;
-		const dy = (Math.sin(rad) * half) / 2;
-		const grad = ctx.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
-		grad.addColorStop(0, from);
-		grad.addColorStop(1, to);
-		ctx.fillStyle = grad;
+
+		if (kind === "mesh") {
+			drawMeshGradient(ctx, scene, from, background.mesh ?? [to]);
+		} else if (kind === "radial") {
+			const radius = Math.max(scene.width, scene.height) * 0.75;
+			const grad = ctx.createRadialGradient(
+				cx,
+				scene.height * 0.42,
+				0,
+				cx,
+				scene.height * 0.42,
+				radius,
+			);
+			grad.addColorStop(0, from);
+			if (background.via) grad.addColorStop(0.5, background.via);
+			grad.addColorStop(1, to);
+			ctx.fillStyle = grad;
+			ctx.fillRect(0, 0, scene.width, scene.height);
+		} else {
+			const rad = (angle * Math.PI) / 180;
+			const half = Math.max(scene.width, scene.height);
+			const dx = (Math.cos(rad) * half) / 2;
+			const dy = (Math.sin(rad) * half) / 2;
+			const grad = ctx.createLinearGradient(cx - dx, cy - dy, cx + dx, cy + dy);
+			grad.addColorStop(0, from);
+			if (background.via) grad.addColorStop(0.5, background.via);
+			grad.addColorStop(1, to);
+			ctx.fillStyle = grad;
+			ctx.fillRect(0, 0, scene.width, scene.height);
+		}
+	} else {
+		ctx.fillStyle = background.value || "#000000";
 		ctx.fillRect(0, 0, scene.width, scene.height);
-		return;
 	}
 
-	ctx.fillStyle = background.value || "#000000";
+	if (background.pattern) {
+		drawBackgroundPattern(ctx, scene, background.pattern);
+	}
+}
+
+/**
+ * Fixed normalized blob anchors for the mesh gradient. Deterministic so a
+ * saved scene renders identically on every export. In panorama mode the
+ * anchors repeat per panel, giving a seamless multi-artboard wash.
+ */
+const MESH_ANCHORS: [number, number][] = [
+	[0.12, 0.15],
+	[0.88, 0.1],
+	[0.85, 0.82],
+	[0.15, 0.85],
+	[0.55, 0.45],
+];
+
+/** Base fill + large soft radial blobs — a "mesh gradient" wash. */
+function drawMeshGradient(
+	ctx: CanvasRenderingContext2D,
+	scene: SceneData,
+	base: string,
+	colors: string[],
+): void {
+	ctx.fillStyle = base;
 	ctx.fillRect(0, 0, scene.width, scene.height);
+	if (colors.length === 0) return;
+	const panels = getPanelCount(scene);
+	const panelWidth = scene.width / panels;
+	const radius = Math.max(panelWidth, scene.height) * 0.62;
+	for (let panel = 0; panel < panels; panel++) {
+		colors.forEach((color, i) => {
+			const [ax, ay] = MESH_ANCHORS[i % MESH_ANCHORS.length];
+			// Mirror alternating panels so the wash flows across artboard seams.
+			const nx = panel % 2 === 1 ? 1 - ax : ax;
+			const bx = panel * panelWidth + nx * panelWidth;
+			const by = ay * scene.height;
+			const grad = ctx.createRadialGradient(bx, by, 0, bx, by, radius);
+			grad.addColorStop(0, color);
+			grad.addColorStop(1, "rgba(0,0,0,0)");
+			ctx.fillStyle = grad;
+			ctx.fillRect(0, 0, scene.width, scene.height);
+		});
+	}
+}
+
+/** Procedural decorative overlay (dots/grid/diagonal/waves/rings). */
+function drawBackgroundPattern(
+	ctx: CanvasRenderingContext2D,
+	scene: SceneData,
+	pattern: NonNullable<SceneData["background"]["pattern"]>,
+): void {
+	const unit = Math.max(
+		12,
+		scene.height * 0.045 * Math.max(0.2, pattern.scale || 1),
+	);
+	ctx.save();
+	ctx.globalAlpha = Math.min(Math.max(pattern.opacity, 0), 1);
+	ctx.strokeStyle = pattern.color;
+	ctx.fillStyle = pattern.color;
+	ctx.lineWidth = Math.max(1, unit * 0.045);
+
+	if (pattern.type === "dots") {
+		const r = unit * 0.14;
+		for (let y = unit / 2; y < scene.height + unit; y += unit) {
+			// Offset odd rows for a honeycomb-like rhythm.
+			const rowIndex = Math.round(y / unit);
+			const offset = rowIndex % 2 === 0 ? 0 : unit / 2;
+			for (let x = offset; x < scene.width + unit; x += unit) {
+				ctx.beginPath();
+				ctx.arc(x, y, r, 0, Math.PI * 2);
+				ctx.fill();
+			}
+		}
+	} else if (pattern.type === "grid") {
+		ctx.beginPath();
+		for (let x = 0; x <= scene.width; x += unit) {
+			ctx.moveTo(x, 0);
+			ctx.lineTo(x, scene.height);
+		}
+		for (let y = 0; y <= scene.height; y += unit) {
+			ctx.moveTo(0, y);
+			ctx.lineTo(scene.width, y);
+		}
+		ctx.stroke();
+	} else if (pattern.type === "diagonal") {
+		ctx.beginPath();
+		const span = scene.width + scene.height;
+		for (let d = -scene.height; d < span; d += unit) {
+			ctx.moveTo(d, 0);
+			ctx.lineTo(d + scene.height, scene.height);
+		}
+		ctx.stroke();
+	} else if (pattern.type === "waves") {
+		const amplitude = unit * 0.28;
+		const wavelength = unit * 2;
+		for (let y = unit / 2; y < scene.height + unit; y += unit) {
+			ctx.beginPath();
+			ctx.moveTo(-wavelength, y);
+			for (let x = -wavelength; x <= scene.width + wavelength; x += 2) {
+				ctx.lineTo(x, y + Math.sin((x / wavelength) * Math.PI * 2) * amplitude);
+			}
+			ctx.stroke();
+		}
+	} else {
+		// rings: concentric circles from the canvas center outward.
+		const cx = scene.width / 2;
+		const cy = scene.height / 2;
+		const maxR = Math.hypot(scene.width, scene.height) / 2;
+		for (let r = unit; r < maxR; r += unit) {
+			ctx.beginPath();
+			ctx.arc(cx, cy, r, 0, Math.PI * 2);
+			ctx.stroke();
+		}
+	}
+	ctx.restore();
 }
 
 /**
