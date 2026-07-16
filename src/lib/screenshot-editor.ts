@@ -1,3 +1,4 @@
+import { projectRectCorners, quadBounds } from "@/lib/perspective";
 import type {
 	SceneAnnotation,
 	SceneAnnotationType,
@@ -56,15 +57,16 @@ export function getDisplayTypeLabel(displayType: string): string {
 	return DISPLAY_TYPE_LABELS[displayType] ?? displayType;
 }
 
-/** Default Android frame for Android display types, iPhone otherwise. */
+/** Default frame per display type: platform + form factor aware. */
 export function defaultFrameForDisplayType(
 	displayType: string,
 ): SceneDeviceFrame {
-	return displayType === "phone" ||
-		displayType === "sevenInch" ||
-		displayType === "tenInch"
-		? "android"
-		: "iphone";
+	if (displayType === "phone") return "android";
+	if (displayType === "sevenInch" || displayType === "tenInch") {
+		return "android-tablet";
+	}
+	if (displayType === "APP_IPAD_PRO_129") return "ipad";
+	return "iphone";
 }
 
 /**
@@ -137,6 +139,29 @@ export function applyPanelCount(
 }
 
 /**
+ * Body aspect ratio (height / width) per device frame. Phones keep the legacy
+ * 2.05 so pre-existing scenes render pixel-identical; tablets read as iPad /
+ * Android slates, the watch as a squircle body, the laptop as a wide lid +
+ * base silhouette.
+ */
+export const DEVICE_BODY_ASPECT: Record<
+	Exclude<SceneDeviceFrame, "none">,
+	number
+> = {
+	android: 2.05,
+	"android-tablet": 1.42,
+	"apple-watch": 1.14,
+	ipad: 1.34,
+	iphone: 2.05,
+	laptop: 0.6,
+};
+
+/** Aspect for a frame, defaulting to the phone silhouette for unknown values. */
+export function deviceBodyAspect(frame: SceneDeviceFrame): number {
+	return frame === "none" ? 2.05 : (DEVICE_BODY_ASPECT[frame] ?? 2.05);
+}
+
+/**
  * Compute the on-canvas pixel rect of the device frame from the scene's device
  * config. `scale` is the fraction of canvas width the frame spans; `offsetX/Y`
  * are fractions of canvas size from center. Pure — drives both render and tests.
@@ -147,8 +172,7 @@ export function computeDeviceRect(scene: SceneData): Rect | null {
 	// In panorama mode `scale` stays a fraction of ONE panel's width, so the
 	// frame keeps its size when the canvas widens to N panels.
 	const frameWidth = (scene.width / getPanelCount(scene)) * scale;
-	// iPhone aspect ratio ~ 2.16 (height/width) for a typical 9:19.5 device body.
-	const frameHeight = frameWidth * 2.05;
+	const frameHeight = frameWidth * deviceBodyAspect(scene.device.frame);
 	const centerX = scene.width / 2 + offsetX * scene.width;
 	const centerY = scene.height / 2 + offsetY * scene.height;
 	return {
@@ -157,6 +181,13 @@ export function computeDeviceRect(scene: SceneData): Rect | null {
 		width: frameWidth,
 		height: frameHeight,
 	};
+}
+
+/** True when the device has any non-zero 3D tilt (perspective warp path). */
+export function deviceHas3DTilt(
+	device: Pick<SceneData, "device">["device"],
+): boolean {
+	return Boolean(device && ((device.rotationX ?? 0) !== 0 || (device.rotationY ?? 0) !== 0));
 }
 
 /** Clamp a value into [min, max]. */
@@ -456,6 +487,25 @@ export function hitTestDevice(
 	if (!rect) return false;
 	const cx = rect.x + rect.width / 2;
 	const cy = rect.y + rect.height / 2;
+	if (deviceHas3DTilt(device)) {
+		// Perspective path: hit-test the AABB of the projected quad.
+		const quad = projectRectCorners(
+			cx,
+			cy,
+			rect.width,
+			rect.height,
+			device.rotationX ?? 0,
+			device.rotationY ?? 0,
+			device.rotation ?? 0,
+		);
+		const box = quadBounds(quad);
+		return (
+			px >= box.x &&
+			px <= box.x + box.width &&
+			py >= box.y &&
+			py <= box.y + box.height
+		);
+	}
 	const rad = ((device.rotation ?? 0) * Math.PI) / 180;
 	const cos = Math.abs(Math.cos(rad));
 	const sin = Math.abs(Math.sin(rad));

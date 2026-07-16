@@ -38,6 +38,7 @@ import type {
 	SceneData,
 	SceneDeviceColor,
 	SceneDeviceFrame,
+	SceneDeviceStyle,
 	SceneImageAnnotation,
 	SceneTextAlign,
 	SceneTextAnnotation,
@@ -82,6 +83,20 @@ function annotationMeta(annotation: SceneAnnotation): {
 	}
 	return ANNOTATION_META[annotation.type];
 }
+
+/** One-click 3D pose presets (degrees) for the device rotation section. */
+const DEVICE_POSE_PRESETS: {
+	label: string;
+	x: number;
+	y: number;
+	z: number;
+}[] = [
+	{ label: "Front", x: 0, y: 0, z: 0 },
+	{ label: "Tilt left", x: 4, y: 22, z: 0 },
+	{ label: "Tilt right", x: 4, y: -22, z: 0 },
+	{ label: "Hero", x: 18, y: 26, z: -8 },
+	{ label: "Lean back", x: -16, y: 0, z: 0 },
+];
 
 /** The Select value that triggers the custom-font upload flow. */
 const UPLOAD_FONT_VALUE = "__upload-font";
@@ -559,32 +574,74 @@ function DeviceProperties({
 					</SelectTrigger>
 					<SelectContent>
 						<SelectItem value="iphone">iPhone</SelectItem>
-						<SelectItem value="android">Android</SelectItem>
+						<SelectItem value="android">Android phone</SelectItem>
+						<SelectItem value="ipad">iPad</SelectItem>
+						<SelectItem value="android-tablet">Android tablet</SelectItem>
+						<SelectItem value="apple-watch">Apple Watch</SelectItem>
+						<SelectItem value="laptop">Laptop</SelectItem>
 						<SelectItem value="none">None (full screen)</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
 
 			{device.frame !== "none" && (
-				<div className="flex flex-col gap-1.5">
-					<Label className="text-xs">Frame color</Label>
-					<Select
-						value={device.color ?? (device.frame === "android" ? "black" : "silver")}
-						onValueChange={(color) =>
-							onPatchScene({
-								device: { ...device, color: color as SceneDeviceColor },
-							})
-						}
-					>
-						<SelectTrigger>
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="silver">Silver</SelectItem>
-							<SelectItem value="black">Black</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
+				<>
+					<div className="flex flex-col gap-1.5">
+						<Label className="text-xs">Style</Label>
+						<Select
+							value={device.style ?? "realistic"}
+							onValueChange={(style) =>
+								onPatchScene({
+									device: { ...device, style: style as SceneDeviceStyle },
+								})
+							}
+						>
+							<SelectTrigger>
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="realistic">Realistic</SelectItem>
+								<SelectItem value="clay">Clay (custom color)</SelectItem>
+							</SelectContent>
+						</Select>
+					</div>
+
+					{(device.style ?? "realistic") === "clay" ? (
+						<ColorField
+							label="Clay color"
+							value={device.clayColor ?? "#8282b2"}
+							onChange={(clayColor) =>
+								onPatchScene({ device: { ...device, clayColor } })
+							}
+						/>
+					) : (
+						<div className="flex flex-col gap-1.5">
+							<Label className="text-xs">Frame color</Label>
+							<Select
+								value={
+									device.color ??
+									(device.frame === "android" ||
+									device.frame === "android-tablet"
+										? "black"
+										: "silver")
+								}
+								onValueChange={(color) =>
+									onPatchScene({
+										device: { ...device, color: color as SceneDeviceColor },
+									})
+								}
+							>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="silver">Silver</SelectItem>
+									<SelectItem value="black">Black</SelectItem>
+								</SelectContent>
+							</Select>
+						</div>
+					)}
+				</>
 			)}
 
 			<div className="flex flex-col gap-1.5">
@@ -628,34 +685,101 @@ function DeviceProperties({
 				/>
 			</div>
 
-			<div className="flex flex-col gap-1.5">
+			<div className="flex flex-col gap-2 rounded-md border border-border/60 p-2.5">
 				<div className="flex items-center justify-between">
-					<Label className="text-xs">
-						Rotation: {Math.round(device.rotation ?? 0)}°
-					</Label>
-					{(device.rotation ?? 0) !== 0 && (
+					<Label className="text-xs font-medium">3D rotation</Label>
+					{((device.rotation ?? 0) !== 0 ||
+						(device.rotationX ?? 0) !== 0 ||
+						(device.rotationY ?? 0) !== 0) && (
 						<Button
 							type="button"
 							variant="ghost"
 							size="sm"
 							className="h-6 px-2 text-xs"
 							onClick={() =>
-								onPatchScene({ device: { ...device, rotation: 0 } })
+								onPatchScene({
+									device: {
+										...device,
+										rotation: 0,
+										rotationX: 0,
+										rotationY: 0,
+									},
+								})
 							}
 						>
 							Reset
 						</Button>
 					)}
 				</div>
-				<Slider
-					min={-45}
-					max={45}
-					step={1}
-					value={[Math.round(device.rotation ?? 0)]}
-					onValueChange={([v]) =>
-						onPatchScene({ device: { ...device, rotation: v } })
-					}
-				/>
+
+				<div className="flex flex-col gap-1.5">
+					<Label className="text-xs">
+						Tilt X (pitch): {Math.round(device.rotationX ?? 0)}°
+					</Label>
+					<Slider
+						min={-45}
+						max={45}
+						step={1}
+						value={[Math.round(device.rotationX ?? 0)]}
+						onValueChange={([v]) =>
+							onPatchScene({ device: { ...device, rotationX: v } })
+						}
+					/>
+				</div>
+
+				<div className="flex flex-col gap-1.5">
+					<Label className="text-xs">
+						Tilt Y (yaw): {Math.round(device.rotationY ?? 0)}°
+					</Label>
+					<Slider
+						min={-45}
+						max={45}
+						step={1}
+						value={[Math.round(device.rotationY ?? 0)]}
+						onValueChange={([v]) =>
+							onPatchScene({ device: { ...device, rotationY: v } })
+						}
+					/>
+				</div>
+
+				<div className="flex flex-col gap-1.5">
+					<Label className="text-xs">
+						Rotation Z (roll): {Math.round(device.rotation ?? 0)}°
+					</Label>
+					<Slider
+						min={-45}
+						max={45}
+						step={1}
+						value={[Math.round(device.rotation ?? 0)]}
+						onValueChange={([v]) =>
+							onPatchScene({ device: { ...device, rotation: v } })
+						}
+					/>
+				</div>
+
+				<div className="flex flex-wrap gap-1">
+					{DEVICE_POSE_PRESETS.map((pose) => (
+						<Button
+							key={pose.label}
+							type="button"
+							size="sm"
+							variant="outline"
+							className="h-6 px-2 text-[11px]"
+							onClick={() =>
+								onPatchScene({
+									device: {
+										...device,
+										rotation: pose.z,
+										rotationX: pose.x,
+										rotationY: pose.y,
+									},
+								})
+							}
+						>
+							{pose.label}
+						</Button>
+					))}
+				</div>
 			</div>
 
 			<Button variant="outline" size="sm" onClick={onPickScreenshot}>

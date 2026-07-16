@@ -568,9 +568,21 @@ export type SceneTextAlign = "left" | "center" | "right";
 export type SceneScreenshotFit = "cover" | "contain";
 /** How a background image fills the canvas. Superset of {@link SceneScreenshotFit}. */
 export type SceneBackgroundFit = "cover" | "contain" | "stretch";
-export type SceneDeviceFrame = "iphone" | "android" | "none";
+export type SceneDeviceFrame =
+	| "iphone"
+	| "android"
+	| "ipad"
+	| "android-tablet"
+	| "apple-watch"
+	| "laptop"
+	| "none";
 /** Device frame body color. Defaults per platform (iPhone→silver, Android→black). */
 export type SceneDeviceColor = "black" | "silver";
+/**
+ * Device rendering style: "realistic" draws metallic rails and platform
+ * details; "clay" draws a flat matte body in an arbitrary color (clayColor).
+ */
+export type SceneDeviceStyle = "realistic" | "clay";
 
 export interface SceneBackground {
 	type: SceneBackgroundType;
@@ -594,6 +606,17 @@ export interface SceneDevice {
 	rotation?: number;
 	/** Frame body color. Defaults to silver for iPhone, black for Android. */
 	color?: SceneDeviceColor;
+	/**
+	 * 3D tilt in degrees around the horizontal (X) and vertical (Y) axes.
+	 * Rendered as a perspective warp of the flat device render; 0/undefined
+	 * keeps the legacy flat look, so old scenes render unchanged.
+	 */
+	rotationX?: number;
+	rotationY?: number;
+	/** Rendering style. Defaults to "realistic" (legacy scenes). */
+	style?: SceneDeviceStyle;
+	/** Flat body color used when style is "clay". */
+	clayColor?: string;
 }
 
 export interface SceneScreenshot {

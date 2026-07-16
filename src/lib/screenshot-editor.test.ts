@@ -47,11 +47,16 @@ describe("getDisplayTypeLabel", () => {
 describe("defaultFrameForDisplayType", () => {
 	test("uses an Android frame for Android display types", () => {
 		expect(defaultFrameForDisplayType("phone")).toBe("android");
-		expect(defaultFrameForDisplayType("tenInch")).toBe("android");
+		expect(defaultFrameForDisplayType("tenInch")).toBe("android-tablet");
+		expect(defaultFrameForDisplayType("sevenInch")).toBe("android-tablet");
 	});
 
 	test("uses an iPhone frame for iOS display types", () => {
 		expect(defaultFrameForDisplayType("APP_IPHONE_67")).toBe("iphone");
+	});
+
+	test("uses an iPad frame for the iPad display type", () => {
+		expect(defaultFrameForDisplayType("APP_IPAD_PRO_129")).toBe("ipad");
 	});
 });
 

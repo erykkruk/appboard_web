@@ -1,7 +1,12 @@
 import {
+	drawImageToQuad,
+	projectRectCorners,
+} from "@/lib/perspective";
+import {
 	buildFontString,
 	computeDeviceRect,
 	computeImageFit,
+	deviceHas3DTilt,
 	getPanelCount,
 	measureAnnotationBox,
 	resolveTextPosition,
@@ -9,6 +14,7 @@ import {
 } from "@/lib/screenshot-editor";
 import type {
 	SceneData,
+	SceneDevice,
 	SceneDeviceColor,
 	SceneImageAnnotation,
 	SceneTextAnnotation,
@@ -84,6 +90,62 @@ function metalGradient(
 		g.addColorStop(1, "#eae8e3");
 	}
 	return g;
+}
+
+/** Parse #rgb/#rrggbb and scale its brightness by `factor` (0..1 darkens). */
+function scaleHexColor(hex: string, factor: number): string {
+	const raw = hex.replace("#", "");
+	const full =
+		raw.length === 3
+			? raw
+					.split("")
+					.map((c) => c + c)
+					.join("")
+			: raw;
+	const num = Number.parseInt(full, 16);
+	if (Number.isNaN(num) || full.length !== 6) return hex;
+	const scale = (v: number) => Math.max(0, Math.min(255, Math.round(v * factor)));
+	const r = scale((num >> 16) & 0xff);
+	const g = scale((num >> 8) & 0xff);
+	const b = scale(num & 0xff);
+	return `#${((r << 16) | (g << 8) | b).toString(16).padStart(6, "0")}`;
+}
+
+/** Default clay body color (muted periwinkle, reads well on most backgrounds). */
+const DEFAULT_CLAY_COLOR = "#8282b2";
+
+/** Resolved fills for a device body, honoring the realistic/clay style. */
+interface DeviceFills {
+	body: CanvasGradient | string;
+	button: string;
+	/** Bezel/glass color between the rail and the screen. */
+	glass: string;
+}
+
+function resolveDeviceFills(
+	ctx: CanvasRenderingContext2D,
+	frame: Rect,
+	device: SceneDevice,
+	defaultColor: SceneDeviceColor,
+): DeviceFills {
+	if ((device.style ?? "realistic") === "clay") {
+		const clay = device.clayColor ?? DEFAULT_CLAY_COLOR;
+		// Subtle vertical shading so the clay body never reads as a flat sticker.
+		const g = ctx.createLinearGradient(0, frame.y, 0, frame.y + frame.height);
+		g.addColorStop(0, clay);
+		g.addColorStop(1, scaleHexColor(clay, 0.82));
+		return {
+			body: g,
+			button: scaleHexColor(clay, 0.72),
+			glass: scaleHexColor(clay, 0.38),
+		};
+	}
+	const color = device.color ?? defaultColor;
+	return {
+		body: metalGradient(ctx, frame.x, frame.width, color),
+		button: color === "silver" ? "#adaba3" : "#2a2c30",
+		glass: "#050507",
+	};
 }
 
 /** Side-button rects (power/volume/action) protruding from the frame edge. */
@@ -217,65 +279,86 @@ function drawDeviceFrame(
 	const frame = computeDeviceRect(scene);
 	if (!frame) return;
 
-	const isAndroid = device.frame === "android";
-	// Default color per platform preserves the look of scenes saved before the
-	// color option existed (iPhone silver, Android black).
-	const color: SceneDeviceColor =
-		device.color ?? (isAndroid ? "black" : "silver");
-	const W = frame.width;
-	const bodyRadius =
-		W * (isAndroid ? BODY_RADIUS_RATIO.android : BODY_RADIUS_RATIO.iphone);
-	const rail = W * RAIL_RATIO;
-	const bezel = W * BEZEL_RATIO;
-	const cx = frame.x + W / 2;
-
-	ctx.save();
-	if (device.rotation) {
-		const rcx = frame.x + frame.width / 2;
-		const rcy = frame.y + frame.height / 2;
-		ctx.translate(rcx, rcy);
-		ctx.rotate((device.rotation * Math.PI) / 180);
-		ctx.translate(-rcx, -rcy);
+	if (!deviceHas3DTilt(device)) {
+		// Flat path (legacy): optional Z rotation via a plain 2D transform.
+		ctx.save();
+		if (device.rotation) {
+			const rcx = frame.x + frame.width / 2;
+			const rcy = frame.y + frame.height / 2;
+			ctx.translate(rcx, rcy);
+			ctx.rotate((device.rotation * Math.PI) / 180);
+			ctx.translate(-rcx, -rcy);
+		}
+		paintDevice(ctx, scene, images, frame);
+		ctx.restore();
+		return;
 	}
 
-	// Metallic body + side buttons, sharing one drop shadow. Buttons are drawn
-	// first so the body rail covers their inner (seam) end, leaving only the nub.
-	const metal = metalGradient(ctx, frame.x, W, color);
-	const buttons = deviceButtons(frame, isAndroid);
-	ctx.save();
-	ctx.shadowColor = "rgba(0,0,0,0.4)";
-	ctx.shadowBlur = W * 0.05;
-	ctx.shadowOffsetY = W * 0.02;
-	ctx.fillStyle = color === "silver" ? "#adaba3" : "#2a2c30";
-	for (const b of buttons) {
-		roundedRectPath(ctx, b, b.width * 0.4);
-		ctx.fill();
+	// 3D path: render the device flat to an off-screen canvas (padded so
+	// protruding buttons/bands/shadows survive), then perspective-warp that
+	// render onto the projected quad. Preview and export share this code, so
+	// exported pixels always match the on-screen look.
+	const pad = frame.width * (device.frame === "apple-watch" ? 0.34 : 0.16);
+	const off = document.createElement("canvas");
+	off.width = Math.max(1, Math.ceil(frame.width + pad * 2));
+	off.height = Math.max(1, Math.ceil(frame.height + pad * 2));
+	const offCtx = off.getContext("2d");
+	if (!offCtx) return;
+	offCtx.translate(pad - frame.x, pad - frame.y);
+	paintDevice(offCtx, scene, images, frame);
+
+	const cx = frame.x + frame.width / 2;
+	const cy = frame.y + frame.height / 2;
+	const quad = projectRectCorners(
+		cx,
+		cy,
+		off.width,
+		off.height,
+		device.rotationX ?? 0,
+		device.rotationY ?? 0,
+		device.rotation ?? 0,
+	);
+	drawImageToQuad(ctx, off, off.width, off.height, quad);
+}
+
+/**
+ * Paint the device body + screen at `frame` with no rotation applied — the
+ * caller owns transforms (flat Z-rotation or the off-screen 3D warp).
+ */
+function paintDevice(
+	ctx: CanvasRenderingContext2D,
+	scene: SceneData,
+	images: RenderImages,
+	frame: Rect,
+): void {
+	const device = scene.device;
+	if (!device) return;
+	switch (device.frame) {
+		case "ipad":
+		case "android-tablet":
+			paintTablet(ctx, scene, images, frame, device);
+			return;
+		case "apple-watch":
+			paintWatch(ctx, scene, images, frame, device);
+			return;
+		case "laptop":
+			paintLaptop(ctx, scene, images, frame, device);
+			return;
+		default:
+			paintPhone(ctx, scene, images, frame, device);
 	}
-	ctx.fillStyle = metal;
-	roundedRectPath(ctx, frame, bodyRadius);
-	ctx.fill();
-	ctx.restore();
+}
 
-	// Black glass bezel (covers the body interior, leaving the metal rail ring).
-	const glass: Rect = {
-		x: frame.x + rail,
-		y: frame.y + rail,
-		width: W - rail * 2,
-		height: frame.height - rail * 2,
-	};
-	ctx.fillStyle = "#050507";
-	roundedRectPath(ctx, glass, bodyRadius - rail);
-	ctx.fill();
-
-	// Screen area (screenshot clipped to rounded corners).
-	const screen: Rect = {
-		x: frame.x + bezel,
-		y: frame.y + bezel,
-		width: W - bezel * 2,
-		height: frame.height - bezel * 2,
-	};
+/** Fill the screen rect (rounded, clipped) with the screenshot or placeholder. */
+function paintScreen(
+	ctx: CanvasRenderingContext2D,
+	scene: SceneData,
+	images: RenderImages,
+	screen: Rect,
+	radius: number,
+): void {
 	ctx.save();
-	roundedRectPath(ctx, screen, bodyRadius - bezel);
+	roundedRectPath(ctx, screen, radius);
 	ctx.clip();
 	if (images.screenshot) {
 		const { dest, src } = computeImageFit(
@@ -300,6 +383,82 @@ function drawDeviceFrame(
 		ctx.fillRect(screen.x, screen.y, screen.width, screen.height);
 	}
 	ctx.restore();
+}
+
+/** Body + buttons under one drop shadow, then the glass bezel ring. */
+function paintBodyAndGlass(
+	ctx: CanvasRenderingContext2D,
+	frame: Rect,
+	fills: DeviceFills,
+	bodyRadius: number,
+	rail: number,
+	buttons: Rect[],
+): void {
+	ctx.save();
+	ctx.shadowColor = "rgba(0,0,0,0.4)";
+	ctx.shadowBlur = frame.width * 0.05;
+	ctx.shadowOffsetY = frame.width * 0.02;
+	ctx.fillStyle = fills.button;
+	for (const b of buttons) {
+		roundedRectPath(ctx, b, b.width * 0.4);
+		ctx.fill();
+	}
+	ctx.fillStyle = fills.body;
+	roundedRectPath(ctx, frame, bodyRadius);
+	ctx.fill();
+	ctx.restore();
+
+	const glass: Rect = {
+		x: frame.x + rail,
+		y: frame.y + rail,
+		width: frame.width - rail * 2,
+		height: frame.height - rail * 2,
+	};
+	ctx.fillStyle = fills.glass;
+	roundedRectPath(ctx, glass, bodyRadius - rail);
+	ctx.fill();
+}
+
+/** Modern phone: titanium rail, Dynamic Island (iPhone) / hole-punch (Android). */
+function paintPhone(
+	ctx: CanvasRenderingContext2D,
+	scene: SceneData,
+	images: RenderImages,
+	frame: Rect,
+	device: SceneDevice,
+): void {
+	const isAndroid = device.frame === "android";
+	// Default color per platform preserves the look of scenes saved before the
+	// color option existed (iPhone silver, Android black).
+	const fills = resolveDeviceFills(
+		ctx,
+		frame,
+		device,
+		isAndroid ? "black" : "silver",
+	);
+	const W = frame.width;
+	const bodyRadius =
+		W * (isAndroid ? BODY_RADIUS_RATIO.android : BODY_RADIUS_RATIO.iphone);
+	const rail = W * RAIL_RATIO;
+	const bezel = W * BEZEL_RATIO;
+	const cx = frame.x + W / 2;
+
+	paintBodyAndGlass(
+		ctx,
+		frame,
+		fills,
+		bodyRadius,
+		rail,
+		deviceButtons(frame, isAndroid),
+	);
+
+	const screen: Rect = {
+		x: frame.x + bezel,
+		y: frame.y + bezel,
+		width: W - bezel * 2,
+		height: frame.height - bezel * 2,
+	};
+	paintScreen(ctx, scene, images, screen, bodyRadius - bezel);
 
 	// Camera cutout, drawn over the screen.
 	if (isAndroid) {
@@ -324,8 +483,236 @@ function drawDeviceFrame(
 		fillCircle(ctx, lensCx, lensCy, ih * 0.26, "#0b1a2b");
 		fillCircle(ctx, lensCx, lensCy, ih * 0.12, "#1e3a5f");
 	}
+}
 
+// Tablet proportions (fractions of frame width).
+const TABLET_RADIUS_RATIO = 0.055;
+const TABLET_RAIL_RATIO = 0.011;
+const TABLET_BEZEL_RATIO = 0.042;
+
+/** iPad / Android slate: uniform bezel, camera dot (iPad) or hole-punch. */
+function paintTablet(
+	ctx: CanvasRenderingContext2D,
+	scene: SceneData,
+	images: RenderImages,
+	frame: Rect,
+	device: SceneDevice,
+): void {
+	const isAndroid = device.frame === "android-tablet";
+	const fills = resolveDeviceFills(
+		ctx,
+		frame,
+		device,
+		isAndroid ? "black" : "silver",
+	);
+	const W = frame.width;
+	const bodyRadius = W * TABLET_RADIUS_RATIO;
+	const rail = W * TABLET_RAIL_RATIO;
+	const bezel = W * TABLET_BEZEL_RATIO;
+	const cx = frame.x + W / 2;
+
+	// Power + volume on the right edge.
+	const bt = W * BTN_THICKNESS_RATIO * 0.9;
+	const bp = W * BTN_PROTRUDE_RATIO * 0.9;
+	const buttons: Rect[] = [
+		{
+			x: frame.x + W - bt * 0.4,
+			y: frame.y + frame.height * 0.06,
+			width: bt + bp,
+			height: frame.height * 0.045,
+		},
+		{
+			x: frame.x + W - bt * 0.4,
+			y: frame.y + frame.height * 0.125,
+			width: bt + bp,
+			height: frame.height * 0.09,
+		},
+	];
+	paintBodyAndGlass(ctx, frame, fills, bodyRadius, rail, buttons);
+
+	const screen: Rect = {
+		x: frame.x + bezel,
+		y: frame.y + bezel,
+		width: W - bezel * 2,
+		height: frame.height - bezel * 2,
+	};
+	paintScreen(ctx, scene, images, screen, bodyRadius - bezel);
+
+	if (isAndroid) {
+		const holeCy = screen.y + W * 0.032;
+		fillCircle(ctx, cx, holeCy, W * 0.014, "#000000");
+		fillCircle(ctx, cx, holeCy, W * 0.007, "#0b1a2b");
+	} else {
+		// iPad front camera sits in the bezel, not the screen.
+		const camCy = frame.y + bezel / 2 + rail / 2;
+		fillCircle(ctx, cx, camCy, W * 0.008, "#1a1c20");
+		fillCircle(ctx, cx, camCy, W * 0.004, "#0b1a2b");
+	}
+}
+
+// Apple Watch proportions (fractions of frame width/height).
+const WATCH_RADIUS_RATIO = 0.3;
+const WATCH_RAIL_RATIO = 0.028;
+const WATCH_BEZEL_RATIO = 0.085;
+const WATCH_BAND_WIDTH_RATIO = 0.56;
+const WATCH_BAND_LENGTH_RATIO = 0.2;
+
+/** Apple Watch: squircle body, digital crown + side button, band stubs. */
+function paintWatch(
+	ctx: CanvasRenderingContext2D,
+	scene: SceneData,
+	images: RenderImages,
+	frame: Rect,
+	device: SceneDevice,
+): void {
+	const fills = resolveDeviceFills(ctx, frame, device, "silver");
+	const W = frame.width;
+	const H = frame.height;
+	const bodyRadius = W * WATCH_RADIUS_RATIO;
+	const rail = W * WATCH_RAIL_RATIO;
+	const bezel = W * WATCH_BEZEL_RATIO;
+	const cx = frame.x + W / 2;
+
+	// Band stubs behind the body (top + bottom).
+	const bandW = W * WATCH_BAND_WIDTH_RATIO;
+	const bandL = H * WATCH_BAND_LENGTH_RATIO;
+	const isClay = (device.style ?? "realistic") === "clay";
+	const bandColor = isClay
+		? scaleHexColor(device.clayColor ?? DEFAULT_CLAY_COLOR, 0.6)
+		: "#1f2126";
+	ctx.save();
+	ctx.fillStyle = bandColor;
+	roundedRectPath(
+		ctx,
+		{ x: cx - bandW / 2, y: frame.y - bandL, width: bandW, height: bandL + rail * 2 },
+		W * 0.06,
+	);
+	ctx.fill();
+	roundedRectPath(
+		ctx,
+		{
+			x: cx - bandW / 2,
+			y: frame.y + H - rail * 2,
+			width: bandW,
+			height: bandL + rail * 2,
+		},
+		W * 0.06,
+	);
+	ctx.fill();
 	ctx.restore();
+
+	// Digital crown + side button on the right edge.
+	const crownW = W * 0.045;
+	const buttons: Rect[] = [
+		{
+			x: frame.x + W - crownW * 0.35,
+			y: frame.y + H * 0.22,
+			width: crownW,
+			height: H * 0.14,
+		},
+		{
+			x: frame.x + W - crownW * 0.3,
+			y: frame.y + H * 0.44,
+			width: crownW * 0.75,
+			height: H * 0.2,
+		},
+	];
+	paintBodyAndGlass(ctx, frame, fills, bodyRadius, rail, buttons);
+
+	const screen: Rect = {
+		x: frame.x + bezel,
+		y: frame.y + bezel,
+		width: W - bezel * 2,
+		height: H - bezel * 2,
+	};
+	paintScreen(ctx, scene, images, screen, bodyRadius - bezel);
+}
+
+// Laptop proportions (fractions of frame width).
+const LAPTOP_LID_WIDTH_RATIO = 0.86;
+const LAPTOP_LID_BEZEL_RATIO = 0.014;
+const LAPTOP_BASE_HEIGHT_RATIO = 0.045;
+
+/** Laptop: 16:10 lid centered over a wider base with a front notch. */
+function paintLaptop(
+	ctx: CanvasRenderingContext2D,
+	scene: SceneData,
+	images: RenderImages,
+	frame: Rect,
+	device: SceneDevice,
+): void {
+	const fills = resolveDeviceFills(ctx, frame, device, "silver");
+	const W = frame.width;
+	const cx = frame.x + W / 2;
+	const lidW = W * LAPTOP_LID_WIDTH_RATIO;
+	const lidBezel = W * LAPTOP_LID_BEZEL_RATIO;
+	const screenW = lidW - lidBezel * 2;
+	const screenH = screenW * (10 / 16);
+	const lidH = screenH + lidBezel * 2;
+	const baseH = W * LAPTOP_BASE_HEIGHT_RATIO;
+	const lid: Rect = {
+		x: cx - lidW / 2,
+		y: frame.y,
+		width: lidW,
+		height: lidH,
+	};
+
+	// Lid with shared drop shadow.
+	ctx.save();
+	ctx.shadowColor = "rgba(0,0,0,0.35)";
+	ctx.shadowBlur = W * 0.03;
+	ctx.shadowOffsetY = W * 0.012;
+	ctx.fillStyle = fills.body;
+	roundedRectPath(ctx, lid, W * 0.02);
+	ctx.fill();
+	ctx.restore();
+
+	// Glass inside the lid.
+	ctx.fillStyle = fills.glass;
+	roundedRectPath(
+		ctx,
+		{
+			x: lid.x + lidBezel * 0.5,
+			y: lid.y + lidBezel * 0.5,
+			width: lidW - lidBezel,
+			height: lidH - lidBezel,
+		},
+		W * 0.016,
+	);
+	ctx.fill();
+
+	const screen: Rect = {
+		x: lid.x + lidBezel,
+		y: lid.y + lidBezel,
+		width: screenW,
+		height: screenH,
+	};
+	paintScreen(ctx, scene, images, screen, W * 0.01);
+
+	// Webcam dot centered in the top bezel.
+	fillCircle(ctx, cx, lid.y + lidBezel / 2, W * 0.004, "#0b1a2b");
+
+	// Base/deck: full frame width, rounded bottom, subtle top hinge line and a
+	// centered front notch.
+	const baseY = lid.y + lidH;
+	ctx.save();
+	ctx.shadowColor = "rgba(0,0,0,0.35)";
+	ctx.shadowBlur = W * 0.025;
+	ctx.shadowOffsetY = W * 0.01;
+	ctx.fillStyle = fills.body;
+	roundedRectPath(
+		ctx,
+		{ x: frame.x, y: baseY, width: W, height: baseH },
+		baseH * 0.45,
+	);
+	ctx.fill();
+	ctx.restore();
+	// Notch (thumb scoop) on the front edge of the base.
+	const notchW = W * 0.12;
+	ctx.fillStyle = "rgba(0,0,0,0.28)";
+	ctx.beginPath();
+	ctx.ellipse(cx, baseY, notchW / 2, baseH * 0.34, 0, 0, Math.PI);
+	ctx.fill();
 }
 
 function drawTextLayers(ctx: CanvasRenderingContext2D, scene: SceneData): void {
