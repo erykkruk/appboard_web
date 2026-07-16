@@ -717,6 +717,12 @@ export interface SceneTextLayer {
 	accentColor?: string;
 	/** Comma-separated words to paint with `accentColor` (case-insensitive). */
 	accentWords?: string;
+	/**
+	 * Locked layers are skipped by canvas dragging and by "apply style to all"
+	 * — the reddit-requested way to protect finished texts from bulk edits.
+	 * They stay selectable from the layers list.
+	 */
+	locked?: boolean;
 }
 
 export type SceneAnnotationType =

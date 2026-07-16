@@ -346,6 +346,9 @@ export function hitTestTextLayer(
 ): string | null {
 	for (let i = scene.textLayers.length - 1; i >= 0; i--) {
 		const layer = scene.textLayers[i];
+		// Locked layers ignore canvas hits so they can't be dragged by accident;
+		// they remain selectable from the layers list.
+		if (layer.locked) continue;
 		const { x, y } = resolveTextPosition(layer, scene);
 		const approxWidth = Math.max(
 			layer.fontSize * 0.6 * Math.max(layer.text.length, 4),

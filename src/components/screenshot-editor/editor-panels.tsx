@@ -10,6 +10,7 @@ import {
 	CopyPlus,
 	Droplet,
 	Heart,
+	Lock,
 	Quote,
 	Image as ImageIcon,
 	MessageSquare,
@@ -386,6 +387,9 @@ export function LayersPanel({
 					>
 						<Type className="h-4 w-4 shrink-0 text-muted-foreground" />
 						<span className="truncate">{layer.text || "Empty text"}</span>
+						{layer.locked && (
+							<Lock className="h-3 w-3 shrink-0 text-muted-foreground" />
+						)}
 					</button>
 					<ReorderButtons
 						label="text layer"
@@ -1882,6 +1886,26 @@ function TextProperties({
 							{align === "left" ? "Left" : align === "center" ? "Center" : "Right"}
 						</Button>
 					))}
+				</div>
+			</div>
+
+			<div className="flex items-start gap-2 rounded-md border border-border/60 p-2.5">
+				<Checkbox
+					id={`lock-${layer.id}`}
+					checked={layer.locked ?? false}
+					onCheckedChange={(checked) => onPatch({ locked: checked === true })}
+				/>
+				<div className="flex flex-col gap-0.5">
+					<Label
+						htmlFor={`lock-${layer.id}`}
+						className="cursor-pointer text-xs font-medium"
+					>
+						Lock layer
+					</Label>
+					<p className="text-[11px] text-muted-foreground">
+						Locked texts can&apos;t be dragged on the canvas and are skipped by
+						&quot;apply style to all&quot;.
+					</p>
 				</div>
 			</div>
 

@@ -774,3 +774,32 @@ describe("deviceAspect (photo bezels)", () => {
 		).toBeCloseTo(2.05);
 	});
 });
+
+describe("locked text layers", () => {
+	test("hitTestTextLayer skips locked layers", () => {
+		const scene: SceneData = {
+			background: { type: "color", value: "#000" },
+			height: 2000,
+			textLayers: [
+				{
+					align: "center",
+					color: "#fff",
+					fontFamily: "sans",
+					fontSize: 100,
+					id: "locked",
+					locked: true,
+					text: "Hello",
+					x: 0.5,
+					y: 0.1,
+				},
+			],
+			width: 1000,
+		};
+		expect(hitTestTextLayer(scene, 500, 200)).toBeNull();
+		const unlocked: SceneData = {
+			...scene,
+			textLayers: [{ ...scene.textLayers[0], locked: false }],
+		};
+		expect(hitTestTextLayer(unlocked, 500, 200)).toBe("locked");
+	});
+});

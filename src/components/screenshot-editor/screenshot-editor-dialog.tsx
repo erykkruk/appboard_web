@@ -444,7 +444,7 @@ export function ScreenshotEditorDialog({
 				return {
 					...prev,
 					textLayers: prev.textLayers.map((l) =>
-						l.id === sourceId
+						l.id === sourceId || l.locked
 							? l
 							: {
 									...l,

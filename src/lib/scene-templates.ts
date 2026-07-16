@@ -656,6 +656,73 @@ SCENE_TEMPLATES.push(
 	},
 );
 
+SCENE_TEMPLATES.push({
+	build: (displayType) => {
+		const scene = createDefaultScene(displayType);
+		return {
+			...scene,
+			annotations: [
+				{
+					bg: "#16a34a",
+					color: "#ffffff",
+					fontSize: Math.round(scene.height * 0.024),
+					id: "tpl-level",
+					text: "LEVEL UP",
+					type: "badge",
+					weight: 800,
+					x: 0.24,
+					y: 0.165,
+				},
+				{
+					...createShapeAnnotation("tpl-star1", "star", scene),
+					color: "#f59e0b",
+					width: 0.06,
+					x: 0.82,
+					y: 0.14,
+				},
+				{
+					...createShapeAnnotation("tpl-star2", "star", scene),
+					color: "#f59e0b",
+					width: 0.04,
+					x: 0.9,
+					y: 0.19,
+				},
+			],
+			background: {
+				pattern: { color: "#0f766e", opacity: 0.1, scale: 0.9, type: "dots" },
+				type: "color",
+				value: "#ecfdf5",
+			},
+			device: {
+				...scene.device!,
+				clayColor: "#99f6e4",
+				groundShadow: true,
+				offsetY: 0.21,
+				rotation: 3,
+				scale: 0.66,
+				style: "clay",
+			},
+			textLayers: [
+				headline(
+					{
+						accentColor: "#16a34a",
+						accentWords: "smarter",
+						color: "#134e4a",
+						fontSize: Math.round(scene.height * 0.046),
+						text: "Learn smarter,\nnot longer",
+						weight: 900,
+						y: 0.075,
+					},
+					scene.height,
+				),
+			],
+		};
+	},
+	description: "Clean gamified learning look with badge and stars",
+	id: "all-the-wiser",
+	name: "All The Wiser",
+});
+
 /**
  * Apply a template while preserving the parts of the current scene the user
  * already invested in: the device screenshot and any loaded fonts.
