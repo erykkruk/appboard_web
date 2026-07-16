@@ -395,6 +395,53 @@ function drawBackgroundPattern(
 			}
 			ctx.stroke();
 		}
+	} else if (pattern.type === "topo") {
+		// Topographic contour lines: nested wobbly rings around two "peaks",
+		// deterministic sinusoidal wobble — the Ascent-style map look.
+		const peaks: [number, number][] = [
+			[scene.width * 0.3, scene.height * 0.35],
+			[scene.width * 0.75, scene.height * 0.75],
+		];
+		const maxR = Math.hypot(scene.width, scene.height) * 0.75;
+		for (const [px, py] of peaks) {
+			for (let r = unit; r < maxR; r += unit) {
+				ctx.beginPath();
+				for (let a = 0; a <= Math.PI * 2 + 0.05; a += 0.05) {
+					const wobble =
+						1 +
+						0.09 * Math.sin(a * 3 + r * 0.011) +
+						0.05 * Math.sin(a * 7 + r * 0.023);
+					const x = px + Math.cos(a) * r * wobble;
+					const y = py + Math.sin(a) * r * wobble;
+					if (a === 0) ctx.moveTo(x, y);
+					else ctx.lineTo(x, y);
+				}
+				ctx.stroke();
+			}
+		}
+	} else if (pattern.type === "dunes") {
+		// Layered dune ridges: stacked filled sine hills fading with depth —
+		// the sand-and-terracotta landscape look.
+		const layers = 4;
+		const baseAlpha = Math.min(Math.max(pattern.opacity, 0), 1);
+		for (let i = 0; i < layers; i++) {
+			const baseY = scene.height * (0.45 + (i * 0.55) / layers);
+			const amplitude = unit * (1.6 - i * 0.25);
+			const wavelength = scene.width / (1.5 + i * 0.7);
+			const phase = i * 1.9;
+			ctx.globalAlpha = baseAlpha * (0.35 + (i / (layers - 1)) * 0.65);
+			ctx.beginPath();
+			ctx.moveTo(0, scene.height);
+			for (let x = 0; x <= scene.width; x += 4) {
+				ctx.lineTo(
+					x,
+					baseY + Math.sin((x / wavelength) * Math.PI * 2 + phase) * amplitude,
+				);
+			}
+			ctx.lineTo(scene.width, scene.height);
+			ctx.closePath();
+			ctx.fill();
+		}
 	} else if (pattern.type === "noise") {
 		// Film-grain speckle. Seeded PRNG (mulberry32) keeps the grain layout
 		// identical between the preview and every export of the same scene.

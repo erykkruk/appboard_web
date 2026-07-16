@@ -595,7 +595,9 @@ export type SceneBackgroundPatternType =
 	| "diagonal"
 	| "waves"
 	| "rings"
-	| "noise";
+	| "noise"
+	| "topo"
+	| "dunes";
 
 /** Decorative procedural pattern drawn over the base background fill. */
 export interface SceneBackgroundPattern {

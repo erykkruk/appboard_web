@@ -433,6 +433,92 @@ SCENE_TEMPLATES.push(
 	},
 );
 
+SCENE_TEMPLATES.push(
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				background: {
+					pattern: { color: "#facc15", opacity: 0.16, scale: 1.5, type: "topo" },
+					type: "color",
+					value: "#1c1917",
+				},
+				device: {
+					...scene.device!,
+					groundShadow: true,
+					offsetY: 0.2,
+					rotationY: -12,
+					scale: 0.7,
+				},
+				textLayers: [
+					headline(
+						{
+							accentColor: "#facc15",
+							accentWords: "further",
+							fontSize: Math.round(scene.height * 0.05),
+							text: "Go further\nevery day",
+							weight: 900,
+							y: 0.085,
+						},
+						scene.height,
+					),
+				],
+			};
+		},
+		description: "Topographic-map backdrop with bold accent typography",
+		id: "ascent-topo",
+		name: "Ascent",
+	},
+	{
+		build: (displayType) => {
+			const scene = createDefaultScene(displayType);
+			return {
+				...scene,
+				background: {
+					gradient: { angle: 180, from: "#fbd7a1", to: "#c2662d" },
+					pattern: { color: "#9a4a1b", opacity: 0.5, scale: 1.6, type: "dunes" },
+					type: "gradient",
+					value: "#fbd7a1",
+				},
+				device: {
+					...scene.device!,
+					clayColor: "#f3e0c7",
+					groundShadow: true,
+					offsetY: 0.2,
+					rotation: -4,
+					scale: 0.66,
+					style: "clay",
+				},
+				textLayers: [
+					headline(
+						{
+							color: "#5b2d0e",
+							text: "Find your trail",
+							weight: 800,
+						},
+						scene.height,
+					),
+					headline(
+						{
+							color: "#7c4a24",
+							fontSize: Math.round(scene.height * 0.023),
+							id: "subline",
+							text: "Offline maps for every adventure",
+							weight: 500,
+							y: 0.125,
+						},
+						scene.height,
+					),
+				],
+			};
+		},
+		description: "Sand-and-terracotta dunes with a warm clay device",
+		id: "sahara-dunes",
+		name: "Sahara",
+	},
+);
+
 /**
  * Apply a template while preserving the parts of the current scene the user
  * already invested in: the device screenshot and any loaded fonts.

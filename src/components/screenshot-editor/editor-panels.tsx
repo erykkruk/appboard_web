@@ -1004,6 +1004,8 @@ function BackgroundProperties({
 									<SelectItem value="waves">Waves</SelectItem>
 									<SelectItem value="rings">Rings</SelectItem>
 									<SelectItem value="noise">Noise (grain)</SelectItem>
+									<SelectItem value="topo">Topographic map</SelectItem>
+									<SelectItem value="dunes">Dunes (layered hills)</SelectItem>
 								</SelectContent>
 							</Select>
 						</div>

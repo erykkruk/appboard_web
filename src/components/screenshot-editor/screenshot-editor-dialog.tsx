@@ -1,6 +1,7 @@
 "use client";
 
 import {
+	Download,
 	Languages,
 	LayoutTemplate,
 	Loader2,
@@ -19,6 +20,12 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { useDeviceModel } from "@/hooks/use-device-model";
 import { useSceneHistory } from "@/hooks/use-scene-history";
@@ -76,6 +83,7 @@ import type {
 } from "@/lib/types";
 
 import { LayersPanel, PropertiesPanel } from "./editor-panels";
+import { exportSceneToPng } from "./export-scene";
 import type { RenderImages } from "./render-scene";
 import { SceneCanvas, type SceneCanvasHandle } from "./scene-canvas";
 import { SceneLocalizationDialog } from "./scene-localization-dialog";
@@ -741,6 +749,30 @@ export function ScreenshotEditorDialog({
 		[displayType, setScene],
 	);
 
+	/**
+	 * Local PNG download. `deviceOnly` strips texts and annotations before the
+	 * off-screen render — ButterKit's "Include text & images" toggle, useful
+	 * for websites and marketing posts.
+	 */
+	const handleDownload = async (deviceOnly: boolean) => {
+		const target: SceneData = deviceOnly
+			? { ...scene, annotations: [], textLayers: [] }
+			: scene;
+		const blob = await exportSceneToPng(target);
+		if (!blob) {
+			toast.error(
+				"Cannot export — the image comes from a remote source without CORS headers. Upload the file locally.",
+			);
+			return;
+		}
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement("a");
+		link.href = url;
+		link.download = `${sceneName.replace(/\s+/g, "-").toLowerCase()}-${language}-${displayType}${deviceOnly ? "-device" : ""}.png`;
+		link.click();
+		URL.revokeObjectURL(url);
+	};
+
 	const handleExportUpload = async () => {
 		const blob = await canvasRef.current?.exportPng();
 		if (!blob) {
@@ -876,6 +908,21 @@ export function ScreenshotEditorDialog({
 							)}
 							Save
 						</Button>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button variant="outline" aria-label="Download PNG">
+									<Download className="h-4 w-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem onSelect={() => handleDownload(false)}>
+									Download PNG
+								</DropdownMenuItem>
+								<DropdownMenuItem onSelect={() => handleDownload(true)}>
+									Download PNG (device only)
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
 						<Button onClick={handleExportUpload} disabled={isUploading}>
 							{isUploading ? (
 								<Loader2 className="h-4 w-4 animate-spin" />
