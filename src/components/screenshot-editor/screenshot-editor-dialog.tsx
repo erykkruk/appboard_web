@@ -474,6 +474,47 @@ export function ScreenshotEditorDialog({
 		[setScene],
 	);
 
+	/**
+	 * Copy the source annotation's STYLE onto every other annotation of the
+	 * same type ("Copy a Callout's style" from the ButterKit changelog, asked
+	 * for by users). Content (text/author) and positions are never copied.
+	 */
+	const applyAnnotationStyleToAll = useCallback(
+		(sourceId: string) => {
+			setScene((prev) => {
+				const source = (prev.annotations ?? []).find((a) => a.id === sourceId);
+				if (!source || source.type === "image" || source.type === "shape") {
+					return prev;
+				}
+				return {
+					...prev,
+					annotations: (prev.annotations ?? []).map((a) => {
+						if (a.id === sourceId || a.type !== source.type) return a;
+						const styled = {
+							...a,
+							bg: source.bg,
+							color: source.color,
+							fontFamily: source.fontFamily,
+							fontSize: source.fontSize,
+							weight: source.weight,
+						} as SceneAnnotation;
+						if (styled.type === "label" && source.type === "label") {
+							styled.showBackground = source.showBackground;
+						}
+						if (styled.type === "review" && source.type === "review") {
+							styled.showBackground = source.showBackground;
+							styled.showQuoteMark = source.showQuoteMark;
+							styled.stars = source.stars;
+						}
+						return styled;
+					}),
+				};
+			});
+			toast.success("Style applied to all annotations of this type");
+		},
+		[setScene],
+	);
+
 	const reorderTextLayer = useCallback(
 		(id: string, delta: -1 | 1) => {
 			setScene((prev) => ({
@@ -1016,6 +1057,7 @@ export function ScreenshotEditorDialog({
 						onReplaceAnnotationImage={handleReplaceAnnotationImage}
 						onDeleteAnnotation={deleteAnnotation}
 						onApplyTextStyleToAll={applyTextStyleToAll}
+						onApplyAnnotationStyleToAll={applyAnnotationStyleToAll}
 					/>
 				</div>
 

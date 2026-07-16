@@ -723,6 +723,65 @@ SCENE_TEMPLATES.push({
 	name: "All The Wiser",
 });
 
+SCENE_TEMPLATES.push({
+	build: (displayType) => {
+		const scene = createDefaultScene(displayType);
+		return {
+			...scene,
+			annotations: [
+				{
+					...createShapeAnnotation("tpl-spark-a", "sparkle", scene),
+					color: "#fff7ed",
+					width: 0.06,
+					x: 0.14,
+					y: 0.2,
+				},
+				{
+					...createShapeAnnotation("tpl-spark-b", "sparkle", scene),
+					color: "#fde68a",
+					width: 0.045,
+					x: 0.87,
+					y: 0.1,
+				},
+			],
+			background: {
+				gradient: { angle: 170, from: "#f472b6", to: "#7c3aed" },
+				pattern: { color: "#ffffff", opacity: 0.05, scale: 0.9, type: "noise" },
+				type: "gradient",
+				value: "#f472b6",
+				via: "#fb923c",
+			},
+			device: {
+				...scene.device!,
+				glare: true,
+				groundShadow: true,
+				offsetY: 0.19,
+				rotation: -6,
+				rotationY: 16,
+				scale: 0.7,
+			},
+			textLayers: [
+				headline(
+					{
+						fontSize: Math.round(scene.height * 0.05),
+						shadowBlur: Math.round(scene.height * 0.01),
+						shadowColor: "#7c2d12",
+						shadowOffsetX: 0,
+						shadowOffsetY: Math.round(scene.height * 0.004),
+						text: "Own the night",
+						weight: 900,
+						y: 0.08,
+					},
+					scene.height,
+				),
+			],
+		};
+	},
+	description: "Vibrant sunset wash with glare and sparkles",
+	id: "sunset-blvd",
+	name: "Sunset Blvd",
+});
+
 /**
  * Apply a template while preserving the parts of the current scene the user
  * already invested in: the device screenshot and any loaded fonts.

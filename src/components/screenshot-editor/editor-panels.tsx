@@ -528,6 +528,8 @@ interface PropertiesPanelProps {
 	onDeleteAnnotation: (id: string) => void;
 	/** Copy the selected text layer's style onto every other text layer. */
 	onApplyTextStyleToAll?: (sourceId: string) => void;
+	/** Copy the selected annotation's style onto all of the same type. */
+	onApplyAnnotationStyleToAll?: (sourceId: string) => void;
 }
 
 /** Right-side contextual properties for the currently selected layer. */
@@ -545,6 +547,7 @@ export function PropertiesPanel({
 	onReplaceAnnotationImage,
 	onDeleteAnnotation,
 	onApplyTextStyleToAll,
+	onApplyAnnotationStyleToAll,
 }: PropertiesPanelProps) {
 	const selectedText = scene.textLayers.find((l) => l.id === selectedLayerId);
 	const selectedAnnotation = (scene.annotations ?? []).find(
@@ -607,6 +610,14 @@ export function PropertiesPanel({
 					<AnnotationProperties
 						annotation={selectedAnnotation}
 						onPatch={(patch) => onPatchAnnotation(selectedAnnotation.id, patch)}
+						onApplyStyleToAll={
+							onApplyAnnotationStyleToAll &&
+							(scene.annotations ?? []).filter(
+								(a) => a.type === selectedAnnotation.type,
+							).length > 1
+								? () => onApplyAnnotationStyleToAll(selectedAnnotation.id)
+								: undefined
+						}
 					/>
 				)}
 			{!selectedLayerId && (
@@ -2200,9 +2211,11 @@ function ShapeAnnotationProperties({
 function AnnotationProperties({
 	annotation,
 	onPatch,
+	onApplyStyleToAll,
 }: {
 	annotation: SceneTextAnnotation;
 	onPatch: (patch: Partial<SceneTextAnnotation>) => void;
+	onApplyStyleToAll?: () => void;
 }) {
 	const { label } = ANNOTATION_META[annotation.type];
 	return (
@@ -2368,6 +2381,18 @@ function AnnotationProperties({
 					Drag the bubble to move it. When the callout is selected, drag the
 					tip of its tail in the preview to point at a target.
 				</p>
+			)}
+
+			{onApplyStyleToAll && (
+				<Button
+					type="button"
+					variant="outline"
+					size="sm"
+					onClick={onApplyStyleToAll}
+				>
+					<CopyPlus className="h-4 w-4" />
+					Apply style to all {ANNOTATION_META[annotation.type].label.toLowerCase()}s
+				</Button>
 			)}
 
 			<div className="flex items-start gap-2 rounded-md border border-border/60 p-2.5">
