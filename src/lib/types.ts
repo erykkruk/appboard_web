@@ -580,9 +580,11 @@ export type SceneDeviceFrame =
 export type SceneDeviceColor = "black" | "silver";
 /**
  * Device rendering style: "realistic" draws metallic rails and platform
- * details; "clay" draws a flat matte body in an arbitrary color (clayColor).
+ * details; "clay" draws a flat matte body in an arbitrary color (clayColor);
+ * "photo" composites the screenshot into a photographic Apple product bezel
+ * (see `bezelId`).
  */
-export type SceneDeviceStyle = "realistic" | "clay";
+export type SceneDeviceStyle = "realistic" | "clay" | "photo";
 
 /** Gradient shape: linear (legacy default), radial or a soft multi-blob mesh. */
 export type SceneGradientType = "linear" | "radial" | "mesh";
@@ -646,6 +648,8 @@ export interface SceneDevice {
 	style?: SceneDeviceStyle;
 	/** Flat body color used when style is "clay". */
 	clayColor?: string;
+	/** Photographic bezel id from the DEVICE_BEZELS catalog ("photo" style). */
+	bezelId?: string;
 	/** Soft elliptical shadow on the "floor" under the device. */
 	groundShadow?: boolean;
 	/** Diagonal glass reflection over the screen. */

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { getDeviceBezel } from "@/lib/device-bezels";
 import type { SceneData } from "@/lib/types";
 
 export interface LoadedImage {
@@ -16,6 +17,8 @@ export interface LoadedImage {
 interface SceneImages {
 	background?: LoadedImage;
 	screenshot?: LoadedImage;
+	/** Photographic device bezel ("photo" device style, same-origin asset). */
+	bezel?: LoadedImage;
 	/** Decoded image-annotation sources keyed by annotation id. */
 	annotations?: Record<string, LoadedImage>;
 	/** True if any drawn image tainted the canvas (remote, no CORS headers). */
@@ -93,6 +96,10 @@ export function useSceneImages(
 
 	const backgroundSrc =
 		scene.background.type === "image" ? scene.background.value : undefined;
+	const bezelSrc =
+		scene.device?.style === "photo"
+			? getDeviceBezel(scene.device.bezelId).src
+			: undefined;
 	const annotations = scene.annotations;
 
 	useEffect(() => {
@@ -120,6 +127,16 @@ export function useSceneImages(
 					.catch(() => {}),
 			);
 		}
+		if (bezelSrc) {
+			// Same-origin /public asset — never taints the canvas.
+			tasks.push(
+				loadImageCached(bezelSrc)
+					.then((img) => {
+						next.bezel = img;
+					})
+					.catch(() => {}),
+			);
+		}
 		for (const annotation of annotations ?? []) {
 			if (annotation.type !== "image" || !annotation.url) continue;
 			const { id, url } = annotation;
@@ -140,7 +157,7 @@ export function useSceneImages(
 		return () => {
 			cancelled = true;
 		};
-	}, [backgroundSrc, screenshotSrc, annotations]);
+	}, [backgroundSrc, bezelSrc, screenshotSrc, annotations]);
 
 	return images;
 }

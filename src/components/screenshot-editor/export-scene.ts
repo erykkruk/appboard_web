@@ -1,3 +1,4 @@
+import { getDeviceBezel } from "@/lib/device-bezels";
 import { ensureSceneFontsLoaded } from "@/lib/scene-fonts";
 import type { SceneData } from "@/lib/types";
 
@@ -63,6 +64,11 @@ export async function exportSceneToPng(scene: SceneData): Promise<Blob | null> {
 	}
 	if (scene.screenshot?.url) {
 		images.screenshot = (await loadRenderImage(scene.screenshot.url)) ?? undefined;
+	}
+	if (scene.device?.style === "photo") {
+		images.bezel =
+			(await loadRenderImage(getDeviceBezel(scene.device.bezelId).src)) ??
+			undefined;
 	}
 	for (const annotation of scene.annotations ?? []) {
 		if (annotation.type !== "image" || !annotation.url) continue;

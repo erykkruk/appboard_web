@@ -195,6 +195,13 @@ export function ScreenshotEditorDialog({
 						height: loaded.screenshot.height,
 					}
 				: undefined,
+			bezel: loaded.bezel
+				? {
+						source: loaded.bezel.element,
+						width: loaded.bezel.width,
+						height: loaded.bezel.height,
+					}
+				: undefined,
 			annotations: loaded.annotations
 				? Object.fromEntries(
 						Object.entries(loaded.annotations).map(([id, img]) => [
@@ -208,7 +215,7 @@ export function ScreenshotEditorDialog({
 					)
 				: undefined,
 		}),
-		[loaded.background, loaded.screenshot, loaded.annotations],
+		[loaded.background, loaded.screenshot, loaded.bezel, loaded.annotations],
 	);
 	// Current per-panel export dimensions, derived from the scene itself so the
 	// header and uploads always match the real canvas (orientation-aware).

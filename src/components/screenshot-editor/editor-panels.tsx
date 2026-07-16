@@ -26,6 +26,7 @@ import {
 	BACKGROUND_PRESETS,
 	cssPreviewForBackground,
 } from "@/lib/background-presets";
+import { DEFAULT_BEZEL_ID, DEVICE_BEZELS } from "@/lib/device-bezels";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -1041,7 +1042,14 @@ function DeviceProperties({
 							value={device.style ?? "realistic"}
 							onValueChange={(style) =>
 								onPatchScene({
-									device: { ...device, style: style as SceneDeviceStyle },
+									device: {
+										...device,
+										bezelId:
+											style === "photo"
+												? (device.bezelId ?? DEFAULT_BEZEL_ID)
+												: device.bezelId,
+										style: style as SceneDeviceStyle,
+									},
 								})
 							}
 						>
@@ -1049,11 +1057,38 @@ function DeviceProperties({
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
-								<SelectItem value="realistic">Realistic</SelectItem>
+								<SelectItem value="photo">Photo (real iPhone)</SelectItem>
+								<SelectItem value="realistic">Realistic (drawn)</SelectItem>
 								<SelectItem value="clay">Clay (custom color)</SelectItem>
 							</SelectContent>
 						</Select>
 					</div>
+
+					{device.style === "photo" && (
+						<div className="flex flex-col gap-1.5">
+							<Label className="text-xs">Model</Label>
+							<Select
+								value={device.bezelId ?? DEFAULT_BEZEL_ID}
+								onValueChange={(bezelId) =>
+									onPatchScene({ device: { ...device, bezelId } })
+								}
+							>
+								<SelectTrigger>
+									<SelectValue />
+								</SelectTrigger>
+								<SelectContent>
+									{DEVICE_BEZELS.map((bezel) => (
+										<SelectItem key={bezel.id} value={bezel.id}>
+											{bezel.label}
+										</SelectItem>
+									))}
+								</SelectContent>
+							</Select>
+							<p className="text-[10px] text-muted-foreground">
+								Official Apple product bezels (developer.apple.com/design).
+							</p>
+						</div>
+					)}
 
 					{(device.style ?? "realistic") === "clay" ? (
 						<ColorField
@@ -1063,7 +1098,7 @@ function DeviceProperties({
 								onPatchScene({ device: { ...device, clayColor } })
 							}
 						/>
-					) : (
+					) : device.style === "photo" ? null : (
 						<div className="flex flex-col gap-1.5">
 							<Label className="text-xs">Frame color</Label>
 							<Select

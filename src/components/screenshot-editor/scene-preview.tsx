@@ -39,6 +39,13 @@ export function ScenePreview({ scene, className }: ScenePreviewProps) {
 						height: loaded.screenshot.height,
 					}
 				: undefined,
+			bezel: loaded.bezel
+				? {
+						source: loaded.bezel.element,
+						width: loaded.bezel.width,
+						height: loaded.bezel.height,
+					}
+				: undefined,
 			annotations: loaded.annotations
 				? Object.fromEntries(
 						Object.entries(loaded.annotations).map(([id, img]) => [
@@ -52,7 +59,7 @@ export function ScenePreview({ scene, className }: ScenePreviewProps) {
 					)
 				: undefined,
 		}),
-		[loaded.background, loaded.screenshot, loaded.annotations],
+		[loaded.background, loaded.screenshot, loaded.bezel, loaded.annotations],
 	);
 
 	// Re-render once the scene's custom fonts finish loading so the thumbnail

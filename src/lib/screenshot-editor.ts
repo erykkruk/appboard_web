@@ -1,3 +1,4 @@
+import { getDeviceBezel } from "@/lib/device-bezels";
 import { projectRectCorners, quadBounds } from "@/lib/perspective";
 import type {
 	SceneAnnotation,
@@ -214,6 +215,20 @@ export function deviceBodyAspect(frame: SceneDeviceFrame): number {
 }
 
 /**
+ * Aspect (height / width) of the device as configured: photographic bezels
+ * carry their own asset aspect; programmatic frames use the per-frame table.
+ */
+export function deviceAspect(
+	device: NonNullable<SceneData["device"]>,
+): number {
+	if (device.style === "photo") {
+		const bezel = getDeviceBezel(device.bezelId);
+		return bezel.height / bezel.width;
+	}
+	return deviceBodyAspect(device.frame);
+}
+
+/**
  * Compute the on-canvas pixel rect of the device frame from the scene's device
  * config. `scale` is the fraction of canvas width the frame spans; `offsetX/Y`
  * are fractions of canvas size from center. Pure — drives both render and tests.
@@ -224,7 +239,7 @@ export function computeDeviceRect(scene: SceneData): Rect | null {
 	// In panorama mode `scale` stays a fraction of ONE panel's width, so the
 	// frame keeps its size when the canvas widens to N panels.
 	const frameWidth = (scene.width / getPanelCount(scene)) * scale;
-	const frameHeight = frameWidth * deviceBodyAspect(scene.device.frame);
+	const frameHeight = frameWidth * deviceAspect(scene.device);
 	const centerX = scene.width / 2 + offsetX * scene.width;
 	const centerY = scene.height / 2 + offsetY * scene.height;
 	return {

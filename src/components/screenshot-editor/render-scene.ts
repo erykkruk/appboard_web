@@ -1,3 +1,4 @@
+import { getDeviceBezel } from "@/lib/device-bezels";
 import {
 	drawImageToQuad,
 	projectRectCorners,
@@ -36,6 +37,8 @@ export interface RenderImage {
 export interface RenderImages {
 	background?: RenderImage;
 	screenshot?: RenderImage;
+	/** Photographic device bezel PNG ("photo" device style). */
+	bezel?: RenderImage;
 	/** Decoded image-annotation sources keyed by annotation id. */
 	annotations?: Record<string, RenderImage | undefined>;
 }
@@ -519,6 +522,12 @@ function paintDevice(
 ): void {
 	const device = scene.device;
 	if (!device) return;
+	// Photographic bezel wins over programmatic frames; falls back to the
+	// realistic painter while the bezel PNG is still decoding.
+	if (device.style === "photo" && images.bezel) {
+		paintPhotoDevice(ctx, scene, images, frame);
+		return;
+	}
 	switch (device.frame) {
 		case "ipad":
 		case "android-tablet":
@@ -533,6 +542,49 @@ function paintDevice(
 		default:
 			paintPhone(ctx, scene, images, frame, device);
 	}
+}
+
+/**
+ * Photographic device: the screenshot is drawn into the bezel's measured
+ * screen cutout, then the bezel PNG is composited on top. The cutout is
+ * transparent in the asset, so its rounded corners and the Dynamic Island
+ * come from the photo itself — pixel-real, no programmatic drawing.
+ */
+function paintPhotoDevice(
+	ctx: CanvasRenderingContext2D,
+	scene: SceneData,
+	images: RenderImages,
+	frame: Rect,
+): void {
+	const bezelImage = images.bezel;
+	if (!bezelImage || !scene.device) return;
+	const bezel = getDeviceBezel(scene.device.bezelId);
+	const screen: Rect = {
+		x: frame.x + bezel.screen.x * frame.width,
+		y: frame.y + bezel.screen.y * frame.height,
+		width: bezel.screen.w * frame.width,
+		height: bezel.screen.h * frame.height,
+	};
+	// A soft drop shadow behind the whole bezel grounds it like the
+	// programmatic frames (the PNG itself ships without one).
+	ctx.save();
+	ctx.shadowColor = "rgba(0,0,0,0.35)";
+	ctx.shadowBlur = frame.width * 0.05;
+	ctx.shadowOffsetY = frame.width * 0.02;
+	// The shadow needs an opaque shape: fill the screen rect (fully covered by
+	// the screenshot + bezel afterwards).
+	ctx.fillStyle = "#000000";
+	ctx.fillRect(screen.x, screen.y, screen.width, screen.height);
+	ctx.restore();
+
+	paintScreen(ctx, scene, images, screen, frame.width * 0.001);
+	ctx.drawImage(
+		bezelImage.source,
+		frame.x,
+		frame.y,
+		frame.width,
+		frame.height,
+	);
 }
 
 /** Fill the screen rect (rounded, clipped) with the screenshot or placeholder. */

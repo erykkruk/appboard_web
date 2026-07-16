@@ -11,6 +11,7 @@ import {
 	createImageAnnotation,
 	createShapeAnnotation,
 	defaultFrameForDisplayType,
+	deviceAspect,
 	getDisplayTypeLabel,
 	getPanelCount,
 	getSceneOrientation,
@@ -739,5 +740,37 @@ describe("orientation", () => {
 		const panorama = applyPanelCount(landscape, "APP_IPHONE_67", 3);
 		expect(panorama.height).toBe(1290);
 		expect(panorama.width).toBe(2796 * 3);
+	});
+});
+
+describe("deviceAspect (photo bezels)", () => {
+	test("photo style uses the bezel asset aspect", () => {
+		const aspect = deviceAspect({
+			bezelId: "iphone-17-pro-max-deep-blue",
+			frame: "iphone",
+			offsetX: 0,
+			offsetY: 0,
+			scale: 0.7,
+			style: "photo",
+		});
+		expect(aspect).toBeCloseTo(3000 / 1470);
+	});
+
+	test("unknown bezel id falls back to the default bezel", () => {
+		const fallback = deviceAspect({
+			bezelId: "does-not-exist",
+			frame: "iphone",
+			offsetX: 0,
+			offsetY: 0,
+			scale: 0.7,
+			style: "photo",
+		});
+		expect(fallback).toBeCloseTo(3000 / 1470);
+	});
+
+	test("non-photo styles keep the programmatic frame aspect", () => {
+		expect(
+			deviceAspect({ frame: "iphone", offsetX: 0, offsetY: 0, scale: 0.7 }),
+		).toBeCloseTo(2.05);
 	});
 });
