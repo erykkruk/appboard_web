@@ -1,8 +1,12 @@
 import {
+	applyOrientation,
 	applyPanelCount,
 	createDefaultScene,
 	createShapeAnnotation,
+	getPanelCount,
+	getSceneOrientation,
 	getTargetDimensions,
+	type SceneOrientation,
 } from "@/lib/screenshot-editor";
 import type { SceneData, SceneTextLayer } from "@/lib/types";
 
@@ -885,8 +889,65 @@ SCENE_TEMPLATES.push({
 });
 
 /**
+ * Re-layout a single-panel template onto an N-panel panorama: the canvas
+ * keeps its panel count and orientation, the background spans everything,
+ * the device lands on the center panel and every panel gets its own editable
+ * copy of the template's text layers. Annotations stay on the center panel.
+ */
+function adaptTemplateToPanorama(
+	scene: SceneData,
+	displayType: string,
+	panels: number,
+	orientation: SceneOrientation,
+): SceneData {
+	const resized = applyOrientation(
+		applyPanelCount(scene, displayType, panels),
+		displayType,
+		orientation,
+	);
+	const centerPanel = Math.floor((panels - 1) / 2);
+	const toPanelX = (x: number, panel: number) => (panel + x) / panels;
+
+	// Device offsets are fractions of the FULL canvas; re-anchor the template's
+	// single-panel offset inside the center panel.
+	const device = resized.device
+		? {
+				...resized.device,
+				offsetX:
+					(centerPanel + 0.5) / panels -
+					0.5 +
+					(resized.device.offsetX ?? 0) / panels,
+			}
+		: undefined;
+
+	const textLayers = resized.textLayers.flatMap((layer) => {
+		const copies: SceneTextLayer[] = [];
+		for (let panel = 0; panel < panels; panel++) {
+			copies.push({
+				...layer,
+				id: panel === centerPanel ? layer.id : `${layer.id}-p${panel}`,
+				x: toPanelX(layer.x, panel),
+			});
+		}
+		return copies;
+	});
+
+	const annotations = resized.annotations?.map((annotation) => {
+		const moved = { ...annotation, x: toPanelX(annotation.x, centerPanel) };
+		if (moved.type === "callout") {
+			moved.targetX = toPanelX(moved.targetX, centerPanel);
+		}
+		return moved;
+	});
+
+	return { ...resized, annotations, device, textLayers };
+}
+
+/**
  * Apply a template while preserving the parts of the current scene the user
- * already invested in: the device screenshot and any loaded fonts.
+ * already invested in: the device screenshot, loaded fonts and — for
+ * panoramas — the panel count and orientation (the template re-flows across
+ * all panels instead of collapsing the canvas back to one screenshot).
  */
 export function applyTemplate(
 	template: SceneTemplate,
@@ -895,7 +956,7 @@ export function applyTemplate(
 ): SceneData {
 	const built = template.build(displayType);
 	const [width] = getTargetDimensions(displayType);
-	return {
+	const scene: SceneData = {
 		...built,
 		customFonts: current.customFonts,
 		googleFonts: current.googleFonts,
@@ -903,4 +964,14 @@ export function applyTemplate(
 		// Safety: template width must stay a multiple of the target width.
 		width: built.width || width,
 	};
+	const panels = getPanelCount(current);
+	if (panels > 1 && getPanelCount(built) === 1) {
+		return adaptTemplateToPanorama(
+			scene,
+			displayType,
+			panels,
+			getSceneOrientation(current),
+		);
+	}
+	return scene;
 }

@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { getTargetDimensions } from "@/lib/screenshot-editor";
+import { applyPanelCount, getTargetDimensions } from "@/lib/screenshot-editor";
 import { applyTemplate, SCENE_TEMPLATES } from "@/lib/scene-templates";
 
 const DISPLAY_TYPES = ["APP_IPHONE_67", "APP_IPAD_PRO_129", "phone", "tenInch"];
@@ -53,5 +53,70 @@ describe("applyTemplate", () => {
 		expect(next.background).toEqual(
 			SCENE_TEMPLATES[1].build("APP_IPHONE_67").background,
 		);
+	});
+});
+
+describe("applyTemplate (panorama-aware)", () => {
+	function panoramaCurrent(panels: number) {
+		const base = SCENE_TEMPLATES[0].build("APP_IPHONE_67");
+		return applyPanelCount(base, "APP_IPHONE_67", panels);
+	}
+
+	test("keeps the current panel count and canvas width", () => {
+		const next = applyTemplate(
+			SCENE_TEMPLATES.find((t) => t.id === "ascent-topo")!,
+			panoramaCurrent(5),
+			"APP_IPHONE_67",
+		);
+		expect(next.panels).toBe(5);
+		expect(next.width).toBe(1290 * 5);
+		expect(next.height).toBe(2796);
+	});
+
+	test("replicates text layers onto every panel with unique ids", () => {
+		const template = SCENE_TEMPLATES.find((t) => t.id === "ascent-topo")!;
+		const perPanel = template.build("APP_IPHONE_67").textLayers.length;
+		const next = applyTemplate(template, panoramaCurrent(5), "APP_IPHONE_67");
+		expect(next.textLayers.length).toBe(perPanel * 5);
+		expect(new Set(next.textLayers.map((l) => l.id)).size).toBe(
+			next.textLayers.length,
+		);
+		// Panel centers: x of the first layer's copies land at (p + x0) / 5.
+		const x0 = template.build("APP_IPHONE_67").textLayers[0].x;
+		const xs = next.textLayers.map((l) => l.x);
+		expect(xs).toContain((0 + x0) / 5);
+		expect(xs).toContain((4 + x0) / 5);
+	});
+
+	test("centers the device on the middle panel (odd panel count)", () => {
+		const next = applyTemplate(
+			SCENE_TEMPLATES.find((t) => t.id === "minimal-dark")!,
+			panoramaCurrent(5),
+			"APP_IPHONE_67",
+		);
+		// Template offsetX 0 → center panel of 5 is index 2 → full-canvas center.
+		expect(next.device?.offsetX ?? 0).toBeCloseTo(0);
+		const four = applyTemplate(
+			SCENE_TEMPLATES.find((t) => t.id === "minimal-dark")!,
+			panoramaCurrent(4),
+			"APP_IPHONE_67",
+		);
+		// Center panel of 4 is index 1 → its middle sits at -0.125 of the canvas.
+		expect(four.device?.offsetX ?? 0).toBeCloseTo(-0.125);
+	});
+
+	test("panorama-native templates are not re-adapted", () => {
+		const duo = SCENE_TEMPLATES.find((t) => t.id === "panorama-duo")!;
+		const next = applyTemplate(duo, panoramaCurrent(5), "APP_IPHONE_67");
+		expect(next.panels).toBe(2);
+		expect(next.width).toBe(1290 * 2);
+	});
+
+	test("single-panel current scenes keep the plain template", () => {
+		const template = SCENE_TEMPLATES.find((t) => t.id === "ascent-topo")!;
+		const single = template.build("APP_IPHONE_67");
+		const next = applyTemplate(template, single, "APP_IPHONE_67");
+		expect(next.panels ?? 1).toBe(1);
+		expect(next.textLayers.length).toBe(single.textLayers.length);
 	});
 });
