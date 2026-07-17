@@ -1,7 +1,14 @@
 import { describe, expect, test } from "bun:test";
 
 import { applyPanelCount, getTargetDimensions } from "@/lib/screenshot-editor";
-import { applyTemplate, SCENE_TEMPLATES } from "@/lib/scene-templates";
+import {
+	applyPanoramaTemplate,
+	applyTemplate,
+	getPanoramaTemplate,
+	PANORAMA_TEMPLATE_VARIANTS,
+	PANORAMA_TEMPLATES,
+	SCENE_TEMPLATES,
+} from "@/lib/scene-templates";
 
 const DISPLAY_TYPES = ["APP_IPHONE_67", "APP_IPAD_PRO_129", "phone", "tenInch"];
 
@@ -118,5 +125,48 @@ describe("applyTemplate (panorama-aware)", () => {
 		const next = applyTemplate(template, single, "APP_IPHONE_67");
 		expect(next.panels ?? 1).toBe(1);
 		expect(next.textLayers.length).toBe(single.textLayers.length);
+	});
+});
+
+describe("PANORAMA_TEMPLATES", () => {
+	test("every template builds valid scenes at 4, 6 and 8 panels", () => {
+		for (const template of PANORAMA_TEMPLATES) {
+			for (const panels of [4, 6, 8]) {
+				const scene = template.build("APP_IPHONE_67", panels);
+				expect(scene.panels).toBe(panels);
+				expect(scene.width).toBe(1290 * panels);
+				// A designed headline on every panel, each with a unique id.
+				expect(scene.textLayers.length).toBeGreaterThanOrEqual(panels);
+				expect(new Set(scene.textLayers.map((l) => l.id)).size).toBe(
+					scene.textLayers.length,
+				);
+			}
+		}
+	});
+
+	test("variant list matches the requested lineup (3×4, 5×6, 2×8)", () => {
+		const counts = PANORAMA_TEMPLATE_VARIANTS.reduce<Record<number, number>>(
+			(acc, v) => {
+				acc[v.panels] = (acc[v.panels] ?? 0) + 1;
+				return acc;
+			},
+			{},
+		);
+		expect(counts[4]).toBe(3);
+		expect(counts[6]).toBe(5);
+		expect(counts[8]).toBe(2);
+		for (const variant of PANORAMA_TEMPLATE_VARIANTS) {
+			expect(getPanoramaTemplate(variant.templateId)).toBeDefined();
+		}
+	});
+
+	test("applyPanoramaTemplate keeps screenshot and switches panel count", () => {
+		const current = SCENE_TEMPLATES[0].build("APP_IPHONE_67");
+		current.screenshot = { url: "data:image/png;base64,abc" };
+		const template = getPanoramaTemplate("pano-aurora-flow")!;
+		const next = applyPanoramaTemplate(template, 6, current, "APP_IPHONE_67");
+		expect(next.panels).toBe(6);
+		expect(next.width).toBe(1290 * 6);
+		expect(next.screenshot?.url).toBe("data:image/png;base64,abc");
 	});
 });

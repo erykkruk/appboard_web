@@ -68,7 +68,11 @@ import {
 } from "@/lib/screenshot-editor";
 import { buildDimensionMessage } from "@/lib/screenshot-validation";
 import {
+	applyPanoramaTemplate,
 	applyTemplate,
+	getPanoramaTemplate,
+	PANORAMA_TEMPLATE_VARIANTS,
+	type PanoramaTemplate,
 	SCENE_TEMPLATES,
 	type SceneTemplate,
 } from "@/lib/scene-templates";
@@ -805,6 +809,20 @@ export function ScreenshotEditorDialog({
 		[displayType, setScene],
 	);
 
+	const handleApplyPanoramaTemplate = useCallback(
+		(template: PanoramaTemplate, targetPanels: number) => {
+			setScene((prev) =>
+				applyPanoramaTemplate(template, targetPanels, prev, displayType),
+			);
+			setSelectedLayerId("__device");
+			setTemplatesOpen(false);
+			toast.success(
+				`Panorama "${template.name}" ×${targetPanels} applied`,
+			);
+		},
+		[displayType, setScene],
+	);
+
 	const panels = getPanelCount(scene);
 
 	const handlePanelsChange = useCallback(
@@ -1120,6 +1138,7 @@ export function ScreenshotEditorDialog({
 					onOpenChange={setTemplatesOpen}
 					displayType={displayType}
 					onPick={handleApplyTemplate}
+					onPickPanorama={handleApplyPanoramaTemplate}
 				/>
 
 				<GoogleFontDialog
@@ -1143,11 +1162,13 @@ function TemplateGalleryDialog({
 	onOpenChange,
 	displayType,
 	onPick,
+	onPickPanorama,
 }: {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	displayType: string;
 	onPick: (template: SceneTemplate) => void;
+	onPickPanorama: (template: PanoramaTemplate, panels: number) => void;
 }) {
 	// Build preview scenes lazily — only while the dialog is open.
 	const previews = useMemo(
@@ -1160,9 +1181,27 @@ function TemplateGalleryDialog({
 				: [],
 		[open, displayType],
 	);
+	// Curated panorama variants (×4 / ×6 / ×8), previewed at their real width.
+	const panoramaPreviews = useMemo(
+		() =>
+			open
+				? PANORAMA_TEMPLATE_VARIANTS.flatMap((variant) => {
+						const template = getPanoramaTemplate(variant.templateId);
+						if (!template) return [];
+						return [
+							{
+								panels: variant.panels,
+								scene: template.build(displayType, variant.panels),
+								template,
+							},
+						];
+					})
+				: [],
+		[open, displayType],
+	);
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className="max-w-4xl">
+			<DialogContent className="max-w-5xl">
 				<DialogHeader>
 					<DialogTitle>Scene templates</DialogTitle>
 				</DialogHeader>
@@ -1170,21 +1209,52 @@ function TemplateGalleryDialog({
 					Applying a template replaces the current layout. Your screenshot and
 					fonts are kept.
 				</p>
-				<div className="grid max-h-[65vh] grid-cols-2 gap-3 overflow-y-auto p-1 sm:grid-cols-4">
-					{previews.map(({ template, scene }) => (
-						<button
-							key={template.id}
-							type="button"
-							onClick={() => onPick(template)}
-							className="group flex flex-col items-center gap-1.5 rounded-lg border border-border p-2 transition-colors hover:border-primary hover:bg-accent/40"
-						>
-							<ScenePreview scene={scene} className="max-h-56" />
-							<span className="text-xs font-medium">{template.name}</span>
-							<span className="text-center text-[10px] text-muted-foreground">
-								{template.description}
-							</span>
-						</button>
-					))}
+				<div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-1">
+					<div>
+						<h4 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+							Panorama layouts (whole listing strip)
+						</h4>
+						<div className="flex flex-col gap-2">
+							{panoramaPreviews.map(({ template, panels: n, scene }) => (
+								<button
+									key={`${template.id}-x${n}`}
+									type="button"
+									onClick={() => onPickPanorama(template, n)}
+									className="group flex flex-col items-center gap-1.5 rounded-lg border border-border p-2 transition-colors hover:border-primary hover:bg-accent/40"
+								>
+									<ScenePreview scene={scene} className="max-h-40" />
+									<span className="text-xs font-medium">
+										{template.name} · ×{n}
+									</span>
+									<span className="text-center text-[10px] text-muted-foreground">
+										{template.description}
+									</span>
+								</button>
+							))}
+						</div>
+					</div>
+
+					<div>
+						<h4 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+							Single screenshot
+						</h4>
+						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+							{previews.map(({ template, scene }) => (
+								<button
+									key={template.id}
+									type="button"
+									onClick={() => onPick(template)}
+									className="group flex flex-col items-center gap-1.5 rounded-lg border border-border p-2 transition-colors hover:border-primary hover:bg-accent/40"
+								>
+									<ScenePreview scene={scene} className="max-h-56" />
+									<span className="text-xs font-medium">{template.name}</span>
+									<span className="text-center text-[10px] text-muted-foreground">
+										{template.description}
+									</span>
+								</button>
+							))}
+						</div>
+					</div>
 				</div>
 			</DialogContent>
 		</Dialog>

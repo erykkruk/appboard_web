@@ -888,6 +888,436 @@ SCENE_TEMPLATES.push({
 	name: "Pinecrest",
 });
 
+// ---------------------------------------------------------------------------
+// Panorama templates — designed for the FULL multi-panel canvas: a continuous
+// background, per-panel copy that tells a story, and a device anchored where
+// the layout wants it. They adapt to the scene's current panel count (2–8).
+// ---------------------------------------------------------------------------
+
+export interface PanoramaTemplate {
+	id: string;
+	name: string;
+	description: string;
+	build: (displayType: string, panels: number) => SceneData;
+}
+
+/** X of a point inside panel `panel` (0-based), both normalized. */
+const panelX = (panel: number, x: number, panels: number) =>
+	(panel + x) / panels;
+
+/** Device offsetX that centers the device on panel `panel`. */
+const deviceOffsetForPanel = (panel: number, panels: number) =>
+	(panel + 0.5) / panels - 0.5;
+
+/** Cycle per-panel copy when the panorama has more panels than lines. */
+const copyAt = <T>(lines: T[], index: number): T => lines[index % lines.length];
+
+export const PANORAMA_TEMPLATES: PanoramaTemplate[] = [
+	{
+		build: (displayType, panels) => {
+			const base = applyPanelCount(
+				createDefaultScene(displayType),
+				displayType,
+				panels,
+			);
+			const height = base.height;
+			const heads = [
+				"Meet your new\nfavorite app",
+				"Plan your day",
+				"Track progress",
+				"Share with friends",
+				"Sync everywhere",
+				"Stay in flow",
+				"Unlock insights",
+				"Start free",
+			];
+			const textLayers: SceneTextLayer[] = [];
+			for (let p = 0; p < panels; p++) {
+				textLayers.push(
+					headline(
+						{
+							fontSize: Math.round(height * (p === 0 ? 0.05 : 0.042)),
+							id: `pano-head-${p}`,
+							text: copyAt(heads, p),
+							x: panelX(p, 0.5, panels),
+							y: p === 0 ? 0.08 : 0.1,
+						},
+						height,
+					),
+				);
+			}
+			return {
+				...base,
+				annotations: [
+					{
+						...createShapeAnnotation("pano-arrow", "arrow", base),
+						color: "#fde047",
+						width: 0.5 / panels,
+						x: panelX(0, 0.95, panels),
+						y: 0.24,
+					},
+					{
+						...createShapeAnnotation("pano-spark", "sparkle", base),
+						color: "#fde047",
+						width: 0.24 / panels,
+						x: panelX(panels - 1, 0.8, panels),
+						y: 0.08,
+					},
+				],
+				background: {
+					gradient: { angle: 0, from: "#4c1d95", to: "#8b5cf6" },
+					gradientType: "mesh",
+					mesh: ["#8b5cf6", "#ec4899", "#312e81", "#7c3aed"],
+					type: "gradient",
+					value: "#4c1d95",
+				},
+				device: {
+					...base.device!,
+					groundShadow: true,
+					offsetX: deviceOffsetForPanel(0, panels),
+					offsetY: 0.2,
+					rotationY: -14,
+					scale: 0.7,
+				},
+				textLayers,
+			};
+		},
+		description: "Violet mesh across all panels, story headline per panel",
+		id: "pano-aurora-flow",
+		name: "Aurora flow",
+	},
+	{
+		build: (displayType, panels) => {
+			const base = applyPanelCount(
+				createDefaultScene(displayType),
+				displayType,
+				panels,
+			);
+			const height = base.height;
+			const center = Math.floor((panels - 1) / 2);
+			const heads = [
+				"Capture",
+				"Organize",
+				"Focus",
+				"Automate",
+				"Review",
+				"Relax",
+				"Repeat",
+				"Master it",
+			];
+			const textLayers: SceneTextLayer[] = [];
+			const annotations: SceneData["annotations"] = [];
+			for (let p = 0; p < panels; p++) {
+				textLayers.push(
+					headline(
+						{
+							color: "#f9fafb",
+							fontSize: Math.round(height * 0.042),
+							id: `pano-head-${p}`,
+							text: copyAt(heads, p),
+							x: panelX(p, 0.5, panels),
+							y: 0.09,
+						},
+						height,
+					),
+				);
+				annotations.push({
+					bg: "#164e63",
+					color: "#cffafe",
+					fontFamily: '"Courier New", monospace',
+					fontSize: Math.round(height * 0.02),
+					id: `pano-step-${p}`,
+					text: `0${p + 1}`,
+					type: "badge",
+					weight: 700,
+					x: panelX(p, 0.5, panels),
+					y: 0.155,
+				});
+			}
+			return {
+				...base,
+				annotations,
+				background: {
+					pattern: { color: "#ffffff", opacity: 0.08, scale: 0.8, type: "dots" },
+					type: "color",
+					value: "#0b1120",
+				},
+				device: {
+					...base.device!,
+					color: "black",
+					glare: true,
+					groundShadow: true,
+					offsetX: deviceOffsetForPanel(center, panels),
+					offsetY: 0.22,
+					rotationY: 10,
+					scale: 0.68,
+				},
+				textLayers,
+			};
+		},
+		description: "Dark dotted tour — numbered step on every panel",
+		id: "pano-midnight-tour",
+		name: "Midnight tour",
+	},
+	{
+		build: (displayType, panels) => {
+			const base = applyPanelCount(
+				createDefaultScene(displayType),
+				displayType,
+				panels,
+			);
+			const height = base.height;
+			const last = panels - 1;
+			const heads = [
+				"Adventure\nstarts here",
+				"Offline maps",
+				"Mark the trail",
+				"Camp smart",
+				"Summit views",
+				"Back safe",
+				"Relive it",
+				"Get the app",
+			];
+			const textLayers: SceneTextLayer[] = [];
+			for (let p = 0; p < panels; p++) {
+				const isLast = p === last;
+				textLayers.push(
+					headline(
+						{
+							color: "#5b2d0e",
+							fontSize: Math.round(height * (isLast ? 0.05 : 0.042)),
+							id: `pano-head-${p}`,
+							text: isLast ? "Get the app" : copyAt(heads, p),
+							x: panelX(p, 0.5, panels),
+							y: p === 0 ? 0.08 : 0.1,
+						},
+						height,
+					),
+				);
+			}
+			return {
+				...base,
+				annotations: [
+					{
+						...createShapeAnnotation("pano-squiggle", "squiggle", base),
+						color: "#9a3412",
+						width: 0.6 / panels,
+						x: panelX(0, 0.5, panels),
+						y: 0.155,
+					},
+					{
+						...createShapeAnnotation("pano-star", "rating", base),
+						color: "#9a3412",
+						width: 0.7 / panels,
+						x: panelX(last, 0.5, panels),
+						y: 0.17,
+					},
+				],
+				background: {
+					gradient: { angle: 180, from: "#fbd7a1", to: "#c2662d" },
+					pattern: { color: "#9a4a1b", opacity: 0.45, scale: 1.6, type: "dunes" },
+					type: "gradient",
+					value: "#fbd7a1",
+				},
+				device: {
+					...base.device!,
+					clayColor: "#f3e0c7",
+					groundShadow: true,
+					offsetX: deviceOffsetForPanel(last, panels),
+					offsetY: 0.24,
+					rotation: -4,
+					scale: 0.64,
+					style: "clay",
+				},
+				textLayers,
+			};
+		},
+		description: "Dune landscape journey ending in a call-to-action",
+		id: "pano-sahara-journey",
+		name: "Sahara journey",
+	},
+];
+
+PANORAMA_TEMPLATES.push(
+	{
+		build: (displayType, panels) => {
+			const base = applyPanelCount(
+				createDefaultScene(displayType),
+				displayType,
+				panels,
+			);
+			const height = base.height;
+			const heads = [
+				"Go further",
+				"Climb higher",
+				"Breathe deep",
+				"Own the trail",
+				"Beat your best",
+				"Track the wild",
+				"Never lost",
+				"Reach the top",
+			];
+			const textLayers: SceneTextLayer[] = [];
+			for (let p = 0; p < panels; p++) {
+				textLayers.push(
+					headline(
+						{
+							accentColor: "#facc15",
+							accentWords: copyAt(heads, p).split(/\s+/).slice(-1)[0],
+							fontSize: Math.round(height * 0.044),
+							id: `pano-head-${p}`,
+							text: copyAt(heads, p),
+							weight: 900,
+							x: panelX(p, 0.5, panels),
+							y: 0.09,
+						},
+						height,
+					),
+				);
+			}
+			return {
+				...base,
+				background: {
+					pattern: { color: "#facc15", opacity: 0.15, scale: 1.6, type: "topo" },
+					type: "color",
+					value: "#1c1917",
+				},
+				device: {
+					...base.device!,
+					groundShadow: true,
+					offsetX: deviceOffsetForPanel(1 % panels, panels),
+					offsetY: 0.22,
+					rotationY: -10,
+					scale: 0.68,
+				},
+				textLayers,
+			};
+		},
+		description: "Topographic ridge spanning every panel, bold accents",
+		id: "pano-ascent-ridge",
+		name: "Ascent ridge",
+	},
+	{
+		build: (displayType, panels) => {
+			const base = applyPanelCount(
+				createDefaultScene(displayType),
+				displayType,
+				panels,
+			);
+			const height = base.height;
+			const center = Math.floor((panels - 1) / 2);
+			const heads = [
+				"Own the night",
+				"Lights on",
+				"Front row",
+				"Late sessions",
+				"Your playlist",
+				"After hours",
+				"Encore",
+				"Join in",
+			];
+			const textLayers: SceneTextLayer[] = [];
+			const annotations: SceneData["annotations"] = [];
+			for (let p = 0; p < panels; p++) {
+				textLayers.push(
+					headline(
+						{
+							fontSize: Math.round(height * 0.044),
+							id: `pano-head-${p}`,
+							shadowBlur: Math.round(height * 0.008),
+							shadowColor: "#7c2d12",
+							shadowOffsetX: 0,
+							shadowOffsetY: Math.round(height * 0.003),
+							text: copyAt(heads, p),
+							weight: 900,
+							x: panelX(p, 0.5, panels),
+							y: 0.09,
+						},
+						height,
+					),
+				);
+				if (p !== center) {
+					annotations.push({
+						...createShapeAnnotation(`pano-spark-${p}`, "sparkle", base),
+						color: p % 2 === 0 ? "#fff7ed" : "#fde68a",
+						width: 0.2 / panels,
+						x: panelX(p, p % 2 === 0 ? 0.2 : 0.8, panels),
+						y: 0.17,
+					});
+				}
+			}
+			return {
+				...base,
+				annotations,
+				background: {
+					gradient: { angle: 170, from: "#f472b6", to: "#7c3aed" },
+					pattern: { color: "#ffffff", opacity: 0.05, scale: 0.9, type: "noise" },
+					type: "gradient",
+					value: "#f472b6",
+					via: "#fb923c",
+				},
+				device: {
+					...base.device!,
+					glare: true,
+					groundShadow: true,
+					offsetX: deviceOffsetForPanel(center, panels),
+					offsetY: 0.2,
+					rotation: -5,
+					rotationY: 14,
+					scale: 0.7,
+				},
+				textLayers,
+			};
+		},
+		description: "Sunset wash with sparkles on every side panel",
+		id: "pano-sunset-strip",
+		name: "Sunset strip",
+	},
+);
+
+/**
+ * Curated panorama gallery: a few ×4, five ×6 and two ×8 layouts. Applying a
+ * variant switches the scene to that panel count.
+ */
+export const PANORAMA_TEMPLATE_VARIANTS: {
+	templateId: string;
+	panels: number;
+}[] = [
+	{ panels: 4, templateId: "pano-aurora-flow" },
+	{ panels: 4, templateId: "pano-midnight-tour" },
+	{ panels: 4, templateId: "pano-sahara-journey" },
+	{ panels: 6, templateId: "pano-aurora-flow" },
+	{ panels: 6, templateId: "pano-midnight-tour" },
+	{ panels: 6, templateId: "pano-sahara-journey" },
+	{ panels: 6, templateId: "pano-ascent-ridge" },
+	{ panels: 6, templateId: "pano-sunset-strip" },
+	{ panels: 8, templateId: "pano-aurora-flow" },
+	{ panels: 8, templateId: "pano-sunset-strip" },
+];
+
+export function getPanoramaTemplate(id: string): PanoramaTemplate | undefined {
+	return PANORAMA_TEMPLATES.find((t) => t.id === id);
+}
+
+/**
+ * Apply a panorama template at the requested panel count, keeping the user's
+ * screenshot and fonts (same contract as {@link applyTemplate}).
+ */
+export function applyPanoramaTemplate(
+	template: PanoramaTemplate,
+	panels: number,
+	current: SceneData,
+	displayType: string,
+): SceneData {
+	const built = template.build(displayType, panels);
+	return {
+		...built,
+		customFonts: current.customFonts,
+		googleFonts: current.googleFonts,
+		screenshot: current.screenshot,
+	};
+}
+
 /**
  * Re-layout a single-panel template onto an N-panel panorama: the canvas
  * keeps its panel count and orientation, the background spans everything,
