@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 
-const PUBLIC_PATHS = ["/login", "/demo"];
+// /editor is the free no-account screenshot editor (client-only, nothing is
+// persisted server-side); /register must be reachable for its sign-up CTA.
+const PUBLIC_PATHS = ["/login", "/register", "/demo", "/editor"];
 
 export function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;

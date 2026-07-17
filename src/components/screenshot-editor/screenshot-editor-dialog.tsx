@@ -1157,7 +1157,7 @@ export function ScreenshotEditorDialog({
  * at the CURRENT display type, so the preview matches what applying it does.
  * Applying replaces the scene layout but keeps the screenshot and fonts.
  */
-function TemplateGalleryDialog({
+export function TemplateGalleryDialog({
 	open,
 	onOpenChange,
 	displayType,
@@ -1266,7 +1266,7 @@ function TemplateGalleryDialog({
  * (e.g. "Luckiest Guy") and it is fetched, registered on document.fonts and
  * added to the scene's font list.
  */
-function GoogleFontDialog({
+export function GoogleFontDialog({
 	open,
 	onOpenChange,
 	loading,
