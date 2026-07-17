@@ -30,7 +30,10 @@ export const DEVICE_MODELS: DeviceModel[] = [
 		label: "iPhone 15 Pro Max (3D)",
 		screenAspect: 1290 / 2796,
 		screenHeightFactor: 0.826,
-		screenOffset: { x: 0.027, y: 0.745, z: 0.098 },
+		// z sits just above the glass: the original 0.098 pushed the screen
+		// plane so far forward that at strong yaw it slid past the body edge
+		// (parallax — the "corners" artifact).
+		screenOffset: { x: 0.027, y: 0.745, z: 0.035 },
 		src: "/device-models/iphone-15-pro-max.glb",
 	},
 	{

@@ -1143,7 +1143,11 @@ function DeviceProperties({
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="3d">3D model (rotates for real)</SelectItem>
-								<SelectItem value="photo">Photo (real iPhone)</SelectItem>
+								{/* "photo" (Apple bezels) stays renderable for saved scenes
+								    but is no longer offered — superseded by true 3D. */}
+								{device.style === "photo" && (
+									<SelectItem value="photo">Photo (real iPhone)</SelectItem>
+								)}
 								<SelectItem value="realistic">Realistic (drawn)</SelectItem>
 								<SelectItem value="clay">Clay (custom color)</SelectItem>
 							</SelectContent>

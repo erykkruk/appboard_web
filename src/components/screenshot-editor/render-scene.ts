@@ -666,7 +666,10 @@ function paintPhotoDevice(
 	ctx.fillRect(screen.x, screen.y, screen.width, screen.height);
 	ctx.restore();
 
-	paintScreen(ctx, scene, images, screen, frame.width * 0.001);
+	// The photographic cutout is a REAL screen — the app always fills it
+	// edge-to-edge, so contain-letterboxing never applies here (it would show
+	// black bands around the Dynamic Island).
+	paintScreen(ctx, scene, images, screen, frame.width * 0.001, "cover");
 	ctx.drawImage(
 		bezelImage.source,
 		frame.x,
@@ -683,6 +686,7 @@ function paintScreen(
 	images: RenderImages,
 	screen: Rect,
 	radius: number,
+	fitOverride?: "cover" | "contain",
 ): void {
 	ctx.save();
 	roundedRectPath(ctx, screen, radius);
@@ -692,7 +696,7 @@ function paintScreen(
 			images.screenshot.width,
 			images.screenshot.height,
 			screen,
-			scene.screenshot?.fit ?? "cover",
+			fitOverride ?? scene.screenshot?.fit ?? "cover",
 		);
 		ctx.drawImage(
 			images.screenshot.source,

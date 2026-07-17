@@ -87,6 +87,9 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 		const canvasRef = useRef<HTMLCanvasElement>(null);
 		const containerRef = useRef<HTMLDivElement>(null);
 		const [displayScale, setDisplayScale] = useState(1);
+		// User zoom on top of the fit-to-view scale (1 = fit). Wide panoramas
+		// get tiny at fit scale, so the preview zooms and scrolls.
+		const [zoom, setZoom] = useState(1);
 		const draggingRef = useRef<DragTarget | null>(null);
 		// Active snap guide lines (normalized), shown while a drag is snapping.
 		const [guides, setGuides] = useState<{ x?: number; y?: number } | null>(
@@ -133,6 +136,25 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 			observer.observe(container);
 			return () => observer.disconnect();
 		}, [scene.width, scene.height]);
+
+		// Cmd/Ctrl + scroll zooms toward the cursor's general area. Native
+		// listener because React's wheel handlers are passive (no preventDefault).
+		useEffect(() => {
+			const container = containerRef.current;
+			if (!container) return;
+			const onWheel = (e: WheelEvent) => {
+				if (!e.metaKey && !e.ctrlKey) return;
+				e.preventDefault();
+				setZoom((prev) =>
+					Math.min(8, Math.max(0.2, prev * (e.deltaY < 0 ? 1.1 : 1 / 1.1))),
+				);
+			};
+			container.addEventListener("wheel", onWheel, { passive: false });
+			return () => container.removeEventListener("wheel", onWheel);
+		}, []);
+
+		const effectiveScale = displayScale * zoom;
+		const zoomPercent = Math.round(effectiveScale * 100);
 
 		// Redraw whenever the scene, decoded images or loaded fonts change. The
 		// live preview shows panorama split guides; the export path does not.
@@ -370,31 +392,67 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 		);
 
 		return (
-			<div
-				ref={containerRef}
-				className={cn(
-					"flex h-full w-full items-center justify-center overflow-hidden",
-					className,
-				)}
-			>
-				<canvas
-					ref={canvasRef}
-					width={scene.width}
-					height={scene.height}
-					onPointerDown={handlePointerDown}
-					onPointerMove={handlePointerMove}
-					onPointerUp={handlePointerUp}
-					onDragOver={handleDragOver}
-					onDrop={handleDrop}
-					style={{
-						width: scene.width * displayScale,
-						height: scene.height * displayScale,
-					}}
-					className={cn(
-						"touch-none rounded-[2rem] shadow-2xl",
-						selectedLayerId ? "cursor-grabbing" : "cursor-default",
-					)}
-				/>
+			<div className={cn("relative h-full w-full", className)}>
+				<div ref={containerRef} className="h-full w-full overflow-auto">
+					<div className="flex min-h-full min-w-full items-center justify-center p-4">
+						<canvas
+							ref={canvasRef}
+							width={scene.width}
+							height={scene.height}
+							onPointerDown={handlePointerDown}
+							onPointerMove={handlePointerMove}
+							onPointerUp={handlePointerUp}
+							onDragOver={handleDragOver}
+							onDrop={handleDrop}
+							style={{
+								width: scene.width * effectiveScale,
+								height: scene.height * effectiveScale,
+							}}
+							className={cn(
+								"shrink-0 touch-none rounded-[2rem] shadow-2xl",
+								selectedLayerId ? "cursor-grabbing" : "cursor-default",
+							)}
+						/>
+					</div>
+				</div>
+
+				<div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-md border border-border bg-background/90 px-1.5 py-1 shadow-md backdrop-blur">
+					<button
+						type="button"
+						onClick={() => setZoom((z) => Math.max(0.2, z / 1.25))}
+						className="rounded px-1.5 text-sm hover:bg-accent"
+						aria-label="Zoom out"
+					>
+						−
+					</button>
+					<span className="min-w-11 text-center text-xs tabular-nums text-muted-foreground">
+						{zoomPercent}%
+					</span>
+					<button
+						type="button"
+						onClick={() => setZoom((z) => Math.min(8, z * 1.25))}
+						className="rounded px-1.5 text-sm hover:bg-accent"
+						aria-label="Zoom in"
+					>
+						+
+					</button>
+					<button
+						type="button"
+						onClick={() => setZoom(1)}
+						className="rounded px-1.5 text-xs hover:bg-accent"
+					>
+						Fit
+					</button>
+					<button
+						type="button"
+						onClick={() =>
+							setZoom(displayScale > 0 ? 1 / displayScale : 1)
+						}
+						className="rounded px-1.5 text-xs hover:bg-accent"
+					>
+						100%
+					</button>
+				</div>
 			</div>
 		);
 	},
