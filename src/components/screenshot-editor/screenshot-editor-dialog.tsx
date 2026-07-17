@@ -1,7 +1,16 @@
 "use client";
 
-import { Languages, Loader2, Save, Upload } from "lucide-react";
-import { useCallback, useMemo, useRef, useState } from "react";
+import {
+	Download,
+	Languages,
+	LayoutTemplate,
+	Loader2,
+	Redo2,
+	Save,
+	Undo2,
+	Upload,
+} from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -11,7 +20,15 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "@/components/ui/dialog";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { useDeviceModel } from "@/hooks/use-device-model";
+import { useSceneHistory } from "@/hooks/use-scene-history";
 import {
 	useCreateScreenshotScene,
 	useUpdateScreenshotScene,
@@ -37,28 +54,44 @@ import {
 	sanitizeFontFamilyName,
 } from "@/lib/scene-fonts";
 import {
+	applyOrientation,
 	applyPanelCount,
 	createDefaultAnnotation,
 	createDefaultScene,
 	createImageAnnotation,
+	createShapeAnnotation,
 	getDisplayTypeLabel,
 	getPanelCount,
-	getTargetDimensions,
+	getSceneOrientation,
+	reorderById,
+	type SceneOrientation,
 } from "@/lib/screenshot-editor";
 import { buildDimensionMessage } from "@/lib/screenshot-validation";
+import {
+	applyPanoramaTemplate,
+	applyTemplate,
+	getPanoramaTemplate,
+	PANORAMA_TEMPLATE_VARIANTS,
+	type PanoramaTemplate,
+	SCENE_TEMPLATES,
+	type SceneTemplate,
+} from "@/lib/scene-templates";
 import type {
 	SceneAnnotation,
 	SceneAnnotationType,
 	SceneData,
+	SceneShapeKind,
 	SceneTextLayer,
 	ScreenshotScene,
 	VersionScreenshot,
 } from "@/lib/types";
 
 import { LayersPanel, PropertiesPanel } from "./editor-panels";
+import { exportSceneToPng } from "./export-scene";
 import type { RenderImages } from "./render-scene";
 import { SceneCanvas, type SceneCanvasHandle } from "./scene-canvas";
 import { SceneLocalizationDialog } from "./scene-localization-dialog";
+import { ScenePreview } from "./scene-preview";
 import { useSceneImages } from "./use-scene-images";
 
 interface ScreenshotEditorDialogProps {
@@ -115,7 +148,7 @@ export function ScreenshotEditorDialog({
 	displayType,
 	editingScene,
 }: ScreenshotEditorDialogProps) {
-	const [scene, setScene] = useState<SceneData>(
+	const [scene, setScene, history] = useSceneHistory<SceneData>(
 		() => editingScene?.scene ?? createDefaultScene(displayType),
 	);
 	const [sceneName, setSceneName] = useState(
@@ -132,6 +165,7 @@ export function ScreenshotEditorDialog({
 	);
 	const [localizeOpen, setLocalizeOpen] = useState(false);
 	const [pickerOpen, setPickerOpen] = useState(false);
+	const [templatesOpen, setTemplatesOpen] = useState(false);
 
 	const canvasRef = useRef<SceneCanvasHandle>(null);
 	const bgFileRef = useRef<HTMLInputElement>(null);
@@ -156,10 +190,21 @@ export function ScreenshotEditorDialog({
 	const existingScreenshots = useVersionScreenshots(appId, versionId);
 
 	const loaded = useSceneImages(scene, screenshotSrc);
+	const deviceModelImage = useDeviceModel(
+		scene,
+		loaded.screenshot
+			? {
+					source: loaded.screenshot.element,
+					width: loaded.screenshot.width,
+					height: loaded.screenshot.height,
+				}
+			: undefined,
+	);
 	// Wrap each decoded image with its natural pixel dimensions so the renderer's
 	// fit math is correct regardless of the element's layout size.
 	const renderImages = useMemo<RenderImages>(
 		() => ({
+			deviceModel: deviceModelImage,
 			background: loaded.background
 				? {
 						source: loaded.background.element,
@@ -172,6 +217,13 @@ export function ScreenshotEditorDialog({
 						source: loaded.screenshot.element,
 						width: loaded.screenshot.width,
 						height: loaded.screenshot.height,
+					}
+				: undefined,
+			bezel: loaded.bezel
+				? {
+						source: loaded.bezel.element,
+						width: loaded.bezel.width,
+						height: loaded.bezel.height,
 					}
 				: undefined,
 			annotations: loaded.annotations
@@ -187,16 +239,51 @@ export function ScreenshotEditorDialog({
 					)
 				: undefined,
 		}),
-		[loaded.background, loaded.screenshot, loaded.annotations],
+		[
+			loaded.background,
+			loaded.screenshot,
+			loaded.bezel,
+			loaded.annotations,
+			deviceModelImage,
+		],
 	);
-	const [target0, target1] = useMemo(
-		() => getTargetDimensions(displayType),
-		[displayType],
-	);
+	// Current per-panel export dimensions, derived from the scene itself so the
+	// header and uploads always match the real canvas (orientation-aware).
+	const orientation = getSceneOrientation(scene);
+	const panelWidth = Math.round(scene.width / getPanelCount(scene));
+	const panelHeight = scene.height;
 
-	const patchScene = useCallback((patch: Partial<SceneData>) => {
-		setScene((prev) => ({ ...prev, ...patch }));
-	}, []);
+	// Cmd/Ctrl+Z undo, Cmd/Ctrl+Shift+Z (or Ctrl+Y) redo — skipped while typing.
+	const { undo, redo } = history;
+	useEffect(() => {
+		if (!open) return;
+		const onKeyDown = (e: KeyboardEvent) => {
+			if (!e.metaKey && !e.ctrlKey) return;
+			const key = e.key.toLowerCase();
+			if (key !== "z" && key !== "y") return;
+			const target = e.target as HTMLElement | null;
+			if (
+				target &&
+				(target.tagName === "INPUT" ||
+					target.tagName === "TEXTAREA" ||
+					target.isContentEditable)
+			) {
+				return;
+			}
+			e.preventDefault();
+			if (key === "y" || e.shiftKey) redo();
+			else undo();
+		};
+		window.addEventListener("keydown", onKeyDown);
+		return () => window.removeEventListener("keydown", onKeyDown);
+	}, [open, undo, redo]);
+
+	const patchScene = useCallback(
+		(patch: Partial<SceneData>) => {
+			setScene((prev) => ({ ...prev, ...patch }));
+		},
+		[setScene],
+	);
 
 	const patchTextLayer = useCallback(
 		(id: string, patch: Partial<SceneTextLayer>) => {
@@ -207,7 +294,7 @@ export function ScreenshotEditorDialog({
 				),
 			}));
 		},
-		[],
+		[setScene],
 	);
 
 	const moveTextLayer = useCallback((id: string, x: number, y: number) => {
@@ -217,7 +304,7 @@ export function ScreenshotEditorDialog({
 				l.id === id ? { ...l, x, y } : l,
 			),
 		}));
-	}, []);
+	}, [setScene]);
 
 	const addTextLayer = useCallback(() => {
 		const id = nextTextLayerId();
@@ -239,7 +326,34 @@ export function ScreenshotEditorDialog({
 			],
 		}));
 		setSelectedLayerId(id);
-	}, []);
+	}, [setScene]);
+
+	const addEmoji = useCallback(
+		(emoji: string) => {
+			const id = nextTextLayerId();
+			setScene((prev) => ({
+				...prev,
+				textLayers: [
+					...prev.textLayers,
+					{
+						align: "center" as const,
+						color: "#ffffff",
+						// Emoji glyphs are colored by the font itself; keep verbatim
+						// across language variants.
+						doNotTranslate: true,
+						fontFamily: "Inter, system-ui, sans-serif",
+						fontSize: Math.round(prev.height * 0.07),
+						id,
+						text: emoji,
+						x: 0.5,
+						y: 0.4,
+					},
+				],
+			}));
+			setSelectedLayerId(id);
+		},
+		[setScene],
+	);
 
 	const deleteTextLayer = useCallback(
 		(id: string) => {
@@ -249,7 +363,7 @@ export function ScreenshotEditorDialog({
 			}));
 			if (selectedLayerId === id) setSelectedLayerId(null);
 		},
-		[selectedLayerId],
+		[selectedLayerId, setScene],
 	);
 
 	const patchAnnotation = useCallback(
@@ -261,7 +375,7 @@ export function ScreenshotEditorDialog({
 				),
 			}));
 		},
-		[],
+		[setScene],
 	);
 
 	const moveAnnotation = useCallback((id: string, x: number, y: number) => {
@@ -271,7 +385,7 @@ export function ScreenshotEditorDialog({
 				a.id === id ? { ...a, x, y } : a,
 			),
 		}));
-	}, []);
+	}, [setScene]);
 
 	const moveCalloutTarget = useCallback(
 		(id: string, targetX: number, targetY: number) => {
@@ -284,7 +398,7 @@ export function ScreenshotEditorDialog({
 				),
 			}));
 		},
-		[],
+		[setScene],
 	);
 
 	const addAnnotation = useCallback((type: SceneAnnotationType) => {
@@ -297,7 +411,19 @@ export function ScreenshotEditorDialog({
 			],
 		}));
 		setSelectedLayerId(id);
-	}, []);
+	}, [setScene]);
+
+	const addShape = useCallback((shape: SceneShapeKind) => {
+		const id = nextAnnotationId();
+		setScene((prev) => ({
+			...prev,
+			annotations: [
+				...(prev.annotations ?? []),
+				createShapeAnnotation(id, shape, prev),
+			],
+		}));
+		setSelectedLayerId(id);
+	}, [setScene]);
 
 	const deleteAnnotation = useCallback(
 		(id: string) => {
@@ -307,7 +433,159 @@ export function ScreenshotEditorDialog({
 			}));
 			if (selectedLayerId === id) setSelectedLayerId(null);
 		},
-		[selectedLayerId],
+		[selectedLayerId, setScene],
+	);
+
+	/**
+	 * Copy the source layer's STYLE (never its text/position) onto every other
+	 * text layer — the "copy text style" flow ButterKit users asked for.
+	 */
+	const applyTextStyleToAll = useCallback(
+		(sourceId: string) => {
+			setScene((prev) => {
+				const source = prev.textLayers.find((l) => l.id === sourceId);
+				if (!source) return prev;
+				return {
+					...prev,
+					textLayers: prev.textLayers.map((l) =>
+						l.id === sourceId || l.locked
+							? l
+							: {
+									...l,
+									accentColor: source.accentColor,
+									align: source.align,
+									bg: source.bg,
+									color: source.color,
+									curve: source.curve,
+									fontFamily: source.fontFamily,
+									gradient: source.gradient,
+									highlight: source.highlight,
+									letterSpacing: source.letterSpacing,
+									lineHeight: source.lineHeight,
+									shadowBlur: source.shadowBlur,
+									shadowColor: source.shadowColor,
+									shadowOffsetX: source.shadowOffsetX,
+									shadowOffsetY: source.shadowOffsetY,
+									strokeColor: source.strokeColor,
+									strokeWidth: source.strokeWidth,
+									weight: source.weight,
+								},
+					),
+				};
+			});
+			toast.success("Style applied to all text layers");
+		},
+		[setScene],
+	);
+
+	/**
+	 * Copy the source annotation's STYLE onto every other annotation of the
+	 * same type ("Copy a Callout's style" from the ButterKit changelog, asked
+	 * for by users). Content (text/author) and positions are never copied.
+	 */
+	const applyAnnotationStyleToAll = useCallback(
+		(sourceId: string) => {
+			setScene((prev) => {
+				const source = (prev.annotations ?? []).find((a) => a.id === sourceId);
+				if (!source || source.type === "image" || source.type === "shape") {
+					return prev;
+				}
+				return {
+					...prev,
+					annotations: (prev.annotations ?? []).map((a) => {
+						if (a.id === sourceId || a.type !== source.type) return a;
+						const styled = {
+							...a,
+							bg: source.bg,
+							borderColor: source.borderColor,
+							borderWidth: source.borderWidth,
+							color: source.color,
+							cornerRadius: source.cornerRadius,
+							fontFamily: source.fontFamily,
+							fontSize: source.fontSize,
+							weight: source.weight,
+						} as SceneAnnotation;
+						if (styled.type === "label" && source.type === "label") {
+							styled.showBackground = source.showBackground;
+						}
+						if (styled.type === "review" && source.type === "review") {
+							styled.showBackground = source.showBackground;
+							styled.showQuoteMark = source.showQuoteMark;
+							styled.stars = source.stars;
+						}
+						return styled;
+					}),
+				};
+			});
+			toast.success("Style applied to all annotations of this type");
+		},
+		[setScene],
+	);
+
+	const reorderTextLayer = useCallback(
+		(id: string, delta: -1 | 1) => {
+			setScene((prev) => ({
+				...prev,
+				textLayers: reorderById(prev.textLayers, id, delta),
+			}));
+		},
+		[setScene],
+	);
+
+	const reorderAnnotation = useCallback(
+		(id: string, delta: -1 | 1) => {
+			setScene((prev) => ({
+				...prev,
+				annotations: reorderById(prev.annotations ?? [], id, delta),
+			}));
+		},
+		[setScene],
+	);
+
+	/** Clamp a normalized coordinate so a duplicate stays on the canvas. */
+	const nudge = (v: number) => Math.min(v + 0.03, 0.97);
+
+	const duplicateTextLayer = useCallback(
+		(id: string) => {
+			const newId = nextTextLayerId();
+			setScene((prev) => {
+				const source = prev.textLayers.find((l) => l.id === id);
+				if (!source) return prev;
+				return {
+					...prev,
+					textLayers: [
+						...prev.textLayers,
+						{ ...source, id: newId, x: nudge(source.x), y: nudge(source.y) },
+					],
+				};
+			});
+			setSelectedLayerId(newId);
+		},
+		[setScene],
+	);
+
+	const duplicateAnnotation = useCallback(
+		(id: string) => {
+			const newId = nextAnnotationId();
+			setScene((prev) => {
+				const source = (prev.annotations ?? []).find((a) => a.id === id);
+				if (!source) return prev;
+				const copy: SceneAnnotation =
+					source.type === "callout"
+						? {
+								...source,
+								id: newId,
+								targetX: nudge(source.targetX),
+								targetY: nudge(source.targetY),
+								x: nudge(source.x),
+								y: nudge(source.y),
+							}
+						: { ...source, id: newId, x: nudge(source.x), y: nudge(source.y) };
+				return { ...prev, annotations: [...(prev.annotations ?? []), copy] };
+			});
+			setSelectedLayerId(newId);
+		},
+		[setScene],
 	);
 
 	const moveDevice = useCallback((offsetX: number, offsetY: number) => {
@@ -316,12 +594,44 @@ export function ScreenshotEditorDialog({
 				? { ...prev, device: { ...prev.device, offsetX, offsetY } }
 				: prev,
 		);
-	}, []);
+	}, [setScene]);
 
 	const handleAddImageLayer = useCallback(() => {
 		imageLayerTargetRef.current = null;
 		imageLayerFileRef.current?.click();
 	}, []);
+
+	const handleDropImageFile = useCallback(
+		async (
+			dataUrl: string,
+			drop: { nx: number; ny: number; overDevice: boolean },
+		) => {
+			if (drop.overDevice) {
+				setScreenshotSrc(dataUrl);
+				setScene((prev) => ({
+					...prev,
+					screenshot: { ...prev.screenshot, url: dataUrl },
+				}));
+				toast.success("Screenshot set from the dropped image");
+				return;
+			}
+			const aspect = await readImageAspect(dataUrl);
+			const id = nextAnnotationId();
+			setScene((prev) => ({
+				...prev,
+				annotations: [
+					...(prev.annotations ?? []),
+					{
+						...createImageAnnotation(id, dataUrl, aspect),
+						x: drop.nx,
+						y: drop.ny,
+					},
+				],
+			}));
+			setSelectedLayerId(id);
+		},
+		[setScene],
+	);
 
 	const handleReplaceAnnotationImage = useCallback((id: string) => {
 		imageLayerTargetRef.current = id;
@@ -464,7 +774,7 @@ export function ScreenshotEditorDialog({
 			}));
 			setPickerOpen(false);
 		},
-		[],
+		[setScene],
 	);
 
 	const handleSave = async () => {
@@ -489,6 +799,30 @@ export function ScreenshotEditorDialog({
 		}
 	};
 
+	const handleApplyTemplate = useCallback(
+		(template: SceneTemplate) => {
+			setScene((prev) => applyTemplate(template, prev, displayType));
+			setSelectedLayerId("__device");
+			setTemplatesOpen(false);
+			toast.success(`Template "${template.name}" applied`);
+		},
+		[displayType, setScene],
+	);
+
+	const handleApplyPanoramaTemplate = useCallback(
+		(template: PanoramaTemplate, targetPanels: number) => {
+			setScene((prev) =>
+				applyPanoramaTemplate(template, targetPanels, prev, displayType),
+			);
+			setSelectedLayerId("__device");
+			setTemplatesOpen(false);
+			toast.success(
+				`Panorama "${template.name}" ×${targetPanels} applied`,
+			);
+		},
+		[displayType, setScene],
+	);
+
 	const panels = getPanelCount(scene);
 
 	const handlePanelsChange = useCallback(
@@ -497,8 +831,41 @@ export function ScreenshotEditorDialog({
 			if (!Number.isFinite(count) || count < 1) return;
 			setScene((prev) => applyPanelCount(prev, displayType, count));
 		},
-		[displayType],
+		[displayType, setScene],
 	);
+
+	const handleOrientationChange = useCallback(
+		(value: string) => {
+			setScene((prev) =>
+				applyOrientation(prev, displayType, value as SceneOrientation),
+			);
+		},
+		[displayType, setScene],
+	);
+
+	/**
+	 * Local PNG download. `deviceOnly` strips texts and annotations before the
+	 * off-screen render — ButterKit's "Include text & images" toggle, useful
+	 * for websites and marketing posts.
+	 */
+	const handleDownload = async (deviceOnly: boolean) => {
+		const target: SceneData = deviceOnly
+			? { ...scene, annotations: [], textLayers: [] }
+			: scene;
+		const blob = await exportSceneToPng(target);
+		if (!blob) {
+			toast.error(
+				"Cannot export — the image comes from a remote source without CORS headers. Upload the file locally.",
+			);
+			return;
+		}
+		const url = URL.createObjectURL(blob);
+		const link = document.createElement("a");
+		link.href = url;
+		link.download = `${sceneName.replace(/\s+/g, "-").toLowerCase()}-${language}-${displayType}${deviceOnly ? "-device" : ""}.png`;
+		link.click();
+		URL.revokeObjectURL(url);
+	};
 
 	const handleExportUpload = async () => {
 		const blob = await canvasRef.current?.exportPng();
@@ -508,7 +875,7 @@ export function ScreenshotEditorDialog({
 			);
 			return;
 		}
-		const [w, h] = [target0, target1];
+		const [w, h] = [panelWidth, panelHeight];
 		const file = new File([blob], `scene-${language}-${displayType}.png`, {
 			type: "image/png",
 		});
@@ -558,17 +925,26 @@ export function ScreenshotEditorDialog({
 							placeholder="Scene name"
 						/>
 						<span className="text-sm text-muted-foreground">
-							{getDisplayTypeLabel(displayType)} · {language} · {target0}×
-							{target1}px
+							{getDisplayTypeLabel(displayType)} · {language} · {panelWidth}×
+							{panelHeight}px
 							{panels > 1 ? ` × ${panels}` : ""}
 						</span>
+						<Select value={orientation} onValueChange={handleOrientationChange}>
+							<SelectTrigger className="w-[130px]" size="sm">
+								<SelectValue />
+							</SelectTrigger>
+							<SelectContent>
+								<SelectItem value="portrait">Portrait</SelectItem>
+								<SelectItem value="landscape">Landscape</SelectItem>
+							</SelectContent>
+						</Select>
 						<Select value={String(panels)} onValueChange={handlePanelsChange}>
 							<SelectTrigger className="w-[150px]" size="sm">
 								<SelectValue />
 							</SelectTrigger>
 							<SelectContent>
 								<SelectItem value="1">Single screen</SelectItem>
-								{[2, 3, 4, 5].map((n) => (
+								{[2, 3, 4, 5, 6, 7, 8].map((n) => (
 									<SelectItem key={n} value={String(n)}>
 										Panorama × {n}
 									</SelectItem>
@@ -578,11 +954,37 @@ export function ScreenshotEditorDialog({
 					</div>
 					<div className="flex items-center gap-2">
 						<Button
+							variant="ghost"
+							size="icon"
+							onClick={undo}
+							disabled={!history.canUndo}
+							aria-label="Undo (Cmd+Z)"
+							title="Undo (Cmd+Z)"
+						>
+							<Undo2 className="h-4 w-4" />
+						</Button>
+						<Button
+							variant="ghost"
+							size="icon"
+							onClick={redo}
+							disabled={!history.canRedo}
+							aria-label="Redo (Cmd+Shift+Z)"
+							title="Redo (Cmd+Shift+Z)"
+						>
+							<Redo2 className="h-4 w-4" />
+						</Button>
+						<Button variant="outline" onClick={() => setTemplatesOpen(true)}>
+							<LayoutTemplate className="h-4 w-4" />
+							Templates
+						</Button>
+						<Button
 							variant="outline"
 							onClick={() => setLocalizeOpen(true)}
 							disabled={
 								scene.textLayers.length === 0 &&
-								!(scene.annotations ?? []).some((a) => a.type !== "image")
+								!(scene.annotations ?? []).some(
+									(a) => a.type !== "image" && a.type !== "shape",
+								)
 							}
 						>
 							<Languages className="h-4 w-4" />
@@ -600,6 +1002,21 @@ export function ScreenshotEditorDialog({
 							)}
 							Save
 						</Button>
+						<DropdownMenu>
+							<DropdownMenuTrigger asChild>
+								<Button variant="outline" aria-label="Download PNG">
+									<Download className="h-4 w-4" />
+								</Button>
+							</DropdownMenuTrigger>
+							<DropdownMenuContent align="end">
+								<DropdownMenuItem onSelect={() => handleDownload(false)}>
+									Download PNG
+								</DropdownMenuItem>
+								<DropdownMenuItem onSelect={() => handleDownload(true)}>
+									Download PNG (device only)
+								</DropdownMenuItem>
+							</DropdownMenuContent>
+						</DropdownMenu>
 						<Button onClick={handleExportUpload} disabled={isUploading}>
 							{isUploading ? (
 								<Loader2 className="h-4 w-4 animate-spin" />
@@ -622,8 +1039,14 @@ export function ScreenshotEditorDialog({
 						onAddText={addTextLayer}
 						onDeleteText={deleteTextLayer}
 						onAddAnnotation={addAnnotation}
+						onAddShape={addShape}
 						onAddImage={handleAddImageLayer}
 						onDeleteAnnotation={deleteAnnotation}
+						onDuplicateText={duplicateTextLayer}
+						onDuplicateAnnotation={duplicateAnnotation}
+						onReorderText={reorderTextLayer}
+						onReorderAnnotation={reorderAnnotation}
+						onAddEmoji={addEmoji}
 					/>
 
 					<div className="flex min-w-0 flex-1 items-center justify-center bg-muted/30 p-6">
@@ -637,6 +1060,7 @@ export function ScreenshotEditorDialog({
 							onMoveAnnotation={moveAnnotation}
 							onMoveCalloutTarget={moveCalloutTarget}
 							onMoveDevice={moveDevice}
+							onDropImageFile={handleDropImageFile}
 						/>
 					</div>
 
@@ -653,6 +1077,8 @@ export function ScreenshotEditorDialog({
 						onAddGoogleFont={handleAddGoogleFont}
 						onReplaceAnnotationImage={handleReplaceAnnotationImage}
 						onDeleteAnnotation={deleteAnnotation}
+						onApplyTextStyleToAll={applyTextStyleToAll}
+						onApplyAnnotationStyleToAll={applyAnnotationStyleToAll}
 					/>
 				</div>
 
@@ -707,12 +1133,129 @@ export function ScreenshotEditorDialog({
 					onPick={handlePickExistingScreenshot}
 				/>
 
+				<TemplateGalleryDialog
+					open={templatesOpen}
+					onOpenChange={setTemplatesOpen}
+					displayType={displayType}
+					onPick={handleApplyTemplate}
+					onPickPanorama={handleApplyPanoramaTemplate}
+				/>
+
 				<GoogleFontDialog
 					open={googleFontOpen}
 					onOpenChange={setGoogleFontOpen}
 					loading={googleFontLoading}
 					onSubmit={handleGoogleFontSubmit}
 				/>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
+/**
+ * Template gallery: live canvas thumbnails of every built-in template rendered
+ * at the CURRENT display type, so the preview matches what applying it does.
+ * Applying replaces the scene layout but keeps the screenshot and fonts.
+ */
+function TemplateGalleryDialog({
+	open,
+	onOpenChange,
+	displayType,
+	onPick,
+	onPickPanorama,
+}: {
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+	displayType: string;
+	onPick: (template: SceneTemplate) => void;
+	onPickPanorama: (template: PanoramaTemplate, panels: number) => void;
+}) {
+	// Build preview scenes lazily — only while the dialog is open.
+	const previews = useMemo(
+		() =>
+			open
+				? SCENE_TEMPLATES.map((template) => ({
+						scene: template.build(displayType),
+						template,
+					}))
+				: [],
+		[open, displayType],
+	);
+	// Curated panorama variants (×4 / ×6 / ×8), previewed at their real width.
+	const panoramaPreviews = useMemo(
+		() =>
+			open
+				? PANORAMA_TEMPLATE_VARIANTS.flatMap((variant) => {
+						const template = getPanoramaTemplate(variant.templateId);
+						if (!template) return [];
+						return [
+							{
+								panels: variant.panels,
+								scene: template.build(displayType, variant.panels),
+								template,
+							},
+						];
+					})
+				: [],
+		[open, displayType],
+	);
+	return (
+		<Dialog open={open} onOpenChange={onOpenChange}>
+			<DialogContent className="max-w-5xl">
+				<DialogHeader>
+					<DialogTitle>Scene templates</DialogTitle>
+				</DialogHeader>
+				<p className="text-xs text-muted-foreground">
+					Applying a template replaces the current layout. Your screenshot and
+					fonts are kept.
+				</p>
+				<div className="flex max-h-[70vh] flex-col gap-4 overflow-y-auto p-1">
+					<div>
+						<h4 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+							Panorama layouts (whole listing strip)
+						</h4>
+						<div className="flex flex-col gap-2">
+							{panoramaPreviews.map(({ template, panels: n, scene }) => (
+								<button
+									key={`${template.id}-x${n}`}
+									type="button"
+									onClick={() => onPickPanorama(template, n)}
+									className="group flex flex-col items-center gap-1.5 rounded-lg border border-border p-2 transition-colors hover:border-primary hover:bg-accent/40"
+								>
+									<ScenePreview scene={scene} className="max-h-40" />
+									<span className="text-xs font-medium">
+										{template.name} · ×{n}
+									</span>
+									<span className="text-center text-[10px] text-muted-foreground">
+										{template.description}
+									</span>
+								</button>
+							))}
+						</div>
+					</div>
+
+					<div>
+						<h4 className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+							Single screenshot
+						</h4>
+						<div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+							{previews.map(({ template, scene }) => (
+								<button
+									key={template.id}
+									type="button"
+									onClick={() => onPick(template)}
+									className="group flex flex-col items-center gap-1.5 rounded-lg border border-border p-2 transition-colors hover:border-primary hover:bg-accent/40"
+								>
+									<ScenePreview scene={scene} className="max-h-56" />
+									<span className="text-xs font-medium">{template.name}</span>
+									<span className="text-center text-[10px] text-muted-foreground">
+										{template.description}
+									</span>
+								</button>
+							))}
+						</div>
+					</div>
+				</div>
 			</DialogContent>
 		</Dialog>
 	);

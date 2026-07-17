@@ -1,4 +1,6 @@
+import { getDeviceBezel } from "@/lib/device-bezels";
 import { ensureSceneFontsLoaded } from "@/lib/scene-fonts";
+import { computeDeviceRect } from "@/lib/screenshot-editor";
 import type { SceneData } from "@/lib/types";
 
 import { type RenderImage, type RenderImages, renderScene } from "./render-scene";
@@ -63,6 +65,39 @@ export async function exportSceneToPng(scene: SceneData): Promise<Blob | null> {
 	}
 	if (scene.screenshot?.url) {
 		images.screenshot = (await loadRenderImage(scene.screenshot.url)) ?? undefined;
+	}
+	if (scene.device?.style === "photo") {
+		images.bezel =
+			(await loadRenderImage(getDeviceBezel(scene.device.bezelId).src)) ??
+			undefined;
+	}
+	if (scene.device?.style === "3d" && scene.device.frame !== "none") {
+		const rect = computeDeviceRect(scene);
+		if (rect) {
+			const { renderDeviceModel } = await import("./device-model-renderer");
+			const canvas = await renderDeviceModel({
+				frameHeight: Math.round(rect.height),
+				frameWidth: Math.round(rect.width),
+				modelId: scene.device.modelId ?? "",
+				rotationX: scene.device.rotationX ?? 0,
+				rotationY: scene.device.rotationY ?? 0,
+				rotationZ: scene.device.rotation ?? 0,
+				screenshot: images.screenshot
+					? {
+							height: images.screenshot.height,
+							source: images.screenshot.source,
+							width: images.screenshot.width,
+						}
+					: undefined,
+			});
+			if (canvas) {
+				images.deviceModel = {
+					height: canvas.height,
+					source: canvas,
+					width: canvas.width,
+				};
+			}
+		}
 	}
 	for (const annotation of scene.annotations ?? []) {
 		if (annotation.type !== "image" || !annotation.url) continue;

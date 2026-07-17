@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
+import { useDeviceModel } from "@/hooks/use-device-model";
 import { ensureCustomFontsLoaded } from "@/lib/scene-fonts";
 import type { SceneData } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -22,9 +23,20 @@ interface ScenePreviewProps {
 export function ScenePreview({ scene, className }: ScenePreviewProps) {
 	const canvasRef = useRef<HTMLCanvasElement>(null);
 	const loaded = useSceneImages(scene, scene.screenshot?.url);
+	const deviceModelImage = useDeviceModel(
+		scene,
+		loaded.screenshot
+			? {
+					source: loaded.screenshot.element,
+					width: loaded.screenshot.width,
+					height: loaded.screenshot.height,
+				}
+			: undefined,
+	);
 
 	const renderImages = useMemo<RenderImages>(
 		() => ({
+			deviceModel: deviceModelImage,
 			background: loaded.background
 				? {
 						source: loaded.background.element,
@@ -37,6 +49,13 @@ export function ScenePreview({ scene, className }: ScenePreviewProps) {
 						source: loaded.screenshot.element,
 						width: loaded.screenshot.width,
 						height: loaded.screenshot.height,
+					}
+				: undefined,
+			bezel: loaded.bezel
+				? {
+						source: loaded.bezel.element,
+						width: loaded.bezel.width,
+						height: loaded.bezel.height,
 					}
 				: undefined,
 			annotations: loaded.annotations
@@ -52,7 +71,13 @@ export function ScenePreview({ scene, className }: ScenePreviewProps) {
 					)
 				: undefined,
 		}),
-		[loaded.background, loaded.screenshot, loaded.annotations],
+		[
+			loaded.background,
+			loaded.screenshot,
+			loaded.bezel,
+			loaded.annotations,
+			deviceModelImage,
+		],
 	);
 
 	// Re-render once the scene's custom fonts finish loading so the thumbnail

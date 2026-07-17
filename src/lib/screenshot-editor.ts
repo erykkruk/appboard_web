@@ -1,3 +1,5 @@
+import { getDeviceBezel } from "@/lib/device-bezels";
+import { projectRectCorners, quadBounds } from "@/lib/perspective";
 import type {
 	SceneAnnotation,
 	SceneAnnotationType,
@@ -5,6 +7,8 @@ import type {
 	SceneData,
 	SceneDeviceFrame,
 	SceneImageAnnotation,
+	SceneShapeAnnotation,
+	SceneShapeKind,
 	SceneTextAnnotation,
 } from "@/lib/types";
 
@@ -56,15 +60,16 @@ export function getDisplayTypeLabel(displayType: string): string {
 	return DISPLAY_TYPE_LABELS[displayType] ?? displayType;
 }
 
-/** Default Android frame for Android display types, iPhone otherwise. */
+/** Default frame per display type: platform + form factor aware. */
 export function defaultFrameForDisplayType(
 	displayType: string,
 ): SceneDeviceFrame {
-	return displayType === "phone" ||
-		displayType === "sevenInch" ||
-		displayType === "tenInch"
-		? "android"
-		: "iphone";
+	if (displayType === "phone") return "android";
+	if (displayType === "sevenInch" || displayType === "tenInch") {
+		return "android-tablet";
+	}
+	if (displayType === "APP_IPAD_PRO_129") return "ipad";
+	return "iphone";
 }
 
 /**
@@ -117,16 +122,66 @@ export function getPanelCount(scene: Pick<SceneData, "panels">): number {
 	return Number.isFinite(panels) && panels >= 1 ? Math.round(panels) : 1;
 }
 
+export type SceneOrientation = "portrait" | "landscape";
+
+/**
+ * Orientation of a scene, derived from one panel's dimensions (a panorama's
+ * full width spans several store screenshots). Square-ish panels count as
+ * portrait, matching the store defaults.
+ */
+export function getSceneOrientation(
+	scene: Pick<SceneData, "width" | "height" | "panels">,
+): SceneOrientation {
+	const panelWidth = scene.width / getPanelCount(scene);
+	return panelWidth > scene.height ? "landscape" : "portrait";
+}
+
+/** Target [width, height] for a display type in the requested orientation. */
+export function getTargetDimensionsFor(
+	displayType: string,
+	orientation: SceneOrientation,
+): [number, number] {
+	const [w, h] = getTargetDimensions(displayType);
+	return orientation === "landscape" ? [h, w] : [w, h];
+}
+
+/**
+ * Resize the scene canvas to the display type's target in the given
+ * orientation, keeping the panel count. Layers keep their normalized
+ * positions, so switching orientation re-flows instead of destroying work.
+ * Store validation accepts both orientations (backend REQUIRED_SIZES lists
+ * portrait and landscape for every iOS display type; Google Play is flexible).
+ */
+export function applyOrientation(
+	scene: SceneData,
+	displayType: string,
+	orientation: SceneOrientation,
+): SceneData {
+	const [targetWidth, targetHeight] = getTargetDimensionsFor(
+		displayType,
+		orientation,
+	);
+	return {
+		...scene,
+		height: targetHeight,
+		width: targetWidth * getPanelCount(scene),
+	};
+}
+
 /**
  * Resize a scene to span `panels` store screenshots side by side. The canvas
- * width becomes target width × panels; layers keep their normalized positions.
+ * width becomes target width × panels; layers keep their normalized positions
+ * and the scene's current orientation is preserved.
  */
 export function applyPanelCount(
 	scene: SceneData,
 	displayType: string,
 	panels: number,
 ): SceneData {
-	const [targetWidth, targetHeight] = getTargetDimensions(displayType);
+	const [targetWidth, targetHeight] = getTargetDimensionsFor(
+		displayType,
+		getSceneOrientation(scene),
+	);
 	const count = Math.max(1, Math.round(panels));
 	return {
 		...scene,
@@ -134,6 +189,43 @@ export function applyPanelCount(
 		panels: count,
 		width: targetWidth * count,
 	};
+}
+
+/**
+ * Body aspect ratio (height / width) per device frame. Phones keep the legacy
+ * 2.05 so pre-existing scenes render pixel-identical; tablets read as iPad /
+ * Android slates, the watch as a squircle body, the laptop as a wide lid +
+ * base silhouette.
+ */
+export const DEVICE_BODY_ASPECT: Record<
+	Exclude<SceneDeviceFrame, "none">,
+	number
+> = {
+	android: 2.05,
+	"android-tablet": 1.42,
+	"apple-watch": 1.14,
+	ipad: 1.34,
+	iphone: 2.05,
+	laptop: 0.6,
+};
+
+/** Aspect for a frame, defaulting to the phone silhouette for unknown values. */
+export function deviceBodyAspect(frame: SceneDeviceFrame): number {
+	return frame === "none" ? 2.05 : (DEVICE_BODY_ASPECT[frame] ?? 2.05);
+}
+
+/**
+ * Aspect (height / width) of the device as configured: photographic bezels
+ * carry their own asset aspect; programmatic frames use the per-frame table.
+ */
+export function deviceAspect(
+	device: NonNullable<SceneData["device"]>,
+): number {
+	if (device.style === "photo") {
+		const bezel = getDeviceBezel(device.bezelId);
+		return bezel.height / bezel.width;
+	}
+	return deviceBodyAspect(device.frame);
 }
 
 /**
@@ -147,8 +239,7 @@ export function computeDeviceRect(scene: SceneData): Rect | null {
 	// In panorama mode `scale` stays a fraction of ONE panel's width, so the
 	// frame keeps its size when the canvas widens to N panels.
 	const frameWidth = (scene.width / getPanelCount(scene)) * scale;
-	// iPhone aspect ratio ~ 2.16 (height/width) for a typical 9:19.5 device body.
-	const frameHeight = frameWidth * 2.05;
+	const frameHeight = frameWidth * deviceAspect(scene.device);
 	const centerX = scene.width / 2 + offsetX * scene.width;
 	const centerY = scene.height / 2 + offsetY * scene.height;
 	return {
@@ -157,6 +248,13 @@ export function computeDeviceRect(scene: SceneData): Rect | null {
 		width: frameWidth,
 		height: frameHeight,
 	};
+}
+
+/** True when the device has any non-zero 3D tilt (perspective warp path). */
+export function deviceHas3DTilt(
+	device: Pick<SceneData, "device">["device"],
+): boolean {
+	return Boolean(device && ((device.rotationX ?? 0) !== 0 || (device.rotationY ?? 0) !== 0));
 }
 
 /** Clamp a value into [min, max]. */
@@ -248,6 +346,9 @@ export function hitTestTextLayer(
 ): string | null {
 	for (let i = scene.textLayers.length - 1; i >= 0; i--) {
 		const layer = scene.textLayers[i];
+		// Locked layers ignore canvas hits so they can't be dragged by accident;
+		// they remain selectable from the layers list.
+		if (layer.locked) continue;
 		const { x, y } = resolveTextPosition(layer, scene);
 		const approxWidth = Math.max(
 			layer.fontSize * 0.6 * Math.max(layer.text.length, 4),
@@ -285,6 +386,8 @@ const ANNOTATION_DEFAULT_TEXT: Record<SceneAnnotationType, string> = {
 	badge: "NEW",
 	callout: "Your description",
 	label: "Label",
+	laurel: "Finalist",
+	review: "This solves so many\nof my problems.",
 };
 
 /**
@@ -325,6 +428,29 @@ export function createDefaultAnnotation(
 			fontSize: Math.round(scene.height * 0.026),
 		};
 	}
+	if (type === "laurel") {
+		return {
+			...base,
+			type: "laurel",
+			bg: "#000000",
+			fontSize: Math.round(scene.height * 0.03),
+			textBottom: "Design Award",
+			textTop: "2026",
+			weight: 800,
+		};
+	}
+	if (type === "review") {
+		return {
+			...base,
+			author: "Mark — App Reviewer",
+			bg: "#111827",
+			fontSize: Math.round(scene.height * 0.026),
+			showBackground: false,
+			showQuoteMark: true,
+			stars: 5,
+			type: "review",
+		};
+	}
 	return {
 		...base,
 		type: "label",
@@ -332,6 +458,48 @@ export function createDefaultAnnotation(
 		color: "#ffffff",
 		fontSize: Math.round(scene.height * 0.03),
 		showBackground: true,
+	};
+}
+
+/** Default colors giving each shape a distinct, legible starting look. */
+const SHAPE_DEFAULT_COLOR: Record<SceneShapeKind, string> = {
+	arrow: "#facc15",
+	blob: "#f472b6",
+	check: "#22c55e",
+	circle: "#ef4444",
+	heart: "#ef4444",
+	rating: "#fbbf24",
+	sparkle: "#fde047",
+	squiggle: "#facc15",
+	star: "#facc15",
+	underline: "#facc15",
+};
+
+/**
+ * Build a fresh decorative shape annotation centered on the scene. Pure — the
+ * caller injects `id` so the factory stays deterministic and testable.
+ */
+export function createShapeAnnotation(
+	id: string,
+	shape: SceneShapeKind,
+	scene: Pick<SceneData, "height" | "width">,
+): SceneShapeAnnotation {
+	const isMark =
+		shape === "sparkle" ||
+		shape === "star" ||
+		shape === "heart" ||
+		shape === "check";
+	return {
+		color: SHAPE_DEFAULT_COLOR[shape],
+		id,
+		opacity: 1,
+		rotation: 0,
+		shape,
+		strokeWidth: Math.max(4, Math.round(scene.height * 0.008)),
+		type: "shape",
+		width: isMark ? 0.1 : shape === "rating" ? 0.42 : 0.3,
+		x: 0.5,
+		y: 0.5,
 	};
 }
 
@@ -370,6 +538,20 @@ const ANNOTATION_GLYPH_RATIO = 0.58;
  * line; height accounts for line count. Used for both rendering and hit-testing
  * so the visible box and the clickable box stay in sync. Pure.
  */
+/** Height/width aspect of each decorative shape's bounding box. */
+export const SHAPE_ASPECT: Record<SceneShapeKind, number> = {
+	arrow: 0.55,
+	blob: 0.75,
+	check: 0.8,
+	circle: 0.5,
+	heart: 0.9,
+	rating: 0.2,
+	sparkle: 1,
+	squiggle: 0.22,
+	star: 1,
+	underline: 0.16,
+};
+
 export function measureAnnotationBox(
 	annotation: SceneAnnotation,
 	scene: Pick<SceneData, "width" | "height">,
@@ -381,12 +563,40 @@ export function measureAnnotationBox(
 		const height = width * (annotation.aspect ?? 1);
 		return { x: cx - width / 2, y: cy - height / 2, width, height };
 	}
+	if (annotation.type === "shape") {
+		const width = annotation.width * scene.width;
+		const height = width * SHAPE_ASPECT[annotation.shape];
+		return { x: cx - width / 2, y: cy - height / 2, width, height };
+	}
 	const lines = annotation.text.split("\n");
 	const longest = lines.reduce((max, l) => Math.max(max, l.length), 1);
 	const padX = annotation.fontSize * ANNOTATION_PADDING_X;
 	const padY = annotation.fontSize * ANNOTATION_PADDING_Y;
 	const textWidth = longest * annotation.fontSize * ANNOTATION_GLYPH_RATIO;
 	const textHeight = lines.length * annotation.fontSize * 1.2;
+
+	if (annotation.type === "laurel") {
+		// Wreath branches flank the text block; small lines above/below.
+		const extraLines =
+			(annotation.textTop ? 1 : 0) + (annotation.textBottom ? 1 : 0);
+		const width = textWidth + annotation.fontSize * 4.4;
+		const height =
+			textHeight + extraLines * annotation.fontSize * 0.95 + padY * 2;
+		return { x: cx - width / 2, y: cy - height / 2, width, height };
+	}
+	if (annotation.type === "review") {
+		// Quote mark + quote + stars + author stack vertically.
+		const quoteMark = annotation.showQuoteMark !== false ? 1.4 : 0;
+		const stars = (annotation.stars ?? 5) > 0 ? 1.1 : 0;
+		const author = annotation.author ? 1.5 : 0;
+		const width = Math.max(textWidth, annotation.fontSize * 8) + padX * 2;
+		const height =
+			textHeight +
+			(quoteMark + stars + author) * annotation.fontSize +
+			padY * 2.6;
+		return { x: cx - width / 2, y: cy - height / 2, width, height };
+	}
+
 	const width = textWidth + padX * 2;
 	const height = textHeight + padY * 2;
 	return { x: cx - width / 2, y: cy - height / 2, width, height };
@@ -456,6 +666,25 @@ export function hitTestDevice(
 	if (!rect) return false;
 	const cx = rect.x + rect.width / 2;
 	const cy = rect.y + rect.height / 2;
+	if (deviceHas3DTilt(device)) {
+		// Perspective path: hit-test the AABB of the projected quad.
+		const quad = projectRectCorners(
+			cx,
+			cy,
+			rect.width,
+			rect.height,
+			device.rotationX ?? 0,
+			device.rotationY ?? 0,
+			device.rotation ?? 0,
+		);
+		const box = quadBounds(quad);
+		return (
+			px >= box.x &&
+			px <= box.x + box.width &&
+			py >= box.y &&
+			py <= box.y + box.height
+		);
+	}
 	const rad = ((device.rotation ?? 0) * Math.PI) / 180;
 	const cos = Math.abs(Math.cos(rad));
 	const sin = Math.abs(Math.sin(rad));
@@ -464,6 +693,88 @@ export function hitTestDevice(
 	return (
 		px >= cx - halfW && px <= cx + halfW && py >= cy - halfH && py <= cy + halfH
 	);
+}
+
+/** Result of snapping a dragged layer: final position + guide lines to show. */
+export interface SnapResult {
+	x: number;
+	y: number;
+	/** Normalized x of the vertical guide line, when x snapped. */
+	guideX?: number;
+	/** Normalized y of the horizontal guide line, when y snapped. */
+	guideY?: number;
+}
+
+/** Snap radius as a fraction of the scene size. */
+const SNAP_THRESHOLD = 0.015;
+
+/**
+ * Snap a normalized drag position to alignment targets: the canvas/panel
+ * centers, panorama panel seams and the device center. Returns the snapped
+ * position plus the guide lines to visualize. Pure — drives canvas drags and
+ * tests. Pass the raw position through when the user holds Alt (caller's job).
+ */
+export function snapNormalizedPosition(
+	nx: number,
+	ny: number,
+	scene: SceneData,
+	threshold = SNAP_THRESHOLD,
+): SnapResult {
+	const panels = getPanelCount(scene);
+	const xTargets: number[] = [];
+	for (let i = 0; i < panels; i++) {
+		xTargets.push((i + 0.5) / panels);
+		if (i > 0) xTargets.push(i / panels);
+	}
+	const yTargets: number[] = [0.5];
+	const device = scene.device;
+	if (device && device.frame !== "none") {
+		xTargets.push(0.5 + device.offsetX);
+		yTargets.push(0.5 + device.offsetY);
+	}
+
+	const nearest = (value: number, targets: number[]): number | undefined => {
+		let best: number | undefined;
+		let bestDist = threshold;
+		for (const target of targets) {
+			const dist = Math.abs(value - target);
+			if (dist <= bestDist) {
+				best = target;
+				bestDist = dist;
+			}
+		}
+		return best;
+	};
+
+	const snappedX = nearest(nx, xTargets);
+	const snappedY = nearest(ny, yTargets);
+	return {
+		guideX: snappedX,
+		guideY: snappedY,
+		x: snappedX ?? nx,
+		y: snappedY ?? ny,
+	};
+}
+
+/**
+ * Return a copy of `items` with the item of the given id moved `delta` places
+ * (-1 = up/earlier = drawn below, +1 = down/later = drawn above). Out-of-range
+ * moves and unknown ids return the original array unchanged. Pure.
+ */
+export function reorderById<T extends { id: string }>(
+	items: readonly T[],
+	id: string,
+	delta: -1 | 1,
+): T[] {
+	const index = items.findIndex((item) => item.id === id);
+	const target = index + delta;
+	if (index < 0 || target < 0 || target >= items.length) {
+		return [...items];
+	}
+	const next = [...items];
+	const [moved] = next.splice(index, 1);
+	next.splice(target, 0, moved);
+	return next;
 }
 
 /**

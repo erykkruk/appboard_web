@@ -568,14 +568,59 @@ export type SceneTextAlign = "left" | "center" | "right";
 export type SceneScreenshotFit = "cover" | "contain";
 /** How a background image fills the canvas. Superset of {@link SceneScreenshotFit}. */
 export type SceneBackgroundFit = "cover" | "contain" | "stretch";
-export type SceneDeviceFrame = "iphone" | "android" | "none";
+export type SceneDeviceFrame =
+	| "iphone"
+	| "android"
+	| "ipad"
+	| "android-tablet"
+	| "apple-watch"
+	| "laptop"
+	| "none";
 /** Device frame body color. Defaults per platform (iPhone→silver, Android→black). */
 export type SceneDeviceColor = "black" | "silver";
+/**
+ * Device rendering style: "realistic" draws metallic rails and platform
+ * details; "clay" draws a flat matte body in an arbitrary color (clayColor);
+ * "photo" composites the screenshot into a photographic Apple product bezel
+ * (see `bezelId`); "3d" renders a true GLB model with WebGL (see `modelId`).
+ */
+export type SceneDeviceStyle = "realistic" | "clay" | "photo" | "3d";
+
+/** Gradient shape: linear (legacy default), radial or a soft multi-blob mesh. */
+export type SceneGradientType = "linear" | "radial" | "mesh";
+
+export type SceneBackgroundPatternType =
+	| "dots"
+	| "grid"
+	| "diagonal"
+	| "waves"
+	| "rings"
+	| "noise"
+	| "topo"
+	| "dunes";
+
+/** Decorative procedural pattern drawn over the base background fill. */
+export interface SceneBackgroundPattern {
+	type: SceneBackgroundPatternType;
+	color: string;
+	/** 0..1 overlay opacity. */
+	opacity: number;
+	/** Pattern density multiplier (~0.5 fine .. 3 chunky). */
+	scale: number;
+}
 
 export interface SceneBackground {
 	type: SceneBackgroundType;
 	value: string;
 	gradient?: { from: string; to: string; angle: number };
+	/** Gradient shape (gradient type only). Defaults to "linear". */
+	gradientType?: SceneGradientType;
+	/** Optional middle gradient stop (linear/radial only). */
+	via?: string;
+	/** Blob colors for the "mesh" gradient (2–5 colors over `gradient.from`). */
+	mesh?: string[];
+	/** Optional procedural pattern overlay drawn over any background type. */
+	pattern?: SceneBackgroundPattern;
 	/** Image fill mode (image type only). Defaults to "cover". */
 	fit?: SceneBackgroundFit;
 	/**
@@ -594,6 +639,25 @@ export interface SceneDevice {
 	rotation?: number;
 	/** Frame body color. Defaults to silver for iPhone, black for Android. */
 	color?: SceneDeviceColor;
+	/**
+	 * 3D tilt in degrees around the horizontal (X) and vertical (Y) axes.
+	 * Rendered as a perspective warp of the flat device render; 0/undefined
+	 * keeps the legacy flat look, so old scenes render unchanged.
+	 */
+	rotationX?: number;
+	rotationY?: number;
+	/** Rendering style. Defaults to "realistic" (legacy scenes). */
+	style?: SceneDeviceStyle;
+	/** Flat body color used when style is "clay". */
+	clayColor?: string;
+	/** Photographic bezel id from the DEVICE_BEZELS catalog ("photo" style). */
+	bezelId?: string;
+	/** 3D model id from the DEVICE_MODELS catalog ("3d" style). */
+	modelId?: string;
+	/** Soft elliptical shadow on the "floor" under the device. */
+	groundShadow?: boolean;
+	/** Diagonal glass reflection over the screen. */
+	glare?: boolean;
 }
 
 export interface SceneScreenshot {
@@ -631,9 +695,42 @@ export interface SceneTextLayer {
 	 * no backend migration is needed.
 	 */
 	doNotTranslate?: boolean;
+	/** Gradient text fill (overrides `color` when set). Drawn top→bottom. */
+	gradient?: { from: string; to: string };
+	/** Marker-style highlight bar drawn behind each text line. */
+	highlight?: string;
+	/** Extra spacing between glyphs in px (canvas letterSpacing). */
+	letterSpacing?: number;
+	/** Line height as a multiple of fontSize. Defaults to 1.2. */
+	lineHeight?: number;
+	/**
+	 * Arc curvature in degrees (-180..180). The text bends along a circle
+	 * spanning this many degrees: positive arches upward, negative downward,
+	 * 0/undefined renders straight (legacy).
+	 */
+	curve?: number;
+	/**
+	 * Second text color applied to the words listed in `accentWords` — lets a
+	 * single line mix colors ("Make **precise** loops"). Ignored while a
+	 * gradient fill or curve is active.
+	 */
+	accentColor?: string;
+	/** Comma-separated words to paint with `accentColor` (case-insensitive). */
+	accentWords?: string;
+	/**
+	 * Locked layers are skipped by canvas dragging and by "apply style to all"
+	 * — the reddit-requested way to protect finished texts from bulk edits.
+	 * They stay selectable from the layers list.
+	 */
+	locked?: boolean;
 }
 
-export type SceneAnnotationType = "callout" | "badge" | "label";
+export type SceneAnnotationType =
+	| "callout"
+	| "badge"
+	| "label"
+	| "laurel"
+	| "review";
 
 /**
  * Properties shared by every annotation variant. Positions (`x`/`y`) are
@@ -661,6 +758,14 @@ interface SceneAnnotationBase {
 	 * migration needed. Mirrors {@link SceneTextLayer.doNotTranslate}.
 	 */
 	doNotTranslate?: boolean;
+	/** Optional border stroke around the pill/bubble/card (both required). */
+	borderColor?: string;
+	borderWidth?: number;
+	/**
+	 * Corner radius override as a multiple of fontSize (0 = sharp). Defaults
+	 * per annotation type when unset (pill for badges, soft for labels).
+	 */
+	cornerRadius?: number;
 }
 
 /** A text bubble with a pointer/tail aimed at a target point on the scene. */
@@ -680,6 +785,34 @@ export interface SceneBadgeAnnotation extends SceneAnnotationBase {
 export interface SceneLabelAnnotation extends SceneAnnotationBase {
 	type: "label";
 	/** When false, the label is drawn without a background fill. */
+	showBackground?: boolean;
+}
+
+/**
+ * Award/featured laurel: mirrored wreath branches around up to three lines of
+ * text ("2026" / "Finalist" / "Design Award"). `text` is the main middle line.
+ */
+export interface SceneLaurelAnnotation extends SceneAnnotationBase {
+	type: "laurel";
+	/** Small line above the main text (e.g. a year). */
+	textTop?: string;
+	/** Small line below the main text (e.g. "Design Award"). */
+	textBottom?: string;
+}
+
+/**
+ * Review/testimonial card: big quote mark, the quote (`text`), a star row and
+ * an author line — the App Store social-proof classic.
+ */
+export interface SceneReviewAnnotation extends SceneAnnotationBase {
+	type: "review";
+	/** Attribution line under the stars (e.g. "Mark — App Reviewer"). */
+	author?: string;
+	/** Star count 0–5 (0 hides the row). Defaults to 5. */
+	stars?: number;
+	/** Show the big decorative quote mark above the text. Defaults to true. */
+	showQuoteMark?: boolean;
+	/** When true, draw the rounded card background (`bg`). */
 	showBackground?: boolean;
 }
 
@@ -709,13 +842,56 @@ export interface SceneImageAnnotation {
 	aspect?: number;
 }
 
+/** Hand-drawn decorative shape variants. */
+export type SceneShapeKind =
+	| "arrow"
+	| "underline"
+	| "squiggle"
+	| "circle"
+	| "sparkle"
+	| "star"
+	| "rating"
+	| "heart"
+	| "check"
+	| "blob";
+
+/**
+ * A decorative vector shape (hand-drawn arrow, marker underline, squiggle,
+ * circled emphasis, sparkles…) rendered procedurally — no image asset needed.
+ * Positions/width are normalized (0..1) like other annotations.
+ */
+export interface SceneShapeAnnotation {
+	type: "shape";
+	id: string;
+	shape: SceneShapeKind;
+	/** Normalized (0..1) center position. */
+	x: number;
+	y: number;
+	/** Normalized (0..1) width as a fraction of scene width. */
+	width: number;
+	color: string;
+	/** Stroke thickness in scene px (stroked shapes only). */
+	strokeWidth?: number;
+	/** Rotation in degrees, default 0. */
+	rotation?: number;
+	/** 0..1 opacity, default 1. */
+	opacity?: number;
+	/** Mirror horizontally (e.g. flip an arrow's direction). */
+	flip?: boolean;
+}
+
 /** Text-bearing annotation variants (everything except image layers). */
 export type SceneTextAnnotation =
 	| SceneCalloutAnnotation
 	| SceneBadgeAnnotation
-	| SceneLabelAnnotation;
+	| SceneLabelAnnotation
+	| SceneLaurelAnnotation
+	| SceneReviewAnnotation;
 
-export type SceneAnnotation = SceneTextAnnotation | SceneImageAnnotation;
+export type SceneAnnotation =
+	| SceneTextAnnotation
+	| SceneImageAnnotation
+	| SceneShapeAnnotation;
 
 /** A custom font uploaded by the user, embedded in the scene as a dataURL. */
 export interface SceneCustomFont {

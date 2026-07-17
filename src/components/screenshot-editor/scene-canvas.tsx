@@ -21,6 +21,7 @@ import {
 	hitTestCalloutTarget,
 	hitTestDevice,
 	hitTestTextLayer,
+	snapNormalizedPosition,
 } from "@/lib/screenshot-editor";
 import type { SceneData } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -55,6 +56,15 @@ interface SceneCanvasProps {
 	onMoveAnnotation: (id: string, x: number, y: number) => void;
 	onMoveCalloutTarget: (id: string, targetX: number, targetY: number) => void;
 	onMoveDevice: (offsetX: number, offsetY: number) => void;
+	/**
+	 * An image file was dropped on the canvas. `overDevice` is true when the
+	 * drop landed on the device frame (callers typically set the screenshot);
+	 * otherwise `nx`/`ny` give the normalized drop point for an image layer.
+	 */
+	onDropImageFile?: (
+		dataUrl: string,
+		drop: { nx: number; ny: number; overDevice: boolean },
+	) => void;
 	className?: string;
 }
 
@@ -69,6 +79,7 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 			onMoveAnnotation,
 			onMoveCalloutTarget,
 			onMoveDevice,
+			onDropImageFile,
 			className,
 		},
 		ref,
@@ -76,7 +87,14 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 		const canvasRef = useRef<HTMLCanvasElement>(null);
 		const containerRef = useRef<HTMLDivElement>(null);
 		const [displayScale, setDisplayScale] = useState(1);
+		// User zoom on top of the fit-to-view scale (1 = fit). Wide panoramas
+		// get tiny at fit scale, so the preview zooms and scrolls.
+		const [zoom, setZoom] = useState(1);
 		const draggingRef = useRef<DragTarget | null>(null);
+		// Active snap guide lines (normalized), shown while a drag is snapping.
+		const [guides, setGuides] = useState<{ x?: number; y?: number } | null>(
+			null,
+		);
 		// Bumped once the scene's custom fonts finish loading so text drawn
 		// before the FontFace resolved is re-rendered with the real glyphs.
 		const [fontsVersion, setFontsVersion] = useState(0);
@@ -119,6 +137,25 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 			return () => observer.disconnect();
 		}, [scene.width, scene.height]);
 
+		// Cmd/Ctrl + scroll zooms toward the cursor's general area. Native
+		// listener because React's wheel handlers are passive (no preventDefault).
+		useEffect(() => {
+			const container = containerRef.current;
+			if (!container) return;
+			const onWheel = (e: WheelEvent) => {
+				if (!e.metaKey && !e.ctrlKey) return;
+				e.preventDefault();
+				setZoom((prev) =>
+					Math.min(8, Math.max(0.2, prev * (e.deltaY < 0 ? 1.1 : 1 / 1.1))),
+				);
+			};
+			container.addEventListener("wheel", onWheel, { passive: false });
+			return () => container.removeEventListener("wheel", onWheel);
+		}, []);
+
+		const effectiveScale = displayScale * zoom;
+		const zoomPercent = Math.round(effectiveScale * 100);
+
 		// Redraw whenever the scene, decoded images or loaded fonts change. The
 		// live preview shows panorama split guides; the export path does not.
 		useEffect(() => {
@@ -126,8 +163,11 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 			if (!canvas) return;
 			const ctx = canvas.getContext("2d");
 			if (!ctx) return;
-			renderScene(ctx, scene, images, { splitGuides: true });
-		}, [scene, images, fontsVersion]);
+			renderScene(ctx, scene, images, {
+				guides: guides ?? undefined,
+				splitGuides: true,
+			});
+		}, [scene, images, fontsVersion, guides]);
 
 		useImperativeHandle(
 			ref,
@@ -238,32 +278,64 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 				if (drag.kind === "device") {
 					const centerX = point.x - drag.grabDx;
 					const centerY = point.y - drag.grabDy;
-					const offsetX = Math.min(
+					let offsetX = Math.min(
 						Math.max(
 							(centerX - scene.width / 2) / scene.width,
 							-DEVICE_OFFSET_LIMIT,
 						),
 						DEVICE_OFFSET_LIMIT,
 					);
-					const offsetY = Math.min(
+					let offsetY = Math.min(
 						Math.max(
 							(centerY - scene.height / 2) / scene.height,
 							-DEVICE_OFFSET_LIMIT,
 						),
 						DEVICE_OFFSET_LIMIT,
 					);
+					// Snap the device to the canvas center (Alt bypasses).
+					if (!e.altKey) {
+						const snapped: { x?: number; y?: number } = {};
+						if (Math.abs(offsetX) < 0.015) {
+							offsetX = 0;
+							snapped.x = 0.5;
+						}
+						if (Math.abs(offsetY) < 0.015) {
+							offsetY = 0;
+							snapped.y = 0.5;
+						}
+						setGuides(
+							snapped.x !== undefined || snapped.y !== undefined
+								? snapped
+								: null,
+						);
+					} else {
+						setGuides(null);
+					}
 					onMoveDevice(offsetX, offsetY);
 					return;
 				}
-				const nx = Math.min(Math.max(point.x / scene.width, 0), 1);
-				const ny = Math.min(Math.max(point.y / scene.height, 0), 1);
+				let nx = Math.min(Math.max(point.x / scene.width, 0), 1);
+				let ny = Math.min(Math.max(point.y / scene.height, 0), 1);
+				// Text and annotation boxes snap to centers/seams; the callout tail
+				// tip is a free aim point, so it never snaps.
+				if (drag.kind !== "callout-target" && !e.altKey) {
+					const snap = snapNormalizedPosition(nx, ny, scene);
+					nx = snap.x;
+					ny = snap.y;
+					setGuides(
+						snap.guideX !== undefined || snap.guideY !== undefined
+							? { x: snap.guideX, y: snap.guideY }
+							: null,
+					);
+				} else {
+					setGuides(null);
+				}
 				if (drag.kind === "text") onMoveLayer(drag.id, nx, ny);
 				else if (drag.kind === "annotation") onMoveAnnotation(drag.id, nx, ny);
 				else onMoveCalloutTarget(drag.id, nx, ny);
 			},
 			[
-				scene.width,
-				scene.height,
+				scene,
 				toScenePoint,
 				onMoveLayer,
 				onMoveAnnotation,
@@ -278,34 +350,109 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 					e.currentTarget.releasePointerCapture(e.pointerId);
 					draggingRef.current = null;
 				}
+				setGuides(null);
 			},
 			[],
 		);
 
+		// OS drag & drop: drop a PNG/JPG straight onto the canvas — on the
+		// device it becomes the screenshot, elsewhere an image layer.
+		const handleDragOver = useCallback(
+			(e: React.DragEvent<HTMLCanvasElement>) => {
+				if (onDropImageFile && e.dataTransfer.types.includes("Files")) {
+					e.preventDefault();
+					e.dataTransfer.dropEffect = "copy";
+				}
+			},
+			[onDropImageFile],
+		);
+
+		const handleDrop = useCallback(
+			(e: React.DragEvent<HTMLCanvasElement>) => {
+				if (!onDropImageFile) return;
+				const file = Array.from(e.dataTransfer.files).find((f) =>
+					f.type.startsWith("image/"),
+				);
+				if (!file) return;
+				e.preventDefault();
+				const point = toScenePoint(e.clientX, e.clientY);
+				if (!point) return;
+				const overDevice = hitTestDevice(scene, point.x, point.y);
+				const reader = new FileReader();
+				reader.onload = () => {
+					onDropImageFile(reader.result as string, {
+						nx: Math.min(Math.max(point.x / scene.width, 0), 1),
+						ny: Math.min(Math.max(point.y / scene.height, 0), 1),
+						overDevice,
+					});
+				};
+				reader.readAsDataURL(file);
+			},
+			[onDropImageFile, scene, toScenePoint],
+		);
+
 		return (
-			<div
-				ref={containerRef}
-				className={cn(
-					"flex h-full w-full items-center justify-center overflow-hidden",
-					className,
-				)}
-			>
-				<canvas
-					ref={canvasRef}
-					width={scene.width}
-					height={scene.height}
-					onPointerDown={handlePointerDown}
-					onPointerMove={handlePointerMove}
-					onPointerUp={handlePointerUp}
-					style={{
-						width: scene.width * displayScale,
-						height: scene.height * displayScale,
-					}}
-					className={cn(
-						"touch-none rounded-[2rem] shadow-2xl",
-						selectedLayerId ? "cursor-grabbing" : "cursor-default",
-					)}
-				/>
+			<div className={cn("relative h-full w-full", className)}>
+				<div ref={containerRef} className="h-full w-full overflow-auto">
+					<div className="flex min-h-full min-w-full items-center justify-center p-4">
+						<canvas
+							ref={canvasRef}
+							width={scene.width}
+							height={scene.height}
+							onPointerDown={handlePointerDown}
+							onPointerMove={handlePointerMove}
+							onPointerUp={handlePointerUp}
+							onDragOver={handleDragOver}
+							onDrop={handleDrop}
+							style={{
+								width: scene.width * effectiveScale,
+								height: scene.height * effectiveScale,
+							}}
+							className={cn(
+								"shrink-0 touch-none rounded-[2rem] shadow-2xl",
+								selectedLayerId ? "cursor-grabbing" : "cursor-default",
+							)}
+						/>
+					</div>
+				</div>
+
+				<div className="absolute bottom-3 right-3 flex items-center gap-1 rounded-md border border-border bg-background/90 px-1.5 py-1 shadow-md backdrop-blur">
+					<button
+						type="button"
+						onClick={() => setZoom((z) => Math.max(0.2, z / 1.25))}
+						className="rounded px-1.5 text-sm hover:bg-accent"
+						aria-label="Zoom out"
+					>
+						−
+					</button>
+					<span className="min-w-11 text-center text-xs tabular-nums text-muted-foreground">
+						{zoomPercent}%
+					</span>
+					<button
+						type="button"
+						onClick={() => setZoom((z) => Math.min(8, z * 1.25))}
+						className="rounded px-1.5 text-sm hover:bg-accent"
+						aria-label="Zoom in"
+					>
+						+
+					</button>
+					<button
+						type="button"
+						onClick={() => setZoom(1)}
+						className="rounded px-1.5 text-xs hover:bg-accent"
+					>
+						Fit
+					</button>
+					<button
+						type="button"
+						onClick={() =>
+							setZoom(displayScale > 0 ? 1 / displayScale : 1)
+						}
+						className="rounded px-1.5 text-xs hover:bg-accent"
+					>
+						100%
+					</button>
+				</div>
 			</div>
 		);
 	},
