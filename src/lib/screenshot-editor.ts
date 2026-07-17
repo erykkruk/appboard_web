@@ -5,7 +5,9 @@ import type {
 	SceneAnnotationType,
 	SceneBackgroundFit,
 	SceneData,
+	SceneDevice,
 	SceneDeviceFrame,
+	SceneExtraDevice,
 	SceneImageAnnotation,
 	SceneShapeAnnotation,
 	SceneShapeKind,
@@ -235,11 +237,19 @@ export function deviceAspect(
  */
 export function computeDeviceRect(scene: SceneData): Rect | null {
 	if (!scene.device) return null;
-	const { scale, offsetX, offsetY } = scene.device;
+	return computeDeviceRectFor(scene.device, scene);
+}
+
+/** Device rect for ANY device config (primary or an extra mockup). */
+export function computeDeviceRectFor(
+	device: SceneDevice,
+	scene: Pick<SceneData, "width" | "height" | "panels">,
+): Rect {
+	const { scale, offsetX, offsetY } = device;
 	// In panorama mode `scale` stays a fraction of ONE panel's width, so the
 	// frame keeps its size when the canvas widens to N panels.
 	const frameWidth = (scene.width / getPanelCount(scene)) * scale;
-	const frameHeight = frameWidth * deviceAspect(scene.device);
+	const frameHeight = frameWidth * deviceAspect(device);
 	const centerX = scene.width / 2 + offsetX * scene.width;
 	const centerY = scene.height / 2 + offsetY * scene.height;
 	return {
@@ -247,6 +257,25 @@ export function computeDeviceRect(scene: SceneData): Rect | null {
 		y: centerY - frameHeight / 2,
 		width: frameWidth,
 		height: frameHeight,
+	};
+}
+
+/** Fresh extra device mockup, offset so it never hides the primary one. */
+export function createExtraDevice(
+	id: string,
+	scene: Pick<SceneData, "device" | "extraDevices">,
+): SceneExtraDevice {
+	const count = (scene.extraDevices?.length ?? 0) + 1;
+	return {
+		frame: scene.device?.frame ?? "iphone",
+		groundShadow: scene.device?.groundShadow,
+		id,
+		offsetX: Math.min(0.4, 0.14 * count),
+		offsetY: (scene.device?.offsetY ?? 0.12) + 0.04 * count,
+		rotation: 0,
+		scale: Math.max(0.2, (scene.device?.scale ?? 0.72) * 0.85),
+		style:
+			scene.device?.style === "clay" ? "clay" : ("realistic" as const),
 	};
 }
 
@@ -662,8 +691,38 @@ export function hitTestDevice(
 ): boolean {
 	const device = scene.device;
 	if (!device || device.frame === "none") return false;
-	const rect = computeDeviceRect(scene);
-	if (!rect) return false;
+	return hitTestDeviceConfig(device, scene, px, py);
+}
+
+/**
+ * Which device sits under the point: an extra device's id (topmost first,
+ * they draw above the primary), "primary", or null. Drives canvas drags.
+ */
+export function hitTestAnyDevice(
+	scene: SceneData,
+	px: number,
+	py: number,
+): string | null {
+	const extras = scene.extraDevices ?? [];
+	for (let i = extras.length - 1; i >= 0; i--) {
+		if (
+			extras[i].frame !== "none" &&
+			hitTestDeviceConfig(extras[i], scene, px, py)
+		) {
+			return extras[i].id;
+		}
+	}
+	return hitTestDevice(scene, px, py) ? "primary" : null;
+}
+
+/** Rotation-aware AABB hit-test for one device config. */
+function hitTestDeviceConfig(
+	device: SceneDevice,
+	scene: SceneData,
+	px: number,
+	py: number,
+): boolean {
+	const rect = computeDeviceRectFor(device, scene);
 	const cx = rect.x + rect.width / 2;
 	const cy = rect.y + rect.height / 2;
 	if (deviceHas3DTilt(device)) {

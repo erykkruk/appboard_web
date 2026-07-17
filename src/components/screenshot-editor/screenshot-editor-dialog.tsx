@@ -59,6 +59,7 @@ import {
 	createDefaultAnnotation,
 	createDefaultScene,
 	createImageAnnotation,
+	createExtraDevice,
 	createShapeAnnotation,
 	getDisplayTypeLabel,
 	getPanelCount,
@@ -80,6 +81,7 @@ import type {
 	SceneAnnotation,
 	SceneAnnotationType,
 	SceneData,
+	SceneExtraDevice,
 	SceneShapeKind,
 	SceneTextLayer,
 	ScreenshotScene,
@@ -174,6 +176,8 @@ export function ScreenshotEditorDialog({
 	// Annotation id whose image is being replaced; null = add a new image layer.
 	const imageLayerTargetRef = useRef<string | null>(null);
 	const fontFileRef = useRef<HTMLInputElement>(null);
+	// Extra device whose screenshot is being picked; null = primary device.
+	const extraScreenshotTargetRef = useRef<string | null>(null);
 	// Text layer that requested the font upload; its family is set on success.
 	const fontTargetRef = useRef<string | null>(null);
 	// Add-Google-Font flow: mini dialog state + the text layer that opened it.
@@ -238,12 +242,25 @@ export function ScreenshotEditorDialog({
 						]),
 					)
 				: undefined,
+			extraScreenshots: loaded.extraScreenshots
+				? Object.fromEntries(
+						Object.entries(loaded.extraScreenshots).map(([id, img]) => [
+							id,
+							{
+								source: img.element,
+								width: img.width,
+								height: img.height,
+							},
+						]),
+					)
+				: undefined,
 		}),
 		[
 			loaded.background,
 			loaded.screenshot,
 			loaded.bezel,
 			loaded.annotations,
+			loaded.extraScreenshots,
 			deviceModelImage,
 		],
 	);
@@ -588,13 +605,59 @@ export function ScreenshotEditorDialog({
 		[setScene],
 	);
 
-	const moveDevice = useCallback((offsetX: number, offsetY: number) => {
-		setScene((prev) =>
-			prev.device
-				? { ...prev, device: { ...prev.device, offsetX, offsetY } }
-				: prev,
-		);
+	const moveDevice = useCallback(
+		(deviceId: string, offsetX: number, offsetY: number) => {
+			setScene((prev) => {
+				if (deviceId === "primary") {
+					return prev.device
+						? { ...prev, device: { ...prev.device, offsetX, offsetY } }
+						: prev;
+				}
+				return {
+					...prev,
+					extraDevices: (prev.extraDevices ?? []).map((d) =>
+						d.id === deviceId ? { ...d, offsetX, offsetY } : d,
+					),
+				};
+			});
+		},
+		[setScene],
+	);
+
+	const addExtraDevice = useCallback(() => {
+		const id = nextAnnotationId();
+		setScene((prev) => ({
+			...prev,
+			extraDevices: [
+				...(prev.extraDevices ?? []),
+				createExtraDevice(id, prev),
+			],
+		}));
+		setSelectedLayerId(`__extra:${id}`);
 	}, [setScene]);
+
+	const deleteExtraDevice = useCallback(
+		(id: string) => {
+			setScene((prev) => ({
+				...prev,
+				extraDevices: (prev.extraDevices ?? []).filter((d) => d.id !== id),
+			}));
+			if (selectedLayerId === `__extra:${id}`) setSelectedLayerId(null);
+		},
+		[selectedLayerId, setScene],
+	);
+
+	const patchExtraDevice = useCallback(
+		(id: string, patch: Partial<SceneExtraDevice>) => {
+			setScene((prev) => ({
+				...prev,
+				extraDevices: (prev.extraDevices ?? []).map((d) =>
+					d.id === id ? { ...d, ...patch } : d,
+				),
+			}));
+		},
+		[setScene],
+	);
 
 	const handleAddImageLayer = useCallback(() => {
 		imageLayerTargetRef.current = null;
@@ -604,13 +667,24 @@ export function ScreenshotEditorDialog({
 	const handleDropImageFile = useCallback(
 		async (
 			dataUrl: string,
-			drop: { nx: number; ny: number; overDevice: boolean },
+			drop: { nx: number; ny: number; deviceId: string | null },
 		) => {
-			if (drop.overDevice) {
+			if (drop.deviceId === "primary") {
 				setScreenshotSrc(dataUrl);
 				setScene((prev) => ({
 					...prev,
 					screenshot: { ...prev.screenshot, url: dataUrl },
+				}));
+				toast.success("Screenshot set from the dropped image");
+				return;
+			}
+			if (drop.deviceId) {
+				const targetId = drop.deviceId;
+				setScene((prev) => ({
+					...prev,
+					extraDevices: (prev.extraDevices ?? []).map((d) =>
+						d.id === targetId ? { ...d, screenshotUrl: dataUrl } : d,
+					),
 				}));
 				toast.success("Screenshot set from the dropped image");
 				return;
@@ -755,11 +829,23 @@ export function ScreenshotEditorDialog({
 		e.target.value = "";
 		if (!file) return;
 		const dataUrl = await readFileAsDataUrl(file);
+		// The same file input serves the primary device and extra mockups.
+		const extraId = extraScreenshotTargetRef.current;
+		extraScreenshotTargetRef.current = null;
+		if (extraId) {
+			patchExtraDevice(extraId, { screenshotUrl: dataUrl });
+			return;
+		}
 		setScreenshotSrc(dataUrl);
 		patchScene({
 			screenshot: { ...scene.screenshot, url: dataUrl },
 		});
 	};
+
+	const handlePickExtraScreenshot = useCallback((id: string) => {
+		extraScreenshotTargetRef.current = id;
+		screenshotFileRef.current?.click();
+	}, []);
 
 	const handlePickExistingScreenshot = useCallback(
 		(shot: VersionScreenshot) => {
@@ -1047,6 +1133,8 @@ export function ScreenshotEditorDialog({
 						onReorderText={reorderTextLayer}
 						onReorderAnnotation={reorderAnnotation}
 						onAddEmoji={addEmoji}
+						onAddDevice={addExtraDevice}
+						onDeleteDevice={deleteExtraDevice}
 					/>
 
 					<div className="flex min-w-0 flex-1 items-center justify-center bg-muted/30 p-6">
@@ -1079,6 +1167,9 @@ export function ScreenshotEditorDialog({
 						onDeleteAnnotation={deleteAnnotation}
 						onApplyTextStyleToAll={applyTextStyleToAll}
 						onApplyAnnotationStyleToAll={applyAnnotationStyleToAll}
+						onPatchExtraDevice={patchExtraDevice}
+						onPickExtraScreenshot={handlePickExtraScreenshot}
+						onDeleteDevice={deleteExtraDevice}
 					/>
 				</div>
 

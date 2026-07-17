@@ -61,6 +61,7 @@ import type {
 	SceneDeviceColor,
 	SceneDeviceFrame,
 	SceneDeviceStyle,
+	SceneExtraDevice,
 	SceneGradientType,
 	SceneImageAnnotation,
 	SceneShapeAnnotation,
@@ -258,6 +259,8 @@ interface LayersPanelProps {
 	onReorderText: (id: string, delta: -1 | 1) => void;
 	onReorderAnnotation: (id: string, delta: -1 | 1) => void;
 	onAddEmoji: (emoji: string) => void;
+	onAddDevice: () => void;
+	onDeleteDevice: (id: string) => void;
 }
 
 /** Chevron pair moving a layer down/up the draw order (later = on top). */
@@ -304,8 +307,11 @@ export function LayersPanel({
 	onReorderText,
 	onReorderAnnotation,
 	onAddEmoji,
+	onAddDevice,
+	onDeleteDevice,
 }: LayersPanelProps) {
 	const annotations = scene.annotations ?? [];
+	const extraDevices = scene.extraDevices ?? [];
 	return (
 		<div className="flex w-56 shrink-0 flex-col gap-2 overflow-y-auto border-r border-border p-3">
 			<div className="flex items-center justify-between">
@@ -365,6 +371,45 @@ export function LayersPanel({
 				<Smartphone className="h-4 w-4 text-muted-foreground" />
 				Device + screenshot
 			</button>
+
+			{extraDevices.map((extra, index) => (
+				<div
+					key={extra.id}
+					className={cn(
+						"group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm",
+						selectedLayerId === `__extra:${extra.id}`
+							? "bg-accent"
+							: "hover:bg-accent/50",
+					)}
+				>
+					<button
+						type="button"
+						onClick={() => onSelectLayer(`__extra:${extra.id}`)}
+						className="flex min-w-0 flex-1 items-center gap-2 text-left"
+					>
+						<Smartphone className="h-4 w-4 shrink-0 text-muted-foreground" />
+						<span className="truncate">Device {index + 2}</span>
+					</button>
+					<button
+						type="button"
+						onClick={() => onDeleteDevice(extra.id)}
+						className="opacity-0 transition-opacity group-hover:opacity-100"
+						aria-label={`Delete device ${index + 2}`}
+					>
+						<Trash2 className="h-3.5 w-3.5 text-muted-foreground hover:text-red-500" />
+					</button>
+				</div>
+			))}
+
+			<Button
+				size="sm"
+				variant="ghost"
+				className="justify-start px-2 text-muted-foreground"
+				onClick={onAddDevice}
+			>
+				<Plus className="h-4 w-4" />
+				Add device
+			</Button>
 
 			<div className="mt-1 text-xs font-medium text-muted-foreground">
 				Text layers
@@ -530,6 +575,9 @@ interface PropertiesPanelProps {
 	onApplyTextStyleToAll?: (sourceId: string) => void;
 	/** Copy the selected annotation's style onto all of the same type. */
 	onApplyAnnotationStyleToAll?: (sourceId: string) => void;
+	onPatchExtraDevice?: (id: string, patch: Partial<SceneExtraDevice>) => void;
+	onPickExtraScreenshot?: (id: string) => void;
+	onDeleteDevice?: (id: string) => void;
 }
 
 /** Right-side contextual properties for the currently selected layer. */
@@ -548,11 +596,19 @@ export function PropertiesPanel({
 	onDeleteAnnotation,
 	onApplyTextStyleToAll,
 	onApplyAnnotationStyleToAll,
+	onPatchExtraDevice,
+	onPickExtraScreenshot,
+	onDeleteDevice,
 }: PropertiesPanelProps) {
 	const selectedText = scene.textLayers.find((l) => l.id === selectedLayerId);
 	const selectedAnnotation = (scene.annotations ?? []).find(
 		(a) => a.id === selectedLayerId,
 	);
+	const selectedExtraDevice = selectedLayerId?.startsWith("__extra:")
+		? (scene.extraDevices ?? []).find(
+				(d) => d.id === selectedLayerId.slice("__extra:".length),
+			)
+		: undefined;
 
 	return (
 		<div className="flex w-72 shrink-0 flex-col gap-4 overflow-y-auto border-l border-border p-4">
@@ -569,6 +625,24 @@ export function PropertiesPanel({
 					onPatchScene={onPatchScene}
 					onPickScreenshot={onPickScreenshot}
 					onPickExistingScreenshot={onPickExistingScreenshot}
+				/>
+			)}
+			{selectedExtraDevice && onPatchExtraDevice && (
+				<ExtraDeviceProperties
+					device={selectedExtraDevice}
+					onPatch={(patch) =>
+						onPatchExtraDevice(selectedExtraDevice.id, patch)
+					}
+					onPickScreenshot={
+						onPickExtraScreenshot
+							? () => onPickExtraScreenshot(selectedExtraDevice.id)
+							: undefined
+					}
+					onDelete={
+						onDeleteDevice
+							? () => onDeleteDevice(selectedExtraDevice.id)
+							: undefined
+					}
 				/>
 			)}
 			{selectedText && (
@@ -1448,6 +1522,250 @@ function DeviceProperties({
 					</SelectContent>
 				</Select>
 			</div>
+		</div>
+	);
+}
+
+/**
+ * Properties of an EXTRA device mockup: drawn styles only (realistic/clay),
+ * its own screenshot, size/position and the same 3D tilt controls.
+ */
+function ExtraDeviceProperties({
+	device,
+	onPatch,
+	onPickScreenshot,
+	onDelete,
+}: {
+	device: SceneExtraDevice;
+	onPatch: (patch: Partial<SceneExtraDevice>) => void;
+	onPickScreenshot?: () => void;
+	onDelete?: () => void;
+}) {
+	return (
+		<div className="flex flex-col gap-3">
+			<h4 className="text-sm font-semibold">Extra device</h4>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">Frame</Label>
+				<Select
+					value={device.frame}
+					onValueChange={(frame) =>
+						onPatch({ frame: frame as SceneDeviceFrame })
+					}
+				>
+					<SelectTrigger>
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="iphone">iPhone</SelectItem>
+						<SelectItem value="android">Android phone</SelectItem>
+						<SelectItem value="ipad">iPad</SelectItem>
+						<SelectItem value="android-tablet">Android tablet</SelectItem>
+						<SelectItem value="apple-watch">Apple Watch</SelectItem>
+						<SelectItem value="laptop">Laptop</SelectItem>
+					</SelectContent>
+				</Select>
+			</div>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">Style</Label>
+				<Select
+					value={device.style === "clay" ? "clay" : "realistic"}
+					onValueChange={(style) =>
+						onPatch({ style: style as SceneDeviceStyle })
+					}
+				>
+					<SelectTrigger>
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="realistic">Realistic (drawn)</SelectItem>
+						<SelectItem value="clay">Clay (custom color)</SelectItem>
+					</SelectContent>
+				</Select>
+			</div>
+
+			{device.style === "clay" ? (
+				<ColorField
+					label="Clay color"
+					value={device.clayColor ?? "#8282b2"}
+					onChange={(clayColor) => onPatch({ clayColor })}
+				/>
+			) : (
+				<div className="flex flex-col gap-1.5">
+					<Label className="text-xs">Frame color</Label>
+					<Select
+						value={
+							device.color ??
+							(device.frame === "android" || device.frame === "android-tablet"
+								? "black"
+								: "silver")
+						}
+						onValueChange={(color) =>
+							onPatch({ color: color as SceneDeviceColor })
+						}
+					>
+						<SelectTrigger>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							<SelectItem value="silver">Silver</SelectItem>
+							<SelectItem value="black">Black</SelectItem>
+						</SelectContent>
+					</Select>
+				</div>
+			)}
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">Size: {Math.round(device.scale * 100)}%</Label>
+				<Slider
+					min={10}
+					max={100}
+					step={1}
+					value={[Math.round(device.scale * 100)]}
+					onValueChange={([v]) => onPatch({ scale: v / 100 })}
+				/>
+			</div>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">Horizontal position</Label>
+				<Slider
+					min={-50}
+					max={50}
+					step={1}
+					value={[Math.round(device.offsetX * 100)]}
+					onValueChange={([v]) => onPatch({ offsetX: v / 100 })}
+				/>
+			</div>
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">Vertical position</Label>
+				<Slider
+					min={-50}
+					max={50}
+					step={1}
+					value={[Math.round(device.offsetY * 100)]}
+					onValueChange={([v]) => onPatch({ offsetY: v / 100 })}
+				/>
+			</div>
+
+			<div className="flex items-center gap-2 rounded-md border border-border/60 p-2.5">
+				<Checkbox
+					id={`extra-shadow-${device.id}`}
+					checked={device.groundShadow ?? false}
+					onCheckedChange={(checked) =>
+						onPatch({ groundShadow: checked === true })
+					}
+				/>
+				<Label htmlFor={`extra-shadow-${device.id}`} className="flex-1 text-xs">
+					Ground shadow
+				</Label>
+			</div>
+
+			<div className="flex items-center gap-2 rounded-md border border-border/60 p-2.5">
+				<Checkbox
+					id={`extra-glare-${device.id}`}
+					checked={device.glare ?? false}
+					onCheckedChange={(checked) => onPatch({ glare: checked === true })}
+				/>
+				<Label htmlFor={`extra-glare-${device.id}`} className="flex-1 text-xs">
+					Screen glare
+				</Label>
+			</div>
+
+			<div className="flex flex-col gap-2 rounded-md border border-border/60 p-2.5">
+				<div className="flex items-center justify-between">
+					<Label className="text-xs font-medium">3D rotation</Label>
+					{((device.rotation ?? 0) !== 0 ||
+						(device.rotationX ?? 0) !== 0 ||
+						(device.rotationY ?? 0) !== 0) && (
+						<Button
+							type="button"
+							variant="ghost"
+							size="sm"
+							className="h-6 px-2 text-xs"
+							onClick={() =>
+								onPatch({ rotation: 0, rotationX: 0, rotationY: 0 })
+							}
+						>
+							Reset
+						</Button>
+					)}
+				</div>
+				<div className="flex flex-col gap-1.5">
+					<Label className="text-xs">
+						Tilt X: {Math.round(device.rotationX ?? 0)}°
+					</Label>
+					<Slider
+						min={-45}
+						max={45}
+						step={1}
+						value={[Math.round(device.rotationX ?? 0)]}
+						onValueChange={([v]) => onPatch({ rotationX: v })}
+					/>
+				</div>
+				<div className="flex flex-col gap-1.5">
+					<Label className="text-xs">
+						Tilt Y: {Math.round(device.rotationY ?? 0)}°
+					</Label>
+					<Slider
+						min={-45}
+						max={45}
+						step={1}
+						value={[Math.round(device.rotationY ?? 0)]}
+						onValueChange={([v]) => onPatch({ rotationY: v })}
+					/>
+				</div>
+				<div className="flex flex-col gap-1.5">
+					<Label className="text-xs">
+						Rotation Z: {Math.round(device.rotation ?? 0)}°
+					</Label>
+					<Slider
+						min={-45}
+						max={45}
+						step={1}
+						value={[Math.round(device.rotation ?? 0)]}
+						onValueChange={([v]) => onPatch({ rotation: v })}
+					/>
+				</div>
+			</div>
+
+			{onPickScreenshot && (
+				<Button variant="outline" size="sm" onClick={onPickScreenshot}>
+					<ImageIcon className="h-4 w-4" />
+					{device.screenshotUrl ? "Change screenshot" : "Upload screenshot"}
+				</Button>
+			)}
+
+			<div className="flex flex-col gap-1.5">
+				<Label className="text-xs">Screenshot fit</Label>
+				<Select
+					value={device.screenshotFit ?? "cover"}
+					onValueChange={(fit) =>
+						onPatch({ screenshotFit: fit as "cover" | "contain" })
+					}
+				>
+					<SelectTrigger>
+						<SelectValue />
+					</SelectTrigger>
+					<SelectContent>
+						<SelectItem value="cover">Fill (cover)</SelectItem>
+						<SelectItem value="contain">Fit (contain)</SelectItem>
+					</SelectContent>
+				</Select>
+			</div>
+
+			{onDelete && (
+				<Button
+					variant="outline"
+					size="sm"
+					className="text-red-500 hover:text-red-600"
+					onClick={onDelete}
+				>
+					<Trash2 className="h-4 w-4" />
+					Delete device
+				</Button>
+			)}
 		</div>
 	);
 }
