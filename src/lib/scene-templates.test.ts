@@ -144,6 +144,27 @@ describe("PANORAMA_TEMPLATES", () => {
 		}
 	});
 
+	test("every panorama panel carries a device mockup", () => {
+		for (const template of PANORAMA_TEMPLATES) {
+			for (const panels of [4, 6, 8]) {
+				const scene = template.build("APP_IPHONE_67", panels);
+				const deviceCount = 1 + (scene.extraDevices?.length ?? 0);
+				expect(deviceCount).toBe(panels);
+				// Each device is centered on its own panel.
+				const centers = [
+					0.5 + (scene.device?.offsetX ?? 0),
+					...(scene.extraDevices ?? []).map((d) => 0.5 + d.offsetX),
+				]
+					// `+ 0` folds IEEE -0 (float noise at panel 0) into +0 for toEqual.
+					.map((c) => Math.round(c * panels - 0.5) + 0)
+					.sort((a, b) => a - b);
+				expect(centers).toEqual(
+					Array.from({ length: panels }, (_, i) => i),
+				);
+			}
+		}
+	});
+
 	test("variant list covers the requested minimums (≥3×4, ≥5×6, ≥2×8)", () => {
 		const counts = PANORAMA_TEMPLATE_VARIANTS.reduce<Record<number, number>>(
 			(acc, v) => {
