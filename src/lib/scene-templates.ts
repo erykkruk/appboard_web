@@ -8,7 +8,11 @@ import {
 	getTargetDimensions,
 	type SceneOrientation,
 } from "@/lib/screenshot-editor";
-import type { SceneData, SceneTextLayer } from "@/lib/types";
+import type {
+	SceneData,
+	SceneExtraDevice,
+	SceneTextLayer,
+} from "@/lib/types";
 
 // One-click scene templates. Each template builds a complete SceneData for the
 // requested display type, so it works for every iOS (App Store) and Android
@@ -973,6 +977,59 @@ const deviceOffsetForPanel = (panel: number, panels: number) =>
 /** Cycle per-panel copy when the panorama has more panels than lines. */
 const copyAt = <T>(lines: T[], index: number): T => lines[index % lines.length];
 
+/**
+ * A device mockup on EVERY panorama panel: the primary device on panel 0 and
+ * an extra device per remaining panel, with alternating yaw so the strip
+ * reads as a rhythm, not a wall of identical phones.
+ */
+function devicesOnEveryPanel(
+	scene: SceneData,
+	panels: number,
+	options: {
+		scale?: number;
+		offsetY?: number;
+		glare?: boolean;
+		/** Alternate clay mockups on odd panels (in this color). */
+		alternateClay?: string;
+		color?: "black" | "silver";
+	} = {},
+): Pick<SceneData, "device" | "extraDevices"> {
+	const scale = options.scale ?? 0.6;
+	const offsetY = options.offsetY ?? 0.22;
+	const yawFor = (panel: number) => (panel % 2 === 0 ? 12 : -12);
+	const extraDevices: SceneExtraDevice[] = [];
+	for (let panel = 1; panel < panels; panel++) {
+		const clay = options.alternateClay && panel % 2 === 1;
+		extraDevices.push({
+			clayColor: clay ? options.alternateClay : undefined,
+			color: options.color,
+			frame: scene.device?.frame ?? "iphone",
+			glare: options.glare,
+			groundShadow: true,
+			id: `pano-dev-${panel}`,
+			offsetX: deviceOffsetForPanel(panel, panels),
+			offsetY,
+			rotation: 0,
+			rotationY: yawFor(panel),
+			scale,
+			style: clay ? "clay" : "realistic",
+		});
+	}
+	return {
+		device: {
+			...scene.device!,
+			color: options.color,
+			glare: options.glare,
+			groundShadow: true,
+			offsetX: deviceOffsetForPanel(0, panels),
+			offsetY,
+			rotationY: yawFor(0),
+			scale,
+		},
+		extraDevices,
+	};
+}
+
 export const PANORAMA_TEMPLATES: PanoramaTemplate[] = [
 	{
 		build: (displayType, panels) => {
@@ -1009,20 +1066,11 @@ export const PANORAMA_TEMPLATES: PanoramaTemplate[] = [
 			}
 			return {
 				...base,
-				extraDevices: [
-					{
-						clayColor: "#e9d5ff",
-						frame: base.device?.frame ?? "iphone",
-						groundShadow: true,
-						id: "pano-aurora-dev2",
-						offsetX: (panels - 0.5) / panels - 0.5,
-						offsetY: 0.24,
-						rotation: 4,
-						rotationY: -16,
-						scale: 0.5,
-						style: "clay",
-					},
-				],
+				...devicesOnEveryPanel(base, panels, {
+					alternateClay: "#e9d5ff",
+					offsetY: 0.24,
+					scale: 0.58,
+				}),
 				annotations: [
 					{
 						...createShapeAnnotation("pano-arrow", "arrow", base),
@@ -1046,18 +1094,10 @@ export const PANORAMA_TEMPLATES: PanoramaTemplate[] = [
 					type: "gradient",
 					value: "#4c1d95",
 				},
-				device: {
-					...base.device!,
-					groundShadow: true,
-					offsetX: deviceOffsetForPanel(0, panels),
-					offsetY: 0.2,
-					rotationY: -14,
-					scale: 0.7,
-				},
 				textLayers,
 			};
 		},
-		description: "Violet mesh across all panels, story headline per panel",
+		description: "Violet mesh across all panels, a mockup on every panel",
 		id: "pano-aurora-flow",
 		name: "Aurora flow",
 	},
@@ -1117,20 +1157,16 @@ export const PANORAMA_TEMPLATES: PanoramaTemplate[] = [
 					type: "color",
 					value: "#0b1120",
 				},
-				device: {
-					...base.device!,
+				...devicesOnEveryPanel(base, panels, {
 					color: "black",
 					glare: true,
-					groundShadow: true,
-					offsetX: deviceOffsetForPanel(center, panels),
-					offsetY: 0.22,
-					rotationY: 10,
-					scale: 0.68,
-				},
+					offsetY: 0.24,
+					scale: 0.56,
+				}),
 				textLayers,
 			};
 		},
-		description: "Dark dotted tour — numbered step on every panel",
+		description: "Dark dotted tour — numbered step and mockup on every panel",
 		id: "pano-midnight-tour",
 		name: "Midnight tour",
 	},
@@ -1194,20 +1230,15 @@ export const PANORAMA_TEMPLATES: PanoramaTemplate[] = [
 					type: "gradient",
 					value: "#fbd7a1",
 				},
-				device: {
-					...base.device!,
-					clayColor: "#f3e0c7",
-					groundShadow: true,
-					offsetX: deviceOffsetForPanel(last, panels),
-					offsetY: 0.24,
-					rotation: -4,
-					scale: 0.64,
-					style: "clay",
-				},
+				...devicesOnEveryPanel(base, panels, {
+					alternateClay: "#f3e0c7",
+					offsetY: 0.25,
+					scale: 0.56,
+				}),
 				textLayers,
 			};
 		},
-		description: "Dune landscape journey ending in a call-to-action",
+		description: "Dune journey with a mockup on every panel",
 		id: "pano-sahara-journey",
 		name: "Sahara journey",
 	},
@@ -1257,18 +1288,15 @@ PANORAMA_TEMPLATES.push(
 					type: "color",
 					value: "#1c1917",
 				},
-				device: {
-					...base.device!,
-					groundShadow: true,
-					offsetX: deviceOffsetForPanel(1 % panels, panels),
-					offsetY: 0.22,
-					rotationY: -10,
-					scale: 0.68,
-				},
+				...devicesOnEveryPanel(base, panels, {
+					color: "black",
+					offsetY: 0.24,
+					scale: 0.56,
+				}),
 				textLayers,
 			};
 		},
-		description: "Topographic ridge spanning every panel, bold accents",
+		description: "Topographic ridge with a mockup on every panel",
 		id: "pano-ascent-ridge",
 		name: "Ascent ridge",
 	},
@@ -1323,6 +1351,11 @@ PANORAMA_TEMPLATES.push(
 			}
 			return {
 				...base,
+				...devicesOnEveryPanel(base, panels, {
+					glare: true,
+					offsetY: 0.24,
+					scale: 0.56,
+				}),
 				annotations,
 				background: {
 					gradient: { angle: 170, from: "#f472b6", to: "#7c3aed" },
@@ -1331,20 +1364,10 @@ PANORAMA_TEMPLATES.push(
 					value: "#f472b6",
 					via: "#fb923c",
 				},
-				device: {
-					...base.device!,
-					glare: true,
-					groundShadow: true,
-					offsetX: deviceOffsetForPanel(center, panels),
-					offsetY: 0.2,
-					rotation: -5,
-					rotationY: 14,
-					scale: 0.7,
-				},
 				textLayers,
 			};
 		},
-		description: "Sunset wash with sparkles on every side panel",
+		description: "Sunset wash with a glowing mockup on every panel",
 		id: "pano-sunset-strip",
 		name: "Sunset strip",
 	},
