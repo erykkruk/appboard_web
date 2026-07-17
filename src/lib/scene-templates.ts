@@ -1283,16 +1283,26 @@ export const PANORAMA_TEMPLATE_VARIANTS: {
 	templateId: string;
 	panels: number;
 }[] = [
+	{ panels: 2, templateId: "pano-aurora-flow" },
+	{ panels: 2, templateId: "pano-sunset-strip" },
+	{ panels: 3, templateId: "pano-midnight-tour" },
+	{ panels: 3, templateId: "pano-sahara-journey" },
 	{ panels: 4, templateId: "pano-aurora-flow" },
 	{ panels: 4, templateId: "pano-midnight-tour" },
 	{ panels: 4, templateId: "pano-sahara-journey" },
+	{ panels: 4, templateId: "pano-ascent-ridge" },
+	{ panels: 4, templateId: "pano-sunset-strip" },
+	{ panels: 5, templateId: "pano-aurora-flow" },
+	{ panels: 5, templateId: "pano-ascent-ridge" },
 	{ panels: 6, templateId: "pano-aurora-flow" },
 	{ panels: 6, templateId: "pano-midnight-tour" },
 	{ panels: 6, templateId: "pano-sahara-journey" },
 	{ panels: 6, templateId: "pano-ascent-ridge" },
 	{ panels: 6, templateId: "pano-sunset-strip" },
+	{ panels: 7, templateId: "pano-midnight-tour" },
 	{ panels: 8, templateId: "pano-aurora-flow" },
 	{ panels: 8, templateId: "pano-sunset-strip" },
+	{ panels: 8, templateId: "pano-sahara-journey" },
 ];
 
 export function getPanoramaTemplate(id: string): PanoramaTemplate | undefined {

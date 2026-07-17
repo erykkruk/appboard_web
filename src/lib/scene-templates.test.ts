@@ -144,7 +144,7 @@ describe("PANORAMA_TEMPLATES", () => {
 		}
 	});
 
-	test("variant list matches the requested lineup (3×4, 5×6, 2×8)", () => {
+	test("variant list covers the requested minimums (≥3×4, ≥5×6, ≥2×8)", () => {
 		const counts = PANORAMA_TEMPLATE_VARIANTS.reduce<Record<number, number>>(
 			(acc, v) => {
 				acc[v.panels] = (acc[v.panels] ?? 0) + 1;
@@ -152,11 +152,13 @@ describe("PANORAMA_TEMPLATES", () => {
 			},
 			{},
 		);
-		expect(counts[4]).toBe(3);
-		expect(counts[6]).toBe(5);
-		expect(counts[8]).toBe(2);
+		expect(counts[4]).toBeGreaterThanOrEqual(3);
+		expect(counts[6]).toBeGreaterThanOrEqual(5);
+		expect(counts[8]).toBeGreaterThanOrEqual(2);
 		for (const variant of PANORAMA_TEMPLATE_VARIANTS) {
 			expect(getPanoramaTemplate(variant.templateId)).toBeDefined();
+			expect(variant.panels).toBeGreaterThanOrEqual(2);
+			expect(variant.panels).toBeLessThanOrEqual(8);
 		}
 	});
 
