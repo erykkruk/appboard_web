@@ -66,6 +66,7 @@ import {
 	applyPanelCount,
 	createDefaultAnnotation,
 	createDefaultScene,
+	createExtraDevice,
 	createImageAnnotation,
 	createShapeAnnotation,
 	DISPLAY_TYPE_LABELS,
@@ -79,6 +80,7 @@ import {
 	type SceneAnnotation,
 	type SceneAnnotationType,
 	type SceneData,
+	type SceneExtraDevice,
 	type SceneShapeKind,
 	type SceneTextLayer,
 } from "@/lib/types";
@@ -204,6 +206,7 @@ export default function GuestEditorPage() {
 	const imageLayerFileRef = useRef<HTMLInputElement>(null);
 	const imageLayerTargetRef = useRef<string | null>(null);
 	const fontFileRef = useRef<HTMLInputElement>(null);
+	const extraScreenshotTargetRef = useRef<string | null>(null);
 	const fontTargetRef = useRef<string | null>(null);
 	const [googleFontOpen, setGoogleFontOpen] = useState(false);
 	const [googleFontLoading, setGoogleFontLoading] = useState(false);
@@ -303,8 +306,16 @@ export default function GuestEditorPage() {
 						]),
 					)
 				: undefined,
+			extraScreenshots: loaded.extraScreenshots
+				? Object.fromEntries(
+						Object.entries(loaded.extraScreenshots).map(([id, img]) => [
+							id,
+							{ source: img.element, width: img.width, height: img.height },
+						]),
+					)
+				: undefined,
 		}),
-		[loaded.background, loaded.screenshot, loaded.bezel, loaded.annotations, deviceModelImage],
+		[loaded.background, loaded.screenshot, loaded.bezel, loaded.annotations, loaded.extraScreenshots, deviceModelImage],
 	);
 
 	const { undo, redo } = history;
@@ -639,25 +650,81 @@ export default function GuestEditorPage() {
 	);
 
 	const moveDevice = useCallback(
-		(offsetX: number, offsetY: number) => {
-			setScene((prev) =>
-				prev.device
-					? { ...prev, device: { ...prev.device, offsetX, offsetY } }
-					: prev,
-			);
+		(deviceId: string, offsetX: number, offsetY: number) => {
+			setScene((prev) => {
+				if (deviceId === "primary") {
+					return prev.device
+						? { ...prev, device: { ...prev.device, offsetX, offsetY } }
+						: prev;
+				}
+				return {
+					...prev,
+					extraDevices: (prev.extraDevices ?? []).map((d) =>
+						d.id === deviceId ? { ...d, offsetX, offsetY } : d,
+					),
+				};
+			});
 		},
 		[setScene],
 	);
 
+	const addExtraDevice = useCallback(() => {
+		const id = nextId("dev");
+		setScene((prev) => ({
+			...prev,
+			extraDevices: [...(prev.extraDevices ?? []), createExtraDevice(id, prev)],
+		}));
+		setSelectedLayerId(`__extra:${id}`);
+	}, [setScene]);
+
+	const deleteExtraDevice = useCallback(
+		(id: string) => {
+			setScene((prev) => ({
+				...prev,
+				extraDevices: (prev.extraDevices ?? []).filter((d) => d.id !== id),
+			}));
+			if (selectedLayerId === `__extra:${id}`) setSelectedLayerId(null);
+		},
+		[selectedLayerId, setScene],
+	);
+
+	const patchExtraDevice = useCallback(
+		(id: string, patch: Partial<SceneExtraDevice>) => {
+			setScene((prev) => ({
+				...prev,
+				extraDevices: (prev.extraDevices ?? []).map((d) =>
+					d.id === id ? { ...d, ...patch } : d,
+				),
+			}));
+		},
+		[setScene],
+	);
+
+	const handlePickExtraScreenshot = useCallback((id: string) => {
+		extraScreenshotTargetRef.current = id;
+		screenshotFileRef.current?.click();
+	}, []);
+
 	const handleDropImageFile = useCallback(
 		async (
 			dataUrl: string,
-			drop: { nx: number; ny: number; overDevice: boolean },
+			drop: { nx: number; ny: number; deviceId: string | null },
 		) => {
-			if (drop.overDevice) {
+			if (drop.deviceId === "primary") {
 				setScene((prev) => ({
 					...prev,
 					screenshot: { ...prev.screenshot, url: dataUrl },
+				}));
+				toast.success("Screenshot set from the dropped image");
+				return;
+			}
+			if (drop.deviceId) {
+				const targetId = drop.deviceId;
+				setScene((prev) => ({
+					...prev,
+					extraDevices: (prev.extraDevices ?? []).map((d) =>
+						d.id === targetId ? { ...d, screenshotUrl: dataUrl } : d,
+					),
 				}));
 				toast.success("Screenshot set from the dropped image");
 				return;
@@ -781,6 +848,12 @@ export default function GuestEditorPage() {
 		e.target.value = "";
 		if (!file) return;
 		const dataUrl = await readFileAsDataUrl(file);
+		const extraId = extraScreenshotTargetRef.current;
+		extraScreenshotTargetRef.current = null;
+		if (extraId) {
+			patchExtraDevice(extraId, { screenshotUrl: dataUrl });
+			return;
+		}
 		patchScene({ screenshot: { ...scene.screenshot, url: dataUrl } });
 	};
 
@@ -1022,6 +1095,8 @@ export default function GuestEditorPage() {
 					onReorderText={reorderTextLayer}
 					onReorderAnnotation={reorderAnnotation}
 					onAddEmoji={addEmoji}
+					onAddDevice={addExtraDevice}
+					onDeleteDevice={deleteExtraDevice}
 				/>
 
 				<div className="flex min-w-0 flex-1 items-center justify-center bg-muted/30 p-4">
@@ -1063,6 +1138,9 @@ export default function GuestEditorPage() {
 					onDeleteAnnotation={deleteAnnotation}
 					onApplyTextStyleToAll={applyTextStyleToAll}
 					onApplyAnnotationStyleToAll={applyAnnotationStyleToAll}
+					onPatchExtraDevice={patchExtraDevice}
+					onPickExtraScreenshot={handlePickExtraScreenshot}
+					onDeleteDevice={deleteExtraDevice}
 				/>
 			</div>
 

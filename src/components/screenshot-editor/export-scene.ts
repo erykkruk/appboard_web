@@ -106,6 +106,16 @@ export async function exportSceneToPng(scene: SceneData): Promise<Blob | null> {
 			images.annotations = { ...images.annotations, [annotation.id]: image };
 		}
 	}
+	for (const extra of scene.extraDevices ?? []) {
+		if (!extra.screenshotUrl) continue;
+		const image = await loadRenderImage(extra.screenshotUrl);
+		if (image) {
+			images.extraScreenshots = {
+				...images.extraScreenshots,
+				[extra.id]: image,
+			};
+		}
+	}
 
 	const canvas = document.createElement("canvas");
 	canvas.width = scene.width;

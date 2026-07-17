@@ -39,6 +39,8 @@ const noopLayerProps = {
 	onReorderText: mock(() => {}),
 	onReorderAnnotation: mock(() => {}),
 	onAddEmoji: mock(() => {}),
+	onAddDevice: mock(() => {}),
+	onDeleteDevice: mock(() => {}),
 };
 
 const noopPropertiesProps = {

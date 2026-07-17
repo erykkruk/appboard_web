@@ -15,11 +15,11 @@ import {
 	registerCustomFont,
 } from "@/lib/scene-fonts";
 import {
-	computeDeviceRect,
+	computeDeviceRectFor,
 	computeDisplayScale,
 	hitTestAnnotation,
+	hitTestAnyDevice,
 	hitTestCalloutTarget,
-	hitTestDevice,
 	hitTestTextLayer,
 	snapNormalizedPosition,
 } from "@/lib/screenshot-editor";
@@ -42,7 +42,13 @@ type DragTarget =
 	| { kind: "text"; id: string }
 	| { kind: "annotation"; id: string }
 	| { kind: "callout-target"; id: string }
-	| { kind: "device"; grabDx: number; grabDy: number };
+	| {
+			kind: "device";
+			/** "primary" or an extra device's id. */
+			deviceId: string;
+			grabDx: number;
+			grabDy: number;
+	  };
 
 // Matches the ±40% range of the device position sliders in the panel.
 const DEVICE_OFFSET_LIMIT = 0.4;
@@ -55,15 +61,17 @@ interface SceneCanvasProps {
 	onMoveLayer: (id: string, x: number, y: number) => void;
 	onMoveAnnotation: (id: string, x: number, y: number) => void;
 	onMoveCalloutTarget: (id: string, targetX: number, targetY: number) => void;
-	onMoveDevice: (offsetX: number, offsetY: number) => void;
+	/** `deviceId` is "primary" or an extra device's id. */
+	onMoveDevice: (deviceId: string, offsetX: number, offsetY: number) => void;
 	/**
-	 * An image file was dropped on the canvas. `overDevice` is true when the
-	 * drop landed on the device frame (callers typically set the screenshot);
-	 * otherwise `nx`/`ny` give the normalized drop point for an image layer.
+	 * An image file was dropped on the canvas. `deviceId` ("primary" or an
+	 * extra device's id) is set when the drop landed on a device frame —
+	 * callers set that device's screenshot; otherwise `nx`/`ny` give the
+	 * normalized drop point for an image layer.
 	 */
 	onDropImageFile?: (
 		dataUrl: string,
-		drop: { nx: number; ny: number; overDevice: boolean },
+		drop: { nx: number; ny: number; deviceId: string | null },
 	) => void;
 	className?: string;
 }
@@ -248,13 +256,21 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 					return;
 				}
 
-				// Device frame is the lowest-priority drag target — it usually
-				// covers most of the scene, so text/annotations must win above.
-				if (hitTestDevice(scene, point.x, point.y)) {
-					const rect = computeDeviceRect(scene);
-					if (rect) {
-						onSelectLayer("__device");
+				// Device frames are the lowest-priority drag targets — they usually
+				// cover most of the scene, so text/annotations must win above.
+				const deviceHit = hitTestAnyDevice(scene, point.x, point.y);
+				if (deviceHit) {
+					const config =
+						deviceHit === "primary"
+							? scene.device
+							: (scene.extraDevices ?? []).find((d) => d.id === deviceHit);
+					if (config) {
+						const rect = computeDeviceRectFor(config, scene);
+						onSelectLayer(
+							deviceHit === "primary" ? "__device" : `__extra:${deviceHit}`,
+						);
 						draggingRef.current = {
+							deviceId: deviceHit,
 							kind: "device",
 							grabDx: point.x - (rect.x + rect.width / 2),
 							grabDy: point.y - (rect.y + rect.height / 2),
@@ -311,7 +327,7 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 					} else {
 						setGuides(null);
 					}
-					onMoveDevice(offsetX, offsetY);
+					onMoveDevice(drag.deviceId, offsetX, offsetY);
 					return;
 				}
 				let nx = Math.min(Math.max(point.x / scene.width, 0), 1);
@@ -377,13 +393,13 @@ export const SceneCanvas = forwardRef<SceneCanvasHandle, SceneCanvasProps>(
 				e.preventDefault();
 				const point = toScenePoint(e.clientX, e.clientY);
 				if (!point) return;
-				const overDevice = hitTestDevice(scene, point.x, point.y);
+				const deviceId = hitTestAnyDevice(scene, point.x, point.y);
 				const reader = new FileReader();
 				reader.onload = () => {
 					onDropImageFile(reader.result as string, {
+						deviceId,
 						nx: Math.min(Math.max(point.x / scene.width, 0), 1),
 						ny: Math.min(Math.max(point.y / scene.height, 0), 1),
-						overDevice,
 					});
 				};
 				reader.readAsDataURL(file);

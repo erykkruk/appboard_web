@@ -4,10 +4,12 @@ import {
 	applyOrientation,
 	applyPanelCount,
 	computeDeviceRect,
+	computeDeviceRectFor,
 	computeDisplayScale,
 	computeImageFit,
 	createDefaultAnnotation,
 	createDefaultScene,
+	createExtraDevice,
 	createImageAnnotation,
 	createShapeAnnotation,
 	defaultFrameForDisplayType,
@@ -18,6 +20,7 @@ import {
 	getTargetDimensions,
 	getTargetDimensionsFor,
 	hitTestAnnotation,
+	hitTestAnyDevice,
 	hitTestCalloutTarget,
 	hitTestDevice,
 	hitTestTextLayer,
@@ -801,5 +804,59 @@ describe("locked text layers", () => {
 			textLayers: [{ ...scene.textLayers[0], locked: false }],
 		};
 		expect(hitTestTextLayer(unlocked, 500, 200)).toBe("locked");
+	});
+});
+
+describe("extra devices", () => {
+	const base: SceneData = {
+		background: { type: "color", value: "#000" },
+		device: { frame: "iphone", offsetX: 0, offsetY: 0, scale: 0.5 },
+		height: 2000,
+		textLayers: [],
+		width: 1000,
+	};
+
+	test("createExtraDevice offsets the mockup away from the primary", () => {
+		const extra = createExtraDevice("d2", base);
+		expect(extra.id).toBe("d2");
+		expect(extra.offsetX).toBeGreaterThan(0);
+		expect(extra.scale).toBeLessThan(0.5);
+		expect(extra.style).toBe("realistic");
+	});
+
+	test("hitTestAnyDevice prefers the topmost extra device", () => {
+		const scene: SceneData = {
+			...base,
+			extraDevices: [
+				{
+					frame: "iphone",
+					id: "d2",
+					offsetX: 0,
+					offsetY: 0,
+					rotation: 0,
+					scale: 0.5,
+				},
+			],
+		};
+		// Both devices overlap at the center — the extra one wins (drawn above).
+		expect(hitTestAnyDevice(scene, 500, 1000)).toBe("d2");
+		// A point only the primary covers... shrink extra and move it away.
+		const apart: SceneData = {
+			...scene,
+			extraDevices: [
+				{ ...scene.extraDevices![0], offsetX: 0.4, scale: 0.1 },
+			],
+		};
+		expect(hitTestAnyDevice(apart, 500, 1000)).toBe("primary");
+		expect(hitTestAnyDevice(apart, 10, 10)).toBeNull();
+	});
+
+	test("computeDeviceRectFor centers extras by their own offsets", () => {
+		const rect = computeDeviceRectFor(
+			{ frame: "iphone", offsetX: 0.25, offsetY: 0, scale: 0.4 },
+			base,
+		);
+		expect(rect.width).toBe(400);
+		expect(rect.x + rect.width / 2).toBeCloseTo(1000 * 0.75);
 	});
 });

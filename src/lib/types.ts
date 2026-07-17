@@ -666,6 +666,19 @@ export interface SceneScreenshot {
 	fit?: SceneScreenshotFit;
 }
 
+/**
+ * An additional device mockup layer. The scene's primary `device` +
+ * `screenshot` pair stays as-is (backward compatible); extra devices carry
+ * their own screenshot inline. Styles "photo"/"3d" are not offered for
+ * extras (they fall back to the drawn look) — realistic/clay only.
+ */
+export interface SceneExtraDevice extends SceneDevice {
+	id: string;
+	/** This device's own screenshot (dataURL or remote URL). */
+	screenshotUrl?: string;
+	screenshotFit?: SceneScreenshotFit;
+}
+
 export interface SceneTextLayer {
 	id: string;
 	text: string;
@@ -904,6 +917,8 @@ export interface SceneData {
 	height: number;
 	background: SceneBackground;
 	device?: SceneDevice;
+	/** Additional device mockups drawn above the primary one. */
+	extraDevices?: SceneExtraDevice[];
 	screenshot?: SceneScreenshot;
 	textLayers: SceneTextLayer[];
 	annotations?: SceneAnnotation[];

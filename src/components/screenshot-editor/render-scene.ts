@@ -5,7 +5,7 @@ import {
 } from "@/lib/perspective";
 import {
 	buildFontString,
-	computeDeviceRect,
+	computeDeviceRectFor,
 	computeImageFit,
 	deviceHas3DTilt,
 	getPanelCount,
@@ -47,6 +47,19 @@ export interface RenderImages {
 	deviceModel?: RenderImage;
 	/** Decoded image-annotation sources keyed by annotation id. */
 	annotations?: Record<string, RenderImage | undefined>;
+	/** Decoded screenshots of extra device mockups, keyed by device id. */
+	extraScreenshots?: Record<string, RenderImage | undefined>;
+}
+
+/** Everything needed to paint ONE device (primary or extra). */
+interface DeviceRenderContext {
+	device: SceneDevice;
+	screenshot?: RenderImage;
+	fit: "cover" | "contain";
+	/** Photographic bezel ("photo" style — primary device only). */
+	bezel?: RenderImage;
+	/** Pre-rendered WebGL model ("3d" style — primary device only). */
+	deviceModel?: RenderImage;
 }
 
 // Realistic device-frame proportions (fractions of the frame width W, except
@@ -513,11 +526,36 @@ function drawDeviceFrame(
 				dest.height,
 			);
 		}
-		return;
+	} else {
+		drawOneDevice(ctx, scene, {
+			bezel: images.bezel,
+			device,
+			deviceModel: images.deviceModel,
+			fit: scene.screenshot?.fit ?? "cover",
+			screenshot: images.screenshot,
+		});
 	}
 
-	const frame = computeDeviceRect(scene);
-	if (!frame) return;
+	// Extra device mockups draw above the primary one, each with its own
+	// screenshot. They use the drawn styles (realistic/clay) only.
+	for (const extra of scene.extraDevices ?? []) {
+		if (extra.frame === "none") continue;
+		drawOneDevice(ctx, scene, {
+			device: extra,
+			fit: extra.screenshotFit ?? "cover",
+			screenshot: images.extraScreenshots?.[extra.id],
+		});
+	}
+}
+
+/** Paint one device: ground shadow, then 3D / warped / flat body. */
+function drawOneDevice(
+	ctx: CanvasRenderingContext2D,
+	scene: SceneData,
+	d: DeviceRenderContext,
+): void {
+	const device = d.device;
+	const frame = computeDeviceRectFor(device, scene);
 
 	// Ground shadow first, on the untransformed canvas, so it stays "on the
 	// floor" no matter how the device above it is rotated or tilted.
@@ -544,15 +582,15 @@ function drawDeviceFrame(
 	// True-3D style: the WebGL renderer already applied all rotations, so the
 	// pre-rendered transparent canvas just lands centered on the device rect
 	// (bypasses both the flat path and the 2.5D warp below).
-	if (device.style === "3d" && images.deviceModel) {
+	if (device.style === "3d" && d.deviceModel) {
 		const cx = frame.x + frame.width / 2;
 		const cy = frame.y + frame.height / 2;
 		ctx.drawImage(
-			images.deviceModel.source,
-			cx - images.deviceModel.width / 2,
-			cy - images.deviceModel.height / 2,
-			images.deviceModel.width,
-			images.deviceModel.height,
+			d.deviceModel.source,
+			cx - d.deviceModel.width / 2,
+			cy - d.deviceModel.height / 2,
+			d.deviceModel.width,
+			d.deviceModel.height,
 		);
 		return;
 	}
@@ -567,7 +605,7 @@ function drawDeviceFrame(
 			ctx.rotate((device.rotation * Math.PI) / 180);
 			ctx.translate(-rcx, -rcy);
 		}
-		paintDevice(ctx, scene, images, frame);
+		paintDevice(ctx, d, frame);
 		ctx.restore();
 		return;
 	}
@@ -583,7 +621,7 @@ function drawDeviceFrame(
 	const offCtx = off.getContext("2d");
 	if (!offCtx) return;
 	offCtx.translate(pad - frame.x, pad - frame.y);
-	paintDevice(offCtx, scene, images, frame);
+	paintDevice(offCtx, d, frame);
 
 	const cx = frame.x + frame.width / 2;
 	const cy = frame.y + frame.height / 2;
@@ -605,31 +643,29 @@ function drawDeviceFrame(
  */
 function paintDevice(
 	ctx: CanvasRenderingContext2D,
-	scene: SceneData,
-	images: RenderImages,
+	d: DeviceRenderContext,
 	frame: Rect,
 ): void {
-	const device = scene.device;
-	if (!device) return;
+	const device = d.device;
 	// Photographic bezel wins over programmatic frames; falls back to the
 	// realistic painter while the bezel PNG is still decoding.
-	if (device.style === "photo" && images.bezel) {
-		paintPhotoDevice(ctx, scene, images, frame);
+	if (device.style === "photo" && d.bezel) {
+		paintPhotoDevice(ctx, d, frame);
 		return;
 	}
 	switch (device.frame) {
 		case "ipad":
 		case "android-tablet":
-			paintTablet(ctx, scene, images, frame, device);
+			paintTablet(ctx, d, frame);
 			return;
 		case "apple-watch":
-			paintWatch(ctx, scene, images, frame, device);
+			paintWatch(ctx, d, frame);
 			return;
 		case "laptop":
-			paintLaptop(ctx, scene, images, frame, device);
+			paintLaptop(ctx, d, frame);
 			return;
 		default:
-			paintPhone(ctx, scene, images, frame, device);
+			paintPhone(ctx, d, frame);
 	}
 }
 
@@ -641,13 +677,12 @@ function paintDevice(
  */
 function paintPhotoDevice(
 	ctx: CanvasRenderingContext2D,
-	scene: SceneData,
-	images: RenderImages,
+	d: DeviceRenderContext,
 	frame: Rect,
 ): void {
-	const bezelImage = images.bezel;
-	if (!bezelImage || !scene.device) return;
-	const bezel = getDeviceBezel(scene.device.bezelId);
+	const bezelImage = d.bezel;
+	if (!bezelImage) return;
+	const bezel = getDeviceBezel(d.device.bezelId);
 	const screen: Rect = {
 		x: frame.x + bezel.screen.x * frame.width,
 		y: frame.y + bezel.screen.y * frame.height,
@@ -669,7 +704,7 @@ function paintPhotoDevice(
 	// The photographic cutout is a REAL screen — the app always fills it
 	// edge-to-edge, so contain-letterboxing never applies here (it would show
 	// black bands around the Dynamic Island).
-	paintScreen(ctx, scene, images, screen, frame.width * 0.001, "cover");
+	paintScreen(ctx, d, screen, frame.width * 0.001, "cover");
 	ctx.drawImage(
 		bezelImage.source,
 		frame.x,
@@ -682,8 +717,7 @@ function paintPhotoDevice(
 /** Fill the screen rect (rounded, clipped) with the screenshot or placeholder. */
 function paintScreen(
 	ctx: CanvasRenderingContext2D,
-	scene: SceneData,
-	images: RenderImages,
+	d: DeviceRenderContext,
 	screen: Rect,
 	radius: number,
 	fitOverride?: "cover" | "contain",
@@ -691,15 +725,15 @@ function paintScreen(
 	ctx.save();
 	roundedRectPath(ctx, screen, radius);
 	ctx.clip();
-	if (images.screenshot) {
+	if (d.screenshot) {
 		const { dest, src } = computeImageFit(
-			images.screenshot.width,
-			images.screenshot.height,
+			d.screenshot.width,
+			d.screenshot.height,
 			screen,
-			fitOverride ?? scene.screenshot?.fit ?? "cover",
+			fitOverride ?? d.fit,
 		);
 		ctx.drawImage(
-			images.screenshot.source,
+			d.screenshot.source,
 			src.x,
 			src.y,
 			src.width,
@@ -726,7 +760,7 @@ function paintScreen(
 
 	// Diagonal glass reflection: a soft white sheen fading from the top-left
 	// corner, clipped to the screen so it reads as glass, not an overlay.
-	if (scene.device?.glare) {
+	if (d.device.glare) {
 		const g = ctx.createLinearGradient(
 			screen.x,
 			screen.y,
@@ -779,11 +813,10 @@ function paintBodyAndGlass(
 /** Modern phone: titanium rail, Dynamic Island (iPhone) / hole-punch (Android). */
 function paintPhone(
 	ctx: CanvasRenderingContext2D,
-	scene: SceneData,
-	images: RenderImages,
+	d: DeviceRenderContext,
 	frame: Rect,
-	device: SceneDevice,
 ): void {
+	const device = d.device;
 	const isAndroid = device.frame === "android";
 	// Default color per platform preserves the look of scenes saved before the
 	// color option existed (iPhone silver, Android black).
@@ -815,7 +848,7 @@ function paintPhone(
 		width: W - bezel * 2,
 		height: frame.height - bezel * 2,
 	};
-	paintScreen(ctx, scene, images, screen, bodyRadius - bezel);
+	paintScreen(ctx, d, screen, bodyRadius - bezel);
 
 	// Camera cutout, drawn over the screen.
 	if (isAndroid) {
@@ -850,11 +883,10 @@ const TABLET_BEZEL_RATIO = 0.042;
 /** iPad / Android slate: uniform bezel, camera dot (iPad) or hole-punch. */
 function paintTablet(
 	ctx: CanvasRenderingContext2D,
-	scene: SceneData,
-	images: RenderImages,
+	d: DeviceRenderContext,
 	frame: Rect,
-	device: SceneDevice,
 ): void {
+	const device = d.device;
 	const isAndroid = device.frame === "android-tablet";
 	const fills = resolveDeviceFills(
 		ctx,
@@ -893,7 +925,7 @@ function paintTablet(
 		width: W - bezel * 2,
 		height: frame.height - bezel * 2,
 	};
-	paintScreen(ctx, scene, images, screen, bodyRadius - bezel);
+	paintScreen(ctx, d, screen, bodyRadius - bezel);
 
 	if (isAndroid) {
 		const holeCy = screen.y + W * 0.032;
@@ -917,11 +949,10 @@ const WATCH_BAND_LENGTH_RATIO = 0.2;
 /** Apple Watch: squircle body, digital crown + side button, band stubs. */
 function paintWatch(
 	ctx: CanvasRenderingContext2D,
-	scene: SceneData,
-	images: RenderImages,
+	d: DeviceRenderContext,
 	frame: Rect,
-	device: SceneDevice,
 ): void {
+	const device = d.device;
 	const fills = resolveDeviceFills(ctx, frame, device, "silver");
 	const W = frame.width;
 	const H = frame.height;
@@ -982,7 +1013,7 @@ function paintWatch(
 		width: W - bezel * 2,
 		height: H - bezel * 2,
 	};
-	paintScreen(ctx, scene, images, screen, bodyRadius - bezel);
+	paintScreen(ctx, d, screen, bodyRadius - bezel);
 }
 
 // Laptop proportions (fractions of frame width).
@@ -993,11 +1024,10 @@ const LAPTOP_BASE_HEIGHT_RATIO = 0.045;
 /** Laptop: 16:10 lid centered over a wider base with a front notch. */
 function paintLaptop(
 	ctx: CanvasRenderingContext2D,
-	scene: SceneData,
-	images: RenderImages,
+	d: DeviceRenderContext,
 	frame: Rect,
-	device: SceneDevice,
 ): void {
+	const device = d.device;
 	const fills = resolveDeviceFills(ctx, frame, device, "silver");
 	const W = frame.width;
 	const cx = frame.x + W / 2;
@@ -1044,7 +1074,7 @@ function paintLaptop(
 		width: screenW,
 		height: screenH,
 	};
-	paintScreen(ctx, scene, images, screen, W * 0.01);
+	paintScreen(ctx, d, screen, W * 0.01);
 
 	// Webcam dot centered in the top bezel.
 	fillCircle(ctx, cx, lid.y + lidBezel / 2, W * 0.004, "#0b1a2b");

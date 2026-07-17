@@ -21,6 +21,8 @@ interface SceneImages {
 	bezel?: LoadedImage;
 	/** Decoded image-annotation sources keyed by annotation id. */
 	annotations?: Record<string, LoadedImage>;
+	/** Decoded screenshots of extra device mockups, keyed by device id. */
+	extraScreenshots?: Record<string, LoadedImage>;
 	/** True if any drawn image tainted the canvas (remote, no CORS headers). */
 	tainted: boolean;
 }
@@ -101,6 +103,7 @@ export function useSceneImages(
 			? getDeviceBezel(scene.device.bezelId).src
 			: undefined;
 	const annotations = scene.annotations;
+	const extraDevices = scene.extraDevices;
 
 	useEffect(() => {
 		let cancelled = false;
@@ -149,6 +152,18 @@ export function useSceneImages(
 					.catch(() => {}),
 			);
 		}
+		for (const extra of extraDevices ?? []) {
+			if (!extra.screenshotUrl) continue;
+			const { id, screenshotUrl } = extra;
+			tasks.push(
+				loadImageCached(screenshotUrl)
+					.then((img) => {
+						next.extraScreenshots = { ...next.extraScreenshots, [id]: img };
+						if (img.tainted) next.tainted = true;
+					})
+					.catch(() => {}),
+			);
+		}
 
 		Promise.all(tasks).then(() => {
 			if (!cancelled) setImages(next);
@@ -157,7 +172,7 @@ export function useSceneImages(
 		return () => {
 			cancelled = true;
 		};
-	}, [backgroundSrc, bezelSrc, screenshotSrc, annotations]);
+	}, [backgroundSrc, bezelSrc, screenshotSrc, annotations, extraDevices]);
 
 	return images;
 }

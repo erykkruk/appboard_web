@@ -215,11 +215,26 @@ export const SCENE_TEMPLATES: SceneTemplate[] = [
 				},
 				device: {
 					...scene.device!,
-					offsetX: 0,
-					offsetY: 0.1,
+					groundShadow: true,
+					offsetX: -0.25,
+					offsetY: 0.12,
 					rotationY: 12,
-					scale: 0.8,
+					scale: 0.72,
 				},
+				extraDevices: [
+					{
+						frame: scene.device?.frame ?? "iphone",
+						groundShadow: true,
+						id: "tpl-duo-2",
+						offsetX: 0.25,
+						offsetY: 0.16,
+						rotation: 0,
+						rotationY: -12,
+						scale: 0.72,
+						style: "clay",
+						clayColor: "#99f6e4",
+					},
+				],
 				textLayers: [
 					headline({ text: "One flow", x: 0.25 }, scene.height),
 					headline({ id: "headline-2", text: "Zero friction", x: 0.75 }, scene.height),
@@ -888,6 +903,52 @@ SCENE_TEMPLATES.push({
 	name: "Pinecrest",
 });
 
+SCENE_TEMPLATES.push({
+	build: (displayType) => {
+		const scene = createDefaultScene(displayType);
+		return {
+			...scene,
+			background: {
+				gradient: { angle: 0, from: "#0f766e", to: "#134e4a" },
+				gradientType: "radial",
+				type: "gradient",
+				value: "#0f766e",
+			},
+			device: {
+				...scene.device!,
+				groundShadow: true,
+				offsetX: -0.17,
+				offsetY: 0.18,
+				rotationY: 14,
+				scale: 0.58,
+			},
+			extraDevices: [
+				{
+					clayColor: "#99f6e4",
+					frame: scene.device?.frame ?? "iphone",
+					groundShadow: true,
+					id: "tpl-duo-extra",
+					offsetX: 0.17,
+					offsetY: 0.24,
+					rotation: 0,
+					rotationY: -14,
+					scale: 0.58,
+					style: "clay",
+				},
+			],
+			textLayers: [
+				headline(
+					{ text: "Two views.\nOne app.", y: 0.07 },
+					scene.height,
+				),
+			],
+		};
+	},
+	description: "Two angled devices side by side — before & after",
+	id: "device-duo",
+	name: "Device duo",
+});
+
 // ---------------------------------------------------------------------------
 // Panorama templates — designed for the FULL multi-panel canvas: a continuous
 // background, per-panel copy that tells a story, and a device anchored where
@@ -948,6 +1009,20 @@ export const PANORAMA_TEMPLATES: PanoramaTemplate[] = [
 			}
 			return {
 				...base,
+				extraDevices: [
+					{
+						clayColor: "#e9d5ff",
+						frame: base.device?.frame ?? "iphone",
+						groundShadow: true,
+						id: "pano-aurora-dev2",
+						offsetX: (panels - 0.5) / panels - 0.5,
+						offsetY: 0.24,
+						rotation: 4,
+						rotationY: -16,
+						scale: 0.5,
+						style: "clay",
+					},
+				],
 				annotations: [
 					{
 						...createShapeAnnotation("pano-arrow", "arrow", base),
