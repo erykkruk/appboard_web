@@ -74,12 +74,13 @@ import {
 	reorderById,
 	type SceneOrientation,
 } from "@/lib/screenshot-editor";
-import type {
-	SceneAnnotation,
-	SceneAnnotationType,
-	SceneData,
-	SceneShapeKind,
-	SceneTextLayer,
+import {
+	APP_STORE_LANGUAGES,
+	type SceneAnnotation,
+	type SceneAnnotationType,
+	type SceneData,
+	type SceneShapeKind,
+	type SceneTextLayer,
 } from "@/lib/types";
 
 // Public, no-auth screenshot editor. NOTHING touches the backend: scenes live
@@ -98,24 +99,48 @@ const GUEST_DISPLAY_TYPES = [
 	"tenInch",
 ];
 
+const DEFAULT_LANGUAGE = "en-US";
+
 interface GuestDraft {
 	displayType: string;
 	name: string;
-	scene: SceneData;
+	/** Active language variant. */
+	language: string;
+	/** Scene per language — manual variants are free, AI translate is gated. */
+	scenes: Record<string, SceneData>;
+}
+
+function isValidScene(scene: SceneData | undefined): scene is SceneData {
+	return Boolean(scene?.width && Array.isArray(scene.textLayers));
 }
 
 function loadDraft(): GuestDraft | null {
 	try {
 		const raw = window.localStorage.getItem(DRAFT_KEY);
 		if (!raw) return null;
-		const parsed = JSON.parse(raw) as GuestDraft;
-		if (!parsed?.scene?.width || !Array.isArray(parsed.scene.textLayers)) {
-			return null;
+		const parsed = JSON.parse(raw) as GuestDraft & { scene?: SceneData };
+		// v1 drafts stored a single `scene` — migrate to the variants shape.
+		if (isValidScene(parsed?.scene)) {
+			return {
+				displayType: parsed.displayType,
+				language: DEFAULT_LANGUAGE,
+				name: parsed.name,
+				scenes: { [DEFAULT_LANGUAGE]: parsed.scene },
+			};
 		}
-		return parsed;
+		const language = parsed?.language ?? DEFAULT_LANGUAGE;
+		if (!isValidScene(parsed?.scenes?.[language])) return null;
+		return { ...parsed, language };
 	} catch {
 		return null;
 	}
+}
+
+/** Display label for a stored language locale. */
+function languageLabel(locale: string): string {
+	return (
+		APP_STORE_LANGUAGES.find((l) => l.locale === locale)?.label ?? locale
+	);
 }
 
 let guestSeq = 0;
@@ -152,14 +177,25 @@ export default function GuestEditorPage() {
 		draft?.displayType ?? "APP_IPHONE_67",
 	);
 	const [sceneName, setSceneName] = useState(draft?.name ?? "My screenshot");
+	const [language, setLanguage] = useState(
+		draft?.language ?? DEFAULT_LANGUAGE,
+	);
+	// Other language variants (the ACTIVE one lives in the undo history).
+	const [variants, setVariants] = useState<Record<string, SceneData>>(
+		() => draft?.scenes ?? {},
+	);
 	const [scene, setScene, history] = useSceneHistory<SceneData>(
-		() => draft?.scene ?? createDefaultScene("APP_IPHONE_67"),
+		() =>
+			draft?.scenes?.[draft.language] ?? createDefaultScene("APP_IPHONE_67"),
 	);
 	const [selectedLayerId, setSelectedLayerId] = useState<string | null>(
 		"__device",
 	);
 	const [templatesOpen, setTemplatesOpen] = useState(false);
-	const [savePromptOpen, setSavePromptOpen] = useState(false);
+	const [addLanguageOpen, setAddLanguageOpen] = useState(false);
+	const [accountPrompt, setAccountPrompt] = useState<
+		"save" | "translate" | null
+	>(null);
 	const [downloading, setDownloading] = useState(false);
 
 	const canvasRef = useRef<SceneCanvasHandle>(null);
@@ -174,20 +210,55 @@ export default function GuestEditorPage() {
 	const googleFontTargetRef = useRef<string | null>(null);
 
 	// Autosave the working draft locally — guests never lose work, we never
-	// see it.
+	// see it. All language variants ride along.
 	useEffect(() => {
 		const handle = window.setTimeout(() => {
 			try {
 				window.localStorage.setItem(
 					DRAFT_KEY,
-					JSON.stringify({ displayType, name: sceneName, scene }),
+					JSON.stringify({
+						displayType,
+						language,
+						name: sceneName,
+						scenes: { ...variants, [language]: scene },
+					} satisfies GuestDraft),
 				);
 			} catch {
 				// Storage full/blocked — drafts are best-effort.
 			}
 		}, 400);
 		return () => window.clearTimeout(handle);
-	}, [scene, sceneName, displayType]);
+	}, [scene, sceneName, displayType, language, variants]);
+
+	/** Store the active scene and load (or fork) the target language's one. */
+	const switchLanguage = useCallback(
+		(next: string) => {
+			if (next === language) return;
+			setVariants((prev) => ({ ...prev, [language]: scene }));
+			const target =
+				variants[next] ?? (JSON.parse(JSON.stringify(scene)) as SceneData);
+			setLanguage(next);
+			setScene(() => target);
+			history.reset();
+		},
+		[language, scene, variants, setScene, history],
+	);
+
+	const addLanguage = useCallback(
+		(locale: string) => {
+			setAddLanguageOpen(false);
+			switchLanguage(locale);
+			toast.success(
+				`${languageLabel(locale)} added — edit the texts for this variant`,
+			);
+		},
+		[switchLanguage],
+	);
+
+	const variantLocales = useMemo(() => {
+		const set = new Set([...Object.keys(variants), language]);
+		return [...set].sort();
+	}, [variants, language]);
 
 	const loaded = useSceneImages(scene, scene.screenshot?.url);
 	const deviceModelImage = useDeviceModel(
@@ -767,7 +838,7 @@ export default function GuestEditorPage() {
 			const url = URL.createObjectURL(blob);
 			const link = document.createElement("a");
 			link.href = url;
-			link.download = `${sceneName.replace(/\s+/g, "-").toLowerCase()}-${displayType}${deviceOnly ? "-device" : ""}.png`;
+			link.download = `${sceneName.replace(/\s+/g, "-").toLowerCase()}-${language}-${displayType}${deviceOnly ? "-device" : ""}.png`;
 			link.click();
 			URL.revokeObjectURL(url);
 		} finally {
@@ -863,6 +934,38 @@ export default function GuestEditorPage() {
 					>
 						<Redo2 className="h-4 w-4" />
 					</Button>
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button variant="outline" size="sm">
+								<Languages className="h-4 w-4" />
+								{languageLabel(language)}
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-64">
+							{variantLocales.map((locale) => (
+								<DropdownMenuItem
+									key={locale}
+									onSelect={() => switchLanguage(locale)}
+								>
+									<span className="flex-1">{languageLabel(locale)}</span>
+									{locale === language && (
+										<span className="text-xs text-muted-foreground">
+											current
+										</span>
+									)}
+								</DropdownMenuItem>
+							))}
+							<DropdownMenuItem onSelect={() => setAddLanguageOpen(true)}>
+								+ Add language…
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								onSelect={() => setAccountPrompt("translate")}
+								className="text-primary"
+							>
+								✨ Auto-translate with AI…
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
 					<Button variant="outline" size="sm" onClick={() => setTemplatesOpen(true)}>
 						<LayoutTemplate className="h-4 w-4" />
 						Templates
@@ -887,7 +990,7 @@ export default function GuestEditorPage() {
 							</DropdownMenuItem>
 						</DropdownMenuContent>
 					</DropdownMenu>
-					<Button size="sm" onClick={() => setSavePromptOpen(true)}>
+					<Button size="sm" onClick={() => setAccountPrompt("save")}>
 						<Save className="h-4 w-4" />
 						Save
 					</Button>
@@ -944,7 +1047,7 @@ export default function GuestEditorPage() {
 					onPatchAnnotation={patchAnnotation}
 					onPickBackgroundImage={() => bgFileRef.current?.click()}
 					onPickScreenshot={() => screenshotFileRef.current?.click()}
-					onPickExistingScreenshot={() => setSavePromptOpen(true)}
+					onPickExistingScreenshot={() => setAccountPrompt("save")}
 					onUploadFont={() => {
 						fontTargetRef.current = selectedLayerId;
 						fontFileRef.current?.click();
@@ -1007,17 +1110,64 @@ export default function GuestEditorPage() {
 				onSubmit={handleGoogleFontSubmit}
 			/>
 
-			<Dialog open={savePromptOpen} onOpenChange={setSavePromptOpen}>
-				<DialogContent className="max-w-md">
+			<Dialog
+				open={addLanguageOpen}
+				onOpenChange={setAddLanguageOpen}
+			>
+				<DialogContent className="max-w-sm">
 					<DialogHeader>
-						<DialogTitle>Save scenes with a free account</DialogTitle>
+						<DialogTitle>Add a language variant</DialogTitle>
 					</DialogHeader>
 					<p className="text-sm text-muted-foreground">
-						Your work is kept in this browser automatically. Create a free
-						AppBoard account to save scenes in the cloud, translate them with
-						AI{" "}
-						<Languages className="inline h-3.5 w-3.5" /> and publish
-						screenshots straight to the App Store and Google Play.
+						The current design is copied — edit its texts for the new language.
+						Everything stays in this browser.
+					</p>
+					<div className="flex max-h-72 flex-col gap-1 overflow-y-auto">
+						{APP_STORE_LANGUAGES.filter(
+							(l) => !variantLocales.includes(l.locale),
+						).map((l) => (
+							<Button
+								key={l.locale}
+								variant="ghost"
+								size="sm"
+								className="justify-start"
+								onClick={() => addLanguage(l.locale)}
+							>
+								{l.label}
+							</Button>
+						))}
+					</div>
+				</DialogContent>
+			</Dialog>
+
+			<Dialog
+				open={accountPrompt !== null}
+				onOpenChange={(open) => !open && setAccountPrompt(null)}
+			>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle>
+							{accountPrompt === "translate"
+								? "Auto-translate with a free account"
+								: "Save scenes with a free account"}
+						</DialogTitle>
+					</DialogHeader>
+					<p className="text-sm text-muted-foreground">
+						{accountPrompt === "translate" ? (
+							<>
+								AI auto-translate rewrites every text layer of your design in
+								dozens of App Store languages at once. Create a free AppBoard
+								account to unlock it — manual language variants stay free in
+								this editor.
+							</>
+						) : (
+							<>
+								Your work is kept in this browser automatically. Create a free
+								AppBoard account to save scenes in the cloud, translate them
+								with AI <Languages className="inline h-3.5 w-3.5" /> and
+								publish screenshots straight to the App Store and Google Play.
+							</>
+						)}
 					</p>
 					<div className="flex gap-2">
 						<Button asChild className="flex-1">
