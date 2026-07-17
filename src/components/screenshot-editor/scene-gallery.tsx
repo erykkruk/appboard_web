@@ -1,18 +1,29 @@
 "use client";
 
-import { Loader2, Pencil, Plus, Trash2, UploadCloud } from "lucide-react";
+import { Layers, Loader2, Pencil, Plus, Trash2, UploadCloud } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
 	useSplitUploadScreenshots,
 	useUploadScreenshot,
 } from "@/hooks/use-publishing";
 import {
+	useCreateScreenshotScene,
 	useDeleteScreenshotScene,
 	useScreenshotScenes,
 } from "@/hooks/use-screenshot-scenes";
+import {
+	SCENE_SET_TEMPLATES,
+	type SceneSetTemplate,
+} from "@/lib/scene-set-templates";
 import { getDisplayTypeLabel, getPanelCount } from "@/lib/screenshot-editor";
 import type { ScreenshotScene } from "@/lib/types";
 
@@ -42,6 +53,7 @@ export function SceneGallery({
 	onOpen,
 }: SceneGalleryProps) {
 	const scenes = useScreenshotScenes(appId);
+	const createScene = useCreateScreenshotScene(appId);
 	const deleteScene = useDeleteScreenshotScene(appId);
 	const uploadScreenshot = useUploadScreenshot(appId, versionId);
 	const splitUpload = useSplitUploadScreenshots(appId, versionId);
@@ -50,6 +62,45 @@ export function SceneGallery({
 		done: number;
 		total: number;
 	} | null>(null);
+	// Full-set creation progress (7 scenes per set).
+	const [creatingSet, setCreatingSet] = useState<{
+		done: number;
+		total: number;
+	} | null>(null);
+
+	const handleCreateSet = async (set: SceneSetTemplate) => {
+		if (creatingSet) return;
+		setCreatingSet({ done: 0, total: set.screens.length });
+		// Continue numbering after existing scenes so a second set never
+		// collides with the first one's sort order.
+		const baseOrder = filtered.length;
+		let created = 0;
+		for (const [index, screen] of set.screens.entries()) {
+			try {
+				await createScene.mutateAsync({
+					displayType,
+					language,
+					name: screen.name,
+					scene: screen.build(displayType),
+					sortOrder: baseOrder + index,
+				});
+				created += 1;
+			} catch {
+				// Keep going — a partial set is still editable/retryable.
+			}
+			setCreatingSet((prev) =>
+				prev ? { ...prev, done: prev.done + 1 } : prev,
+			);
+		}
+		setCreatingSet(null);
+		if (created === set.screens.length) {
+			toast.success(`Created the "${set.name}" — ${created} scenes`);
+		} else {
+			toast.error(
+				`Created ${created}/${set.screens.length} scenes — retry the rest`,
+			);
+		}
+	};
 
 	const filtered = (scenes.data ?? [])
 		.filter((s) => s.language === language && s.displayType === displayType)
@@ -120,6 +171,41 @@ export function SceneGallery({
 					</p>
 				</div>
 				<div className="flex items-center gap-2">
+					<DropdownMenu>
+						<DropdownMenuTrigger asChild>
+							<Button
+								size="sm"
+								variant="outline"
+								disabled={!language || creatingSet !== null}
+							>
+								{creatingSet ? (
+									<>
+										<Loader2 className="h-4 w-4 animate-spin" />
+										{creatingSet.done}/{creatingSet.total}
+									</>
+								) : (
+									<>
+										<Layers className="h-4 w-4" />
+										New set
+									</>
+								)}
+							</Button>
+						</DropdownMenuTrigger>
+						<DropdownMenuContent align="end" className="w-72">
+							{SCENE_SET_TEMPLATES.map((set) => (
+								<DropdownMenuItem
+									key={set.id}
+									onSelect={() => handleCreateSet(set)}
+									className="flex flex-col items-start gap-0.5"
+								>
+									<span className="text-sm font-medium">{set.name}</span>
+									<span className="text-xs text-muted-foreground">
+										{set.description}
+									</span>
+								</DropdownMenuItem>
+							))}
+						</DropdownMenuContent>
+					</DropdownMenu>
 					{filtered.length > 0 && (
 						<Button
 							size="sm"
