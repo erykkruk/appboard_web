@@ -2,11 +2,13 @@
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/app-sidebar";
+import { PostHogIdentify } from "@/components/posthog-identify";
 import { VaultProvider } from "@/components/vault/vault-provider";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <VaultProvider>
+      <PostHogIdentify />
       <TooltipProvider>
         <div className="flex h-screen overflow-hidden">
           <AppSidebar />

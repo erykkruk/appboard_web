@@ -49,6 +49,8 @@ import {
 } from "@/components/ui/select";
 import { useDeviceModel } from "@/hooks/use-device-model";
 import { useSceneHistory } from "@/hooks/use-scene-history";
+import { capture } from "@/lib/analytics";
+import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
 import {
 	dedupeFontFamily,
 	loadGoogleFont,
@@ -200,6 +202,8 @@ export default function GuestEditorPage() {
 	>(null);
 	const [downloading, setDownloading] = useState(false);
 
+	const hadDraftOnOpenRef = useRef(draft !== null);
+
 	const canvasRef = useRef<SceneCanvasHandle>(null);
 	const bgFileRef = useRef<HTMLInputElement>(null);
 	const screenshotFileRef = useRef<HTMLInputElement>(null);
@@ -211,6 +215,19 @@ export default function GuestEditorPage() {
 	const [googleFontOpen, setGoogleFontOpen] = useState(false);
 	const [googleFontLoading, setGoogleFontLoading] = useState(false);
 	const googleFontTargetRef = useRef<string | null>(null);
+
+	useEffect(() => {
+		capture(ANALYTICS_EVENTS.FREE_EDITOR_OPENED, {
+			has_draft: hadDraftOnOpenRef.current,
+		});
+	}, []);
+
+	useEffect(() => {
+		if (accountPrompt === null) return;
+		capture(ANALYTICS_EVENTS.FREE_EDITOR_ACCOUNT_PROMPT_SHOWN, {
+			reason: accountPrompt,
+		});
+	}, [accountPrompt]);
 
 	// Autosave the working draft locally — guests never lose work, we never
 	// see it. All language variants ride along.
@@ -897,6 +914,13 @@ export default function GuestEditorPage() {
 		[displayType, setScene],
 	);
 
+	const trackSignupCta = (cta: "register" | "login") => {
+		capture(ANALYTICS_EVENTS.FREE_EDITOR_SIGNUP_CTA_CLICKED, {
+			cta,
+			reason: accountPrompt,
+		});
+	};
+
 	const handleDownload = async (deviceOnly: boolean) => {
 		setDownloading(true);
 		try {
@@ -914,6 +938,12 @@ export default function GuestEditorPage() {
 			link.download = `${sceneName.replace(/\s+/g, "-").toLowerCase()}-${language}-${displayType}${deviceOnly ? "-device" : ""}.png`;
 			link.click();
 			URL.revokeObjectURL(url);
+			capture(ANALYTICS_EVENTS.FREE_EDITOR_EXPORT, {
+				format: "png",
+				scope: deviceOnly ? "device_only" : "full_scene",
+				display_type: displayType,
+				language,
+			});
 		} finally {
 			setDownloading(false);
 		}
@@ -1249,10 +1279,14 @@ export default function GuestEditorPage() {
 					</p>
 					<div className="flex gap-2">
 						<Button asChild className="flex-1">
-							<Link href="/login">Create free account</Link>
+							<Link href="/login" onClick={() => trackSignupCta("register")}>
+								Create free account
+							</Link>
 						</Button>
 						<Button asChild variant="outline" className="flex-1">
-							<Link href="/login">Log in</Link>
+							<Link href="/login" onClick={() => trackSignupCta("login")}>
+								Log in
+							</Link>
 						</Button>
 					</div>
 				</DialogContent>

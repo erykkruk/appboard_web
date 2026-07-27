@@ -8,6 +8,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { capture } from "@/lib/analytics";
+import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
 import { authClient } from "@/lib/auth-client";
 import { WEBSITE_URL } from "@/lib/external-links";
 import { LoginLogo3d } from "@/components/login-logo-3d";
@@ -35,6 +37,7 @@ export default function LoginPage() {
         setError(error.message ?? "Invalid email or password");
         return;
       }
+      capture(ANALYTICS_EVENTS.LOGIN_COMPLETED, { method: "password" });
       router.push("/dashboard");
     } catch {
       setError("Sign-in failed");
@@ -90,6 +93,7 @@ export default function LoginPage() {
         setError(error.message ?? "Invalid code");
         return;
       }
+      capture(ANALYTICS_EVENTS.LOGIN_COMPLETED, { method: "otp" });
       router.push("/dashboard");
     } catch {
       setError("Verification failed");
@@ -102,6 +106,7 @@ export default function LoginPage() {
     setError("");
     setLoading(true);
     try {
+      capture(ANALYTICS_EVENTS.LOGIN_SOCIAL_STARTED, { provider });
       await authClient.signIn.social({ provider, callbackURL: "/dashboard" });
     } catch {
       setError("Failed to start sign-in");

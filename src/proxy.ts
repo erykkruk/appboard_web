@@ -7,9 +7,12 @@ const PUBLIC_PATHS = ["/login", "/register", "/demo", "/editor"];
 export function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;
 
-	// Skip API routes, Next.js internals and static assets (paths with a file extension)
+	// Skip API routes, the PostHog ingestion proxy (guests in /editor are
+	// anonymous - redirecting their events to /login would drop them), Next.js
+	// internals and static assets (paths with a file extension)
 	if (
 		pathname.startsWith("/api") ||
+		pathname.startsWith("/ingest") ||
 		pathname.startsWith("/_next") ||
 		pathname.startsWith("/favicon") ||
 		pathname.includes(".")
