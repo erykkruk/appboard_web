@@ -136,9 +136,15 @@ async function loadModel(
 	return promise;
 }
 
-/** Round the screenshot's corners on a 2D canvas before texturing. */
+/**
+ * Round the screen's corners on a 2D canvas before texturing. Without a
+ * source the rounded shape is filled dark (empty-screen placeholder). The
+ * clipped-off corners stay TRANSPARENT — the plane material must render with
+ * `transparent: true`, or those pixels come out as black squares poking past
+ * the model's rounded body.
+ */
 function roundedScreenshotCanvas(
-	source: CanvasImageSource,
+	source: CanvasImageSource | null,
 	width: number,
 	height: number,
 	radiusFactor: number,
@@ -157,7 +163,12 @@ function roundedScreenshotCanvas(
 	ctx.arcTo(0, 0, canvas.width, 0, r);
 	ctx.closePath();
 	ctx.clip();
-	ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+	if (source) {
+		ctx.drawImage(source, 0, 0, canvas.width, canvas.height);
+	} else {
+		ctx.fillStyle = "#111111";
+		ctx.fillRect(0, 0, canvas.width, canvas.height);
+	}
 	return canvas;
 }
 
@@ -202,23 +213,28 @@ export async function renderDeviceModel(
 		);
 
 		const material = setup.screenPlane.material as import("three").MeshBasicMaterial;
-		if (request.screenshot) {
-			const rounded = roundedScreenshotCanvas(
-				request.screenshot.source,
-				request.screenshot.width,
-				request.screenshot.height,
-				config.cornerRadiusFactor,
-			);
-			material.map?.dispose();
-			const texture = new three.CanvasTexture(rounded);
-			texture.colorSpace = three.SRGBColorSpace;
-			material.map = texture;
-			material.color.set(0xffffff);
-		} else {
-			material.map?.dispose();
-			material.map = null;
-			material.color.set(0x111111);
-		}
+		// Both branches texture the plane with a corner-rounded canvas whose
+		// clipped corners are transparent — matching the model body's rounded
+		// screen. A bare (untextured) plane would poke square corners past them.
+		const rounded = request.screenshot
+			? roundedScreenshotCanvas(
+					request.screenshot.source,
+					request.screenshot.width,
+					request.screenshot.height,
+					config.cornerRadiusFactor,
+				)
+			: roundedScreenshotCanvas(
+					null,
+					1024,
+					Math.round(1024 / config.screenAspect),
+					config.cornerRadiusFactor,
+				);
+		material.map?.dispose();
+		const texture = new three.CanvasTexture(rounded);
+		texture.colorSpace = three.SRGBColorSpace;
+		material.map = texture;
+		material.transparent = true;
+		material.color.set(0xffffff);
 		material.needsUpdate = true;
 
 		const width = Math.max(2, Math.round(request.frameWidth * MODEL_RENDER_PAD_X));

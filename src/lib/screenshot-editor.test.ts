@@ -87,6 +87,22 @@ describe("createDefaultScene", () => {
 		expect(scene.width).toBe(1080);
 		expect(scene.height).toBe(1920);
 	});
+
+	test("phones default to the true-3D style with the matching model", () => {
+		const iphone = createDefaultScene("APP_IPHONE_67");
+		expect(iphone.device?.style).toBe("3d");
+		expect(iphone.device?.modelId).toBe("iphone-15-pro-max");
+		const android = createDefaultScene("phone");
+		expect(android.device?.style).toBe("3d");
+		expect(android.device?.modelId).toBe("samsung-galaxy-s25-ultra");
+	});
+
+	test("model-less frames (tablets) keep the drawn default style", () => {
+		const ipad = createDefaultScene("APP_IPAD_PRO_129");
+		expect(ipad.device?.frame).toBe("ipad");
+		expect(ipad.device?.style).toBeUndefined();
+		expect(ipad.device?.modelId).toBeUndefined();
+	});
 });
 
 describe("computeDeviceRect", () => {

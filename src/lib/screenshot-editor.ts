@@ -1,4 +1,5 @@
 import { getDeviceBezel } from "@/lib/device-bezels";
+import { defaultModelForFrame } from "@/lib/device-models";
 import { projectRectCorners, quadBounds } from "@/lib/perspective";
 import type {
 	SceneAnnotation,
@@ -80,6 +81,10 @@ export function defaultFrameForDisplayType(
  */
 export function createDefaultScene(displayType: string): SceneData {
 	const [width, height] = getTargetDimensions(displayType);
+	const frame = defaultFrameForDisplayType(displayType);
+	// Phones default to the true-3D model look; frames without a GLB model
+	// (tablets, watch, laptop) keep the drawn realistic style.
+	const modelId = defaultModelForFrame(frame);
 	return {
 		width,
 		height,
@@ -89,11 +94,12 @@ export function createDefaultScene(displayType: string): SceneData {
 			gradient: { from: "#6366f1", to: "#8b5cf6", angle: 135 },
 		},
 		device: {
-			frame: defaultFrameForDisplayType(displayType),
+			frame,
 			scale: 0.72,
 			offsetX: 0,
 			offsetY: 0.12,
 			rotation: 0,
+			...(modelId ? { modelId, style: "3d" as const } : {}),
 		},
 		textLayers: [
 			{

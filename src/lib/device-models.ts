@@ -49,6 +49,16 @@ export const DEVICE_MODELS: DeviceModel[] = [
 
 export const DEFAULT_MODEL_ID = DEVICE_MODELS[0].id;
 
+/**
+ * Default 3D model for a device frame, or undefined for frames that have no
+ * GLB model yet (tablets, watch, laptop keep the drawn styles).
+ */
+export function defaultModelForFrame(frame: string): string | undefined {
+	if (frame === "iphone") return "iphone-15-pro-max";
+	if (frame === "android") return "samsung-galaxy-s25-ultra";
+	return undefined;
+}
+
 /** Model by id, falling back to the default so stale ids never blank out. */
 export function getDeviceModel(id: string | undefined): DeviceModel {
 	return DEVICE_MODELS.find((m) => m.id === id) ?? DEVICE_MODELS[0];

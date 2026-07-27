@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.10.1",
+    serverVersion: "0.8.1",
+    date: "2026-07-27",
+    changes: [
+      "3D devices: fixed dark square corners poking past the phone body - the screen texture now composites with proper transparency, and empty 3D screens get the same rounded corners",
+      "New scenes start with the true-3D device by default: iPhone targets get the iPhone 15 Pro Max model, Android targets the Galaxy S25 Ultra (tablets keep the drawn style); switching the frame swaps the matching model automatically",
+    ],
+  },
+  {
     version: "0.10.0",
     serverVersion: "0.8.1",
     date: "2026-07-27",
