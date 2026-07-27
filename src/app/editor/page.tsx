@@ -90,6 +90,7 @@ import {
 	type SceneShapeKind,
 	type SceneTextLayer,
 } from "@/lib/types";
+import { downloadBlobsAsZip } from "@/lib/zip";
 
 // Public, no-auth screenshot editor. NOTHING touches the backend: scenes live
 // in localStorage, exports are local PNG downloads, and "Save to AppBoard"
@@ -963,7 +964,7 @@ export default function GuestEditorPage() {
 		}
 	};
 
-	/** Panorama split download: one PNG per panel at the exact store size. */
+	/** Panorama split download: one ZIP with a PNG per panel at store size. */
 	const handleDownloadSplit = async () => {
 		setDownloading(true);
 		try {
@@ -973,15 +974,14 @@ export default function GuestEditorPage() {
 				return;
 			}
 			const base = `${sceneName.replace(/\s+/g, "-").toLowerCase()}-${language}-${displayType}`;
-			blobs.forEach((blob, index) => {
-				const url = URL.createObjectURL(blob);
-				const link = document.createElement("a");
-				link.href = url;
-				link.download = `${base}-${index + 1}of${blobs.length}.png`;
-				link.click();
-				URL.revokeObjectURL(url);
-			});
-			toast.success(`Downloaded ${blobs.length} screenshots`);
+			await downloadBlobsAsZip(
+				blobs.map((blob, index) => ({
+					blob,
+					name: `${base}-${index + 1}of${blobs.length}.png`,
+				})),
+				`${base}-screenshots.zip`,
+			);
+			toast.success(`Downloaded ${blobs.length} screenshots as ZIP`);
 			capture(ANALYTICS_EVENTS.FREE_EDITOR_EXPORT, {
 				format: "png",
 				scope: "split_panels",
