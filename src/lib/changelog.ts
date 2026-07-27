@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.10.0",
+    serverVersion: "0.8.1",
+    date: "2026-07-27",
+    changes: [
+      "Every device layer is now the same 'Device + screenshot' object: extra devices support the true-3D WebGL models (own screenshot, model choice and X/Y/Z rotation), so you can stack as many rotating 3D mockups in one scene as you like",
+      "New devices added from the Layers panel inherit the primary device's style and 3D model, so a multi-device scene stays consistent out of the box",
+      "Panorama download got a split option: next to the single wide PNG you can download the panorama pre-cut into X store-ready screenshots, sliced at the exact panel seams",
+      "Scene thumbnails now render extra devices' screenshots and 3D models, matching the export pixel-for-pixel",
+      "Free editor and self-hosted installs: a small invite to our new Discord and Reddit communities - join in and help shape the roadmap",
+    ],
+  },
+  {
     version: "0.9.2",
     serverVersion: "0.8.1",
     date: "2026-07-27",

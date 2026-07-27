@@ -7,6 +7,7 @@ import {
 	computeDeviceRectFor,
 	computeDisplayScale,
 	computeImageFit,
+	computePanelSliceRects,
 	createDefaultAnnotation,
 	createDefaultScene,
 	createExtraDevice,
@@ -807,6 +808,28 @@ describe("locked text layers", () => {
 	});
 });
 
+describe("computePanelSliceRects", () => {
+	test("returns one full-canvas rect for a single-panel scene", () => {
+		expect(
+			computePanelSliceRects({ height: 2796, width: 1290 }),
+		).toEqual([{ height: 2796, width: 1290, x: 0, y: 0 }]);
+	});
+
+	test("splits a panorama into equal side-by-side panels", () => {
+		const rects = computePanelSliceRects({
+			height: 2796,
+			panels: 3,
+			width: 1290 * 3,
+		});
+		expect(rects).toHaveLength(3);
+		expect(rects[0]).toEqual({ height: 2796, width: 1290, x: 0, y: 0 });
+		expect(rects[1].x).toBe(1290);
+		expect(rects[2].x).toBe(2580);
+		// Slices tile the full canvas with no gaps or overlap.
+		expect(rects[2].x + rects[2].width).toBe(1290 * 3);
+	});
+});
+
 describe("extra devices", () => {
 	const base: SceneData = {
 		background: { type: "color", value: "#000" },
@@ -822,6 +845,30 @@ describe("extra devices", () => {
 		expect(extra.offsetX).toBeGreaterThan(0);
 		expect(extra.scale).toBeLessThan(0.5);
 		expect(extra.style).toBe("realistic");
+	});
+
+	test("createExtraDevice inherits the primary's 3D style and model", () => {
+		const scene: SceneData = {
+			...base,
+			device: {
+				...base.device!,
+				modelId: "iphone-15-pro-max",
+				style: "3d",
+			},
+		};
+		const extra = createExtraDevice("d2", scene);
+		expect(extra.style).toBe("3d");
+		expect(extra.modelId).toBe("iphone-15-pro-max");
+	});
+
+	test("createExtraDevice falls back to realistic for the photo style", () => {
+		const scene: SceneData = {
+			...base,
+			device: { ...base.device!, bezelId: "iphone-17-pro", style: "photo" },
+		};
+		const extra = createExtraDevice("d2", scene);
+		expect(extra.style).toBe("realistic");
+		expect(extra.modelId).toBeUndefined();
 	});
 
 	test("hitTestAnyDevice prefers the topmost extra device", () => {

@@ -14,8 +14,12 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { CommunityPopup } from "@/components/community-popup";
 import { LayersPanel, PropertiesPanel } from "@/components/screenshot-editor/editor-panels";
-import { exportSceneToPng } from "@/components/screenshot-editor/export-scene";
+import {
+	exportScenePanelPngs,
+	exportSceneToPng,
+} from "@/components/screenshot-editor/export-scene";
 import type { RenderImages } from "@/components/screenshot-editor/render-scene";
 import {
 	SceneCanvas,
@@ -47,7 +51,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
-import { useDeviceModel } from "@/hooks/use-device-model";
+import { useDeviceModel, useExtraDeviceModels } from "@/hooks/use-device-model";
 import { useSceneHistory } from "@/hooks/use-scene-history";
 import { capture } from "@/lib/analytics";
 import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
@@ -291,9 +295,26 @@ export default function GuestEditorPage() {
 				}
 			: undefined,
 	);
+	const extraScreenshotImages = useMemo(
+		() =>
+			loaded.extraScreenshots
+				? Object.fromEntries(
+						Object.entries(loaded.extraScreenshots).map(([id, img]) => [
+							id,
+							{ source: img.element, width: img.width, height: img.height },
+						]),
+					)
+				: undefined,
+		[loaded.extraScreenshots],
+	);
+	const extraDeviceModelImages = useExtraDeviceModels(
+		scene,
+		extraScreenshotImages,
+	);
 	const renderImages = useMemo<RenderImages>(
 		() => ({
 			deviceModel: deviceModelImage,
+			extraDeviceModels: extraDeviceModelImages,
 			background: loaded.background
 				? {
 						source: loaded.background.element,
@@ -323,16 +344,9 @@ export default function GuestEditorPage() {
 						]),
 					)
 				: undefined,
-			extraScreenshots: loaded.extraScreenshots
-				? Object.fromEntries(
-						Object.entries(loaded.extraScreenshots).map(([id, img]) => [
-							id,
-							{ source: img.element, width: img.width, height: img.height },
-						]),
-					)
-				: undefined,
+			extraScreenshots: extraScreenshotImages,
 		}),
-		[loaded.background, loaded.screenshot, loaded.bezel, loaded.annotations, loaded.extraScreenshots, deviceModelImage],
+		[loaded.background, loaded.screenshot, loaded.bezel, loaded.annotations, extraScreenshotImages, deviceModelImage, extraDeviceModelImages],
 	);
 
 	const { undo, redo } = history;
@@ -949,6 +963,36 @@ export default function GuestEditorPage() {
 		}
 	};
 
+	/** Panorama split download: one PNG per panel at the exact store size. */
+	const handleDownloadSplit = async () => {
+		setDownloading(true);
+		try {
+			const blobs = await exportScenePanelPngs(scene);
+			if (!blobs) {
+				toast.error("Export failed — a remote image blocks the canvas (CORS).");
+				return;
+			}
+			const base = `${sceneName.replace(/\s+/g, "-").toLowerCase()}-${language}-${displayType}`;
+			blobs.forEach((blob, index) => {
+				const url = URL.createObjectURL(blob);
+				const link = document.createElement("a");
+				link.href = url;
+				link.download = `${base}-${index + 1}of${blobs.length}.png`;
+				link.click();
+				URL.revokeObjectURL(url);
+			});
+			toast.success(`Downloaded ${blobs.length} screenshots`);
+			capture(ANALYTICS_EVENTS.FREE_EDITOR_EXPORT, {
+				format: "png",
+				scope: "split_panels",
+				display_type: displayType,
+				language,
+			});
+		} finally {
+			setDownloading(false);
+		}
+	};
+
 	return (
 		<div className="flex h-screen flex-col bg-background">
 			<header className="flex items-center justify-between gap-3 border-b border-border px-4 py-2.5">
@@ -1086,8 +1130,13 @@ export default function GuestEditorPage() {
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem onSelect={() => handleDownload(false)}>
-								Download PNG
+								{panels > 1 ? "Download panorama (1 PNG)" : "Download PNG"}
 							</DropdownMenuItem>
+							{panels > 1 && (
+								<DropdownMenuItem onSelect={handleDownloadSplit}>
+									Download {panels} screenshots (split)
+								</DropdownMenuItem>
+							)}
 							<DropdownMenuItem onSelect={() => handleDownload(true)}>
 								Download PNG (device only)
 							</DropdownMenuItem>
@@ -1291,6 +1340,8 @@ export default function GuestEditorPage() {
 					</div>
 				</DialogContent>
 			</Dialog>
+
+			<CommunityPopup />
 		</div>
 	);
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 
-import { useDeviceModel } from "@/hooks/use-device-model";
+import { useDeviceModel, useExtraDeviceModels } from "@/hooks/use-device-model";
 import { ensureCustomFontsLoaded } from "@/lib/scene-fonts";
 import type { SceneData } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -34,9 +34,28 @@ export function ScenePreview({ scene, className }: ScenePreviewProps) {
 			: undefined,
 	);
 
+	const extraScreenshotImages = useMemo(
+		() =>
+			loaded.extraScreenshots
+				? Object.fromEntries(
+						Object.entries(loaded.extraScreenshots).map(([id, img]) => [
+							id,
+							{ source: img.element, width: img.width, height: img.height },
+						]),
+					)
+				: undefined,
+		[loaded.extraScreenshots],
+	);
+	const extraDeviceModelImages = useExtraDeviceModels(
+		scene,
+		extraScreenshotImages,
+	);
+
 	const renderImages = useMemo<RenderImages>(
 		() => ({
 			deviceModel: deviceModelImage,
+			extraDeviceModels: extraDeviceModelImages,
+			extraScreenshots: extraScreenshotImages,
 			background: loaded.background
 				? {
 						source: loaded.background.element,
@@ -77,6 +96,8 @@ export function ScenePreview({ scene, className }: ScenePreviewProps) {
 			loaded.bezel,
 			loaded.annotations,
 			deviceModelImage,
+			extraDeviceModelImages,
+			extraScreenshotImages,
 		],
 	);
 
