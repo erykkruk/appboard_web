@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.9.2",
+    serverVersion: "0.8.1",
+    date: "2026-07-27",
+    changes: [
+      "Fixed two console errors on every page load: analytics no longer calls the feature-flag and remote-config endpoints we do not use",
+    ],
+  },
+  {
     version: "0.9.1",
     serverVersion: "0.8.1",
     date: "2026-07-27",

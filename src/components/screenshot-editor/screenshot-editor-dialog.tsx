@@ -27,7 +27,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { useDeviceModel } from "@/hooks/use-device-model";
+import { useDeviceModel, useExtraDeviceModels } from "@/hooks/use-device-model";
 import { useSceneHistory } from "@/hooks/use-scene-history";
 import {
 	useCreateScreenshotScene,
@@ -89,7 +89,7 @@ import type {
 } from "@/lib/types";
 
 import { LayersPanel, PropertiesPanel } from "./editor-panels";
-import { exportSceneToPng } from "./export-scene";
+import { exportScenePanelPngs, exportSceneToPng } from "./export-scene";
 import type { RenderImages } from "./render-scene";
 import { SceneCanvas, type SceneCanvasHandle } from "./scene-canvas";
 import { SceneLocalizationDialog } from "./scene-localization-dialog";
@@ -204,11 +204,34 @@ export function ScreenshotEditorDialog({
 				}
 			: undefined,
 	);
+	// Extra devices' decoded screenshots as RenderImages — feeds both the WebGL
+	// model pre-render below and the 2D canvas renderer.
+	const extraScreenshotImages = useMemo(
+		() =>
+			loaded.extraScreenshots
+				? Object.fromEntries(
+						Object.entries(loaded.extraScreenshots).map(([id, img]) => [
+							id,
+							{
+								source: img.element,
+								width: img.width,
+								height: img.height,
+							},
+						]),
+					)
+				: undefined,
+		[loaded.extraScreenshots],
+	);
+	const extraDeviceModelImages = useExtraDeviceModels(
+		scene,
+		extraScreenshotImages,
+	);
 	// Wrap each decoded image with its natural pixel dimensions so the renderer's
 	// fit math is correct regardless of the element's layout size.
 	const renderImages = useMemo<RenderImages>(
 		() => ({
 			deviceModel: deviceModelImage,
+			extraDeviceModels: extraDeviceModelImages,
 			background: loaded.background
 				? {
 						source: loaded.background.element,
