@@ -29,7 +29,7 @@ function buildClient() {
 	return { captured, client, identified, reset };
 }
 
-// Module state is shared across tests — drain the pending queue and unregister
+// Module state is shared across tests - drain the pending queue and unregister
 // so every case starts from "analytics not configured".
 beforeEach(() => {
 	setAnalyticsClient(buildClient().client);

@@ -18,7 +18,7 @@ ENV NEXT_TELEMETRY_DISABLED=1
 ARG BACKEND_URL=http://appboard-backend-url-sentinel
 ENV BACKEND_URL=$BACKEND_URL
 # NEXT_PUBLIC_* is inlined into the client bundle at build time, so the PostHog
-# key must be a build argument — a runtime env var arrives too late and
+# key must be a build argument - a runtime env var arrives too late and
 # analytics stays silently off. Empty by default: self-hosters get no analytics.
 # The value is a write-only public ingest key, safe to bake into the image.
 ARG NEXT_PUBLIC_POSTHOG_KEY=""

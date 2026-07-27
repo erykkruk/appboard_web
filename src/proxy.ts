@@ -8,7 +8,7 @@ export function proxy(request: NextRequest) {
 	const { pathname } = request.nextUrl;
 
 	// Skip API routes, the PostHog ingestion proxy (guests in /editor are
-	// anonymous — redirecting their events to /login would drop them), Next.js
+	// anonymous - redirecting their events to /login would drop them), Next.js
 	// internals and static assets (paths with a file extension)
 	if (
 		pathname.startsWith("/api") ||

@@ -15,7 +15,7 @@ export function PostHogIdentify() {
 	const userId = session?.user?.id;
 
 	useEffect(() => {
-		// Id only — the email adds nothing to signup/usage counts and would put
+		// Id only - the email adds nothing to signup/usage counts and would put
 		// personal data in the analytics store for no reason.
 		if (userId) {
 			identify(userId);

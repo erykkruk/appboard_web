@@ -12,7 +12,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-07-27",
     changes: [
       "Product analytics (PostHog, self-hosted): we now measure how the free screenshot editor is used and how many people sign up, so we can improve the parts that matter",
-      "Analytics is opt-in and off by default — self-hosted installs send nothing unless a PostHog key is configured, and no events are sent from development builds",
+      "Analytics is opt-in and off by default - self-hosted installs send nothing unless a PostHog key is configured, and no events are sent from development builds",
       "Guests in the free editor stay anonymous: no person profile is created unless you sign in",
     ],
   },

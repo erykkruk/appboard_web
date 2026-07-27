@@ -1,10 +1,10 @@
 /**
- * Every product-analytics event name lives here — event names are a contract
+ * Every product-analytics event name lives here - event names are a contract
  * with the PostHog dashboards, so they must never be inlined as string
  * literals at the call site. snake_case, PostHog's convention.
  */
 export const ANALYTICS_EVENTS = {
-	/** PostHog's built-in pageview — captured manually because of the App Router. */
+	/** PostHog's built-in pageview - captured manually because of the App Router. */
 	PAGEVIEW: "$pageview",
 
 	/** Guest opened the free (no-account) screenshot editor. */
@@ -18,7 +18,7 @@ export const ANALYTICS_EVENTS = {
 
 	/** A session was successfully established (OTP or password). */
 	LOGIN_COMPLETED: "login_completed",
-	/** An OAuth redirect was started — completion happens off-site. */
+	/** An OAuth redirect was started - completion happens off-site. */
 	LOGIN_SOCIAL_STARTED: "login_social_started",
 } as const;
 

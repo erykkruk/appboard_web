@@ -3,7 +3,7 @@ import type { AnalyticsEvent } from "@/lib/analytics-events";
 /**
  * Thin indirection over the analytics client (PostHog). Feature code imports
  * `capture()` from here and never touches `posthog-js` directly, so tracking is
- * a silent no-op wherever analytics is not configured — local dev, tests,
+ * a silent no-op wherever analytics is not configured - local dev, tests,
  * self-hosted installs without a PostHog key, or a blocked script.
  */
 
