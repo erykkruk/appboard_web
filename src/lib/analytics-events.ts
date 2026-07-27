@@ -20,6 +20,13 @@ export const ANALYTICS_EVENTS = {
 	LOGIN_COMPLETED: "login_completed",
 	/** An OAuth redirect was started - completion happens off-site. */
 	LOGIN_SOCIAL_STARTED: "login_social_started",
+
+	/** The community (Discord/Reddit) invite popup became visible. */
+	COMMUNITY_POPUP_SHOWN: "community_popup_shown",
+	/** A community link was clicked - property `target`: "discord" | "reddit". */
+	COMMUNITY_POPUP_LINK_CLICKED: "community_popup_link_clicked",
+	/** The community popup was dismissed with the X button. */
+	COMMUNITY_POPUP_DISMISSED: "community_popup_dismissed",
 } as const;
 
 export type AnalyticsEvent =
