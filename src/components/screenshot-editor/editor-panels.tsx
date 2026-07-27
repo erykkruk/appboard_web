@@ -32,7 +32,11 @@ import {
 	cssPreviewForBackground,
 } from "@/lib/background-presets";
 import { DEFAULT_BEZEL_ID, DEVICE_BEZELS } from "@/lib/device-bezels";
-import { DEFAULT_MODEL_ID, DEVICE_MODELS } from "@/lib/device-models";
+import {
+	DEFAULT_MODEL_ID,
+	DEVICE_MODELS,
+	defaultModelForFrame,
+} from "@/lib/device-models";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -1170,7 +1174,20 @@ function DeviceProperties({
 					value={device.frame}
 					onValueChange={(frame) =>
 						onPatchScene({
-							device: { ...device, frame: frame as SceneDeviceFrame },
+							device: {
+								...device,
+								frame: frame as SceneDeviceFrame,
+								// In 3D style, follow the frame with its matching model
+								// (falling back to drawn styles for model-less frames).
+								...(device.style === "3d"
+									? (() => {
+											const modelId = defaultModelForFrame(frame);
+											return modelId
+												? { modelId }
+												: { style: "realistic" as const };
+										})()
+									: {}),
+							},
 						})
 					}
 				>
@@ -1554,9 +1571,18 @@ function ExtraDeviceProperties({
 				<Label className="text-xs">Frame</Label>
 				<Select
 					value={device.frame}
-					onValueChange={(frame) =>
-						onPatch({ frame: frame as SceneDeviceFrame })
-					}
+					onValueChange={(frame) => {
+						const modelId =
+							device.style === "3d" ? defaultModelForFrame(frame) : undefined;
+						onPatch({
+							frame: frame as SceneDeviceFrame,
+							...(device.style === "3d"
+								? modelId
+									? { modelId }
+									: { style: "realistic" as const }
+								: {}),
+						});
+					}}
 				>
 					<SelectTrigger>
 						<SelectValue />
