@@ -5,6 +5,8 @@ import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useDeploymentMode } from "@/hooks/use-deployment-mode";
+import { capture } from "@/lib/analytics";
+import { ANALYTICS_EVENTS } from "@/lib/analytics-events";
 
 export const COMMUNITY_DISCORD_URL = "https://discord.gg/3VpCwukDE3";
 export const COMMUNITY_REDDIT_URL = "https://www.reddit.com/r/appboard/";
@@ -28,7 +30,10 @@ export function CommunityPopup({ delayMs = SHOW_DELAY_MS }: { delayMs?: number }
 		} catch {
 			// Storage blocked — still show the invite, just without persistence.
 		}
-		const timer = window.setTimeout(() => setVisible(true), delayMs);
+		const timer = window.setTimeout(() => {
+			setVisible(true);
+			capture(ANALYTICS_EVENTS.COMMUNITY_POPUP_SHOWN);
+		}, delayMs);
 		return () => window.clearTimeout(timer);
 	}, [delayMs]);
 
@@ -36,6 +41,7 @@ export function CommunityPopup({ delayMs = SHOW_DELAY_MS }: { delayMs?: number }
 
 	const dismiss = () => {
 		setVisible(false);
+		capture(ANALYTICS_EVENTS.COMMUNITY_POPUP_DISMISSED);
 		try {
 			window.localStorage.setItem(DISMISSED_STORAGE_KEY, "1");
 		} catch {
@@ -53,12 +59,30 @@ export function CommunityPopup({ delayMs = SHOW_DELAY_MS }: { delayMs?: number }
 				</p>
 				<div className="flex shrink-0 items-center gap-2">
 					<Button size="sm" variant="outline" asChild>
-						<a href={COMMUNITY_DISCORD_URL} target="_blank" rel="noreferrer">
+						<a
+							href={COMMUNITY_DISCORD_URL}
+							target="_blank"
+							rel="noreferrer"
+							onClick={() =>
+								capture(ANALYTICS_EVENTS.COMMUNITY_POPUP_LINK_CLICKED, {
+									target: "discord",
+								})
+							}
+						>
 							Discord
 						</a>
 					</Button>
 					<Button size="sm" variant="outline" asChild>
-						<a href={COMMUNITY_REDDIT_URL} target="_blank" rel="noreferrer">
+						<a
+							href={COMMUNITY_REDDIT_URL}
+							target="_blank"
+							rel="noreferrer"
+							onClick={() =>
+								capture(ANALYTICS_EVENTS.COMMUNITY_POPUP_LINK_CLICKED, {
+									target: "reddit",
+								})
+							}
+						>
 							Reddit
 						</a>
 					</Button>

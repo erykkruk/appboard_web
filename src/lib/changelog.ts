@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.10.3",
+    serverVersion: "0.8.1",
+    date: "2026-07-27",
+    changes: [
+      "Analytics: the community invite popup now reports anonymous usage - how often it is shown, how many people open Discord or Reddit from it, and how many dismiss it",
+    ],
+  },
+  {
     version: "0.10.2",
     serverVersion: "0.8.1",
     date: "2026-07-27",
