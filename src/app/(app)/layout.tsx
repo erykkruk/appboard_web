@@ -2,6 +2,7 @@
 
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppSidebar } from "@/components/app-sidebar";
+import { SelfHostedCommunityPopup } from "@/components/community-popup";
 import { PostHogIdentify } from "@/components/posthog-identify";
 import { VaultProvider } from "@/components/vault/vault-provider";
 
@@ -19,6 +20,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {children}
           </div>
         </div>
+        <SelfHostedCommunityPopup />
       </TooltipProvider>
     </VaultProvider>
   );

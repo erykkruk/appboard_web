@@ -265,26 +265,16 @@ export function ScreenshotEditorDialog({
 						]),
 					)
 				: undefined,
-			extraScreenshots: loaded.extraScreenshots
-				? Object.fromEntries(
-						Object.entries(loaded.extraScreenshots).map(([id, img]) => [
-							id,
-							{
-								source: img.element,
-								width: img.width,
-								height: img.height,
-							},
-						]),
-					)
-				: undefined,
+			extraScreenshots: extraScreenshotImages,
 		}),
 		[
 			loaded.background,
 			loaded.screenshot,
 			loaded.bezel,
 			loaded.annotations,
-			loaded.extraScreenshots,
+			extraScreenshotImages,
 			deviceModelImage,
+			extraDeviceModelImages,
 		],
 	);
 	// Current per-panel export dimensions, derived from the scene itself so the
@@ -976,6 +966,31 @@ export function ScreenshotEditorDialog({
 		URL.revokeObjectURL(url);
 	};
 
+	/**
+	 * Panorama split download: render once, slice into one PNG per panel at
+	 * the exact store size and download them all — ready-to-upload files
+	 * without going through the backend splitter.
+	 */
+	const handleDownloadSplit = async () => {
+		const blobs = await exportScenePanelPngs(scene);
+		if (!blobs) {
+			toast.error(
+				"Cannot export — the image comes from a remote source without CORS headers. Upload the file locally.",
+			);
+			return;
+		}
+		const base = `${sceneName.replace(/\s+/g, "-").toLowerCase()}-${language}-${displayType}`;
+		blobs.forEach((blob, index) => {
+			const url = URL.createObjectURL(blob);
+			const link = document.createElement("a");
+			link.href = url;
+			link.download = `${base}-${index + 1}of${blobs.length}.png`;
+			link.click();
+			URL.revokeObjectURL(url);
+		});
+		toast.success(`Downloaded ${blobs.length} screenshots`);
+	};
+
 	const handleExportUpload = async () => {
 		const blob = await canvasRef.current?.exportPng();
 		if (!blob) {
@@ -1119,8 +1134,13 @@ export function ScreenshotEditorDialog({
 							</DropdownMenuTrigger>
 							<DropdownMenuContent align="end">
 								<DropdownMenuItem onSelect={() => handleDownload(false)}>
-									Download PNG
+									{panels > 1 ? "Download panorama (1 PNG)" : "Download PNG"}
 								</DropdownMenuItem>
+								{panels > 1 && (
+									<DropdownMenuItem onSelect={handleDownloadSplit}>
+										Download {panels} screenshots (split)
+									</DropdownMenuItem>
+								)}
 								<DropdownMenuItem onSelect={() => handleDownload(true)}>
 									Download PNG (device only)
 								</DropdownMenuItem>
