@@ -68,6 +68,7 @@ import {
 	type SceneOrientation,
 } from "@/lib/screenshot-editor";
 import { buildDimensionMessage } from "@/lib/screenshot-validation";
+import { downloadBlobsAsZip } from "@/lib/zip";
 import {
 	applyPanoramaTemplate,
 	applyTemplate,
@@ -968,8 +969,8 @@ export function ScreenshotEditorDialog({
 
 	/**
 	 * Panorama split download: render once, slice into one PNG per panel at
-	 * the exact store size and download them all — ready-to-upload files
-	 * without going through the backend splitter.
+	 * the exact store size and hand them over as ONE zip — a single download
+	 * instead of the browser firing N file prompts.
 	 */
 	const handleDownloadSplit = async () => {
 		const blobs = await exportScenePanelPngs(scene);
@@ -980,15 +981,14 @@ export function ScreenshotEditorDialog({
 			return;
 		}
 		const base = `${sceneName.replace(/\s+/g, "-").toLowerCase()}-${language}-${displayType}`;
-		blobs.forEach((blob, index) => {
-			const url = URL.createObjectURL(blob);
-			const link = document.createElement("a");
-			link.href = url;
-			link.download = `${base}-${index + 1}of${blobs.length}.png`;
-			link.click();
-			URL.revokeObjectURL(url);
-		});
-		toast.success(`Downloaded ${blobs.length} screenshots`);
+		await downloadBlobsAsZip(
+			blobs.map((blob, index) => ({
+				blob,
+				name: `${base}-${index + 1}of${blobs.length}.png`,
+			})),
+			`${base}-screenshots.zip`,
+		);
+		toast.success(`Downloaded ${blobs.length} screenshots as ZIP`);
 	};
 
 	const handleExportUpload = async () => {

@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.10.2",
+    serverVersion: "0.8.1",
+    date: "2026-07-27",
+    changes: [
+      "Split panorama download now delivers ONE .zip file with all the cut screenshots inside, instead of firing several separate browser downloads",
+    ],
+  },
+  {
     version: "0.10.1",
     serverVersion: "0.8.1",
     date: "2026-07-27",
