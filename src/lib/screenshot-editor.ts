@@ -124,6 +124,24 @@ export function getPanelCount(scene: Pick<SceneData, "panels">): number {
 	return Number.isFinite(panels) && panels >= 1 ? Math.round(panels) : 1;
 }
 
+/**
+ * Pixel rects of each panorama panel, left to right — the slice boundaries a
+ * split download cuts along. A single-panel scene returns one full-canvas
+ * rect. Pure — drives the split export and tests.
+ */
+export function computePanelSliceRects(
+	scene: Pick<SceneData, "width" | "height" | "panels">,
+): Rect[] {
+	const panels = getPanelCount(scene);
+	const panelWidth = scene.width / panels;
+	return Array.from({ length: panels }, (_, i) => ({
+		height: scene.height,
+		width: panelWidth,
+		x: i * panelWidth,
+		y: 0,
+	}));
+}
+
 export type SceneOrientation = "portrait" | "landscape";
 
 /**
@@ -260,22 +278,31 @@ export function computeDeviceRectFor(
 	};
 }
 
-/** Fresh extra device mockup, offset so it never hides the primary one. */
+/**
+ * Fresh extra device mockup, offset so it never hides the primary one. It
+ * inherits the primary device's look — including the true-3D style and model
+ * ("photo" has no extra-device renderer, so it falls back to realistic).
+ */
 export function createExtraDevice(
 	id: string,
 	scene: Pick<SceneData, "device" | "extraDevices">,
 ): SceneExtraDevice {
 	const count = (scene.extraDevices?.length ?? 0) + 1;
+	const primaryStyle = scene.device?.style;
+	const style =
+		primaryStyle === "clay" || primaryStyle === "3d"
+			? primaryStyle
+			: ("realistic" as const);
 	return {
 		frame: scene.device?.frame ?? "iphone",
 		groundShadow: scene.device?.groundShadow,
 		id,
+		modelId: style === "3d" ? scene.device?.modelId : undefined,
 		offsetX: Math.min(0.4, 0.14 * count),
 		offsetY: (scene.device?.offsetY ?? 0.12) + 0.04 * count,
 		rotation: 0,
 		scale: Math.max(0.2, (scene.device?.scale ?? 0.72) * 0.85),
-		style:
-			scene.device?.style === "clay" ? "clay" : ("realistic" as const),
+		style,
 	};
 }
 

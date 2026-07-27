@@ -53,6 +53,14 @@ export function PostHogProvider({ children }: { children: ReactNode }) {
 			// a guest types into the editor.
 			autocapture: false,
 			disable_session_recording: true,
+			// We use PostHog purely to count events, never for feature flags,
+			// surveys or remote config. Our self-hosted build does not serve the
+			// /flags/ and /array/<key>/config routes this SDK version expects, so
+			// leaving them on cost two failed requests and two console errors on
+			// every page load of the public editor. Everything we do rely on
+			// (autocapture, recording, pageviews) is configured explicitly above,
+			// which is what this option requires.
+			advanced_disable_flags: true,
 			// Guests in the free editor stay anonymous - only signed-in users get
 			// a person profile, which keeps the person count meaningful.
 			person_profiles: "identified_only",

@@ -669,8 +669,9 @@ export interface SceneScreenshot {
 /**
  * An additional device mockup layer. The scene's primary `device` +
  * `screenshot` pair stays as-is (backward compatible); extra devices carry
- * their own screenshot inline. Styles "photo"/"3d" are not offered for
- * extras (they fall back to the drawn look) — realistic/clay only.
+ * their own screenshot inline and support the same styles as the primary
+ * device (3d/realistic/clay). Only "photo" is not offered for extras (it
+ * falls back to the drawn look).
  */
 export interface SceneExtraDevice extends SceneDevice {
 	id: string;

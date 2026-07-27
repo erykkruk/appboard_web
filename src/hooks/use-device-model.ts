@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { computeDeviceRect } from "@/lib/screenshot-editor";
+import { computeDeviceRect, computeDeviceRectFor } from "@/lib/screenshot-editor";
 import type { SceneData } from "@/lib/types";
 
 import type { RenderImage } from "@/components/screenshot-editor/render-scene";
@@ -81,4 +81,107 @@ export function useDeviceModel(
 	]);
 
 	return is3d ? image : undefined;
+}
+
+/**
+ * Cheap identity for a screenshot source string (data URLs run to megabytes,
+ * so hashing the whole value on every render is off the table).
+ */
+function fingerprintSource(src: string | undefined): string {
+	if (!src) return "none";
+	return `${src.length}:${src.slice(0, 24)}:${src.slice(-24)}`;
+}
+
+/**
+ * Pre-rendered true-3D images for every EXTRA device using the "3d" style,
+ * keyed by device id. Mirrors {@link useDeviceModel} for the primary device.
+ * The render signature excludes offsets, so canvas drags reposition the cached
+ * render instead of re-running WebGL on every pointer frame.
+ */
+export function useExtraDeviceModels(
+	scene: SceneData,
+	screenshots: Record<string, RenderImage | undefined> | undefined,
+): Record<string, RenderImage> | undefined {
+	const [images, setImages] = useState<
+		Record<string, RenderImage> | undefined
+	>(undefined);
+
+	const sceneRef = useRef(scene);
+	sceneRef.current = scene;
+	const screenshotsRef = useRef(screenshots);
+	screenshotsRef.current = screenshots;
+
+	const signature = useMemo(
+		() =>
+			(scene.extraDevices ?? [])
+				.filter((d) => d.style === "3d" && d.frame !== "none")
+				.map((d) => {
+					const rect = computeDeviceRectFor(d, scene);
+					const shot = screenshots?.[d.id];
+					return [
+						d.id,
+						d.modelId ?? "",
+						d.rotationX ?? 0,
+						d.rotationY ?? 0,
+						d.rotation ?? 0,
+						Math.round(rect.width),
+						Math.round(rect.height),
+						shot ? `${shot.width}x${shot.height}` : "pending",
+						fingerprintSource(d.screenshotUrl),
+					].join(":");
+				})
+				.join("|"),
+		[scene, screenshots],
+	);
+
+	useEffect(() => {
+		const list = (sceneRef.current.extraDevices ?? []).filter(
+			(d) => d.style === "3d" && d.frame !== "none",
+		);
+		if (list.length === 0) {
+			setImages(undefined);
+			return;
+		}
+		let cancelled = false;
+		import("@/components/screenshot-editor/device-model-renderer").then(
+			async ({ renderDeviceModel }) => {
+				const next: Record<string, RenderImage> = {};
+				// Sequential on purpose: the module shares ONE WebGL renderer, so
+				// parallel renders would clobber each other's mounted model.
+				for (const device of list) {
+					const rect = computeDeviceRectFor(device, sceneRef.current);
+					const shot = screenshotsRef.current?.[device.id];
+					const canvas = await renderDeviceModel({
+						frameHeight: Math.round(rect.height),
+						frameWidth: Math.round(rect.width),
+						modelId: device.modelId ?? "",
+						rotationX: device.rotationX ?? 0,
+						rotationY: device.rotationY ?? 0,
+						rotationZ: device.rotation ?? 0,
+						screenshot: shot
+							? {
+									height: shot.height,
+									source: shot.source,
+									width: shot.width,
+								}
+							: undefined,
+					});
+					if (cancelled) return;
+					if (canvas) {
+						next[device.id] = {
+							height: canvas.height,
+							source: canvas,
+							width: canvas.width,
+						};
+					}
+				}
+				if (!cancelled) setImages(next);
+			},
+		);
+		return () => {
+			cancelled = true;
+		};
+	}, [signature]);
+
+	return images;
 }

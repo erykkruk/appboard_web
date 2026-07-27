@@ -49,6 +49,8 @@ export interface RenderImages {
 	annotations?: Record<string, RenderImage | undefined>;
 	/** Decoded screenshots of extra device mockups, keyed by device id. */
 	extraScreenshots?: Record<string, RenderImage | undefined>;
+	/** Pre-rendered WebGL models of extra "3d"-style devices, keyed by id. */
+	extraDeviceModels?: Record<string, RenderImage | undefined>;
 }
 
 /** Everything needed to paint ONE device (primary or extra). */
@@ -58,7 +60,7 @@ interface DeviceRenderContext {
 	fit: "cover" | "contain";
 	/** Photographic bezel ("photo" style — primary device only). */
 	bezel?: RenderImage;
-	/** Pre-rendered WebGL model ("3d" style — primary device only). */
+	/** Pre-rendered WebGL model ("3d" style). */
 	deviceModel?: RenderImage;
 }
 
@@ -537,11 +539,13 @@ function drawDeviceFrame(
 	}
 
 	// Extra device mockups draw above the primary one, each with its own
-	// screenshot. They use the drawn styles (realistic/clay) only.
+	// screenshot. They support the same styles as the primary device — the
+	// "3d" style rides on a pre-rendered WebGL image just like the primary.
 	for (const extra of scene.extraDevices ?? []) {
 		if (extra.frame === "none") continue;
 		drawOneDevice(ctx, scene, {
 			device: extra,
+			deviceModel: images.extraDeviceModels?.[extra.id],
 			fit: extra.screenshotFit ?? "cover",
 			screenshot: images.extraScreenshots?.[extra.id],
 		});

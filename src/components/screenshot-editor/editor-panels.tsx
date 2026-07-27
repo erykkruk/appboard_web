@@ -388,7 +388,7 @@ export function LayersPanel({
 						className="flex min-w-0 flex-1 items-center gap-2 text-left"
 					>
 						<Smartphone className="h-4 w-4 shrink-0 text-muted-foreground" />
-						<span className="truncate">Device {index + 2}</span>
+						<span className="truncate">Device + screenshot {index + 2}</span>
 					</button>
 					<button
 						type="button"
@@ -1527,8 +1527,9 @@ function DeviceProperties({
 }
 
 /**
- * Properties of an EXTRA device mockup: drawn styles only (realistic/clay),
- * its own screenshot, size/position and the same 3D tilt controls.
+ * Properties of an EXTRA device mockup: same styles as the primary device
+ * (3D / realistic / clay), its own screenshot, size/position and the same 3D
+ * tilt controls — one uniform "device + screenshot" object per layer.
  */
 function ExtraDeviceProperties({
 	device,
@@ -1541,9 +1542,13 @@ function ExtraDeviceProperties({
 	onPickScreenshot?: () => void;
 	onDelete?: () => void;
 }) {
+	const style: SceneDeviceStyle =
+		device.style === "clay" || device.style === "3d"
+			? device.style
+			: "realistic";
 	return (
 		<div className="flex flex-col gap-3">
-			<h4 className="text-sm font-semibold">Extra device</h4>
+			<h4 className="text-sm font-semibold">Device + screenshot</h4>
 
 			<div className="flex flex-col gap-1.5">
 				<Label className="text-xs">Frame</Label>
@@ -1570,28 +1575,59 @@ function ExtraDeviceProperties({
 			<div className="flex flex-col gap-1.5">
 				<Label className="text-xs">Style</Label>
 				<Select
-					value={device.style === "clay" ? "clay" : "realistic"}
-					onValueChange={(style) =>
-						onPatch({ style: style as SceneDeviceStyle })
+					value={style}
+					onValueChange={(next) =>
+						onPatch({
+							modelId:
+								next === "3d"
+									? (device.modelId ?? DEFAULT_MODEL_ID)
+									: device.modelId,
+							style: next as SceneDeviceStyle,
+						})
 					}
 				>
 					<SelectTrigger>
 						<SelectValue />
 					</SelectTrigger>
 					<SelectContent>
+						<SelectItem value="3d">3D model (rotates for real)</SelectItem>
 						<SelectItem value="realistic">Realistic (drawn)</SelectItem>
 						<SelectItem value="clay">Clay (custom color)</SelectItem>
 					</SelectContent>
 				</Select>
 			</div>
 
-			{device.style === "clay" ? (
+			{style === "3d" && (
+				<div className="flex flex-col gap-1.5">
+					<Label className="text-xs">Model</Label>
+					<Select
+						value={device.modelId ?? DEFAULT_MODEL_ID}
+						onValueChange={(modelId) => onPatch({ modelId })}
+					>
+						<SelectTrigger>
+							<SelectValue />
+						</SelectTrigger>
+						<SelectContent>
+							{DEVICE_MODELS.map((model) => (
+								<SelectItem key={model.id} value={model.id}>
+									{model.label}
+								</SelectItem>
+							))}
+						</SelectContent>
+					</Select>
+					<p className="text-[10px] text-muted-foreground">
+						True WebGL render — use the 3D rotation sliders below.
+					</p>
+				</div>
+			)}
+
+			{style === "clay" ? (
 				<ColorField
 					label="Clay color"
 					value={device.clayColor ?? "#8282b2"}
 					onChange={(clayColor) => onPatch({ clayColor })}
 				/>
-			) : (
+			) : style === "3d" ? null : (
 				<div className="flex flex-col gap-1.5">
 					<Label className="text-xs">Frame color</Label>
 					<Select
