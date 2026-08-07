@@ -45,6 +45,7 @@ export function ScreenshotEditorEntry({
 		<>
 			<SceneGallery
 				appId={appId}
+				versionId={versionId}
 				language={language}
 				displayType={displayType}
 				onNew={handleNew}

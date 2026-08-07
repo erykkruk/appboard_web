@@ -1,23 +1,35 @@
 import { describe, expect, test } from "bun:test";
 
 import {
+	applyOrientation,
 	applyPanelCount,
 	computeDeviceRect,
+	computeDeviceRectFor,
 	computeDisplayScale,
 	computeImageFit,
+	computePanelSliceRects,
 	createDefaultAnnotation,
 	createDefaultScene,
+	createExtraDevice,
 	createImageAnnotation,
+	createShapeAnnotation,
 	defaultFrameForDisplayType,
+	deviceAspect,
 	getDisplayTypeLabel,
 	getPanelCount,
+	getSceneOrientation,
 	getTargetDimensions,
+	getTargetDimensionsFor,
 	hitTestAnnotation,
+	hitTestAnyDevice,
 	hitTestCalloutTarget,
 	hitTestDevice,
 	hitTestTextLayer,
 	measureAnnotationBox,
+	reorderById,
 	resolveTextPosition,
+	SHAPE_ASPECT,
+	snapNormalizedPosition,
 } from "./screenshot-editor";
 import type { SceneAnnotation, SceneData } from "./types";
 
@@ -47,11 +59,16 @@ describe("getDisplayTypeLabel", () => {
 describe("defaultFrameForDisplayType", () => {
 	test("uses an Android frame for Android display types", () => {
 		expect(defaultFrameForDisplayType("phone")).toBe("android");
-		expect(defaultFrameForDisplayType("tenInch")).toBe("android");
+		expect(defaultFrameForDisplayType("tenInch")).toBe("android-tablet");
+		expect(defaultFrameForDisplayType("sevenInch")).toBe("android-tablet");
 	});
 
 	test("uses an iPhone frame for iOS display types", () => {
 		expect(defaultFrameForDisplayType("APP_IPHONE_67")).toBe("iphone");
+	});
+
+	test("uses an iPad frame for the iPad display type", () => {
+		expect(defaultFrameForDisplayType("APP_IPAD_PRO_129")).toBe("ipad");
 	});
 });
 
@@ -69,6 +86,22 @@ describe("createDefaultScene", () => {
 		expect(scene.device?.frame).toBe("android");
 		expect(scene.width).toBe(1080);
 		expect(scene.height).toBe(1920);
+	});
+
+	test("phones default to the true-3D style with the matching model", () => {
+		const iphone = createDefaultScene("APP_IPHONE_67");
+		expect(iphone.device?.style).toBe("3d");
+		expect(iphone.device?.modelId).toBe("iphone-15-pro-max");
+		const android = createDefaultScene("phone");
+		expect(android.device?.style).toBe("3d");
+		expect(android.device?.modelId).toBe("samsung-galaxy-s25-ultra");
+	});
+
+	test("model-less frames (tablets) keep the drawn default style", () => {
+		const ipad = createDefaultScene("APP_IPAD_PRO_129");
+		expect(ipad.device?.frame).toBe("ipad");
+		expect(ipad.device?.style).toBeUndefined();
+		expect(ipad.device?.modelId).toBeUndefined();
 	});
 });
 
@@ -557,5 +590,336 @@ describe("computeDeviceRect in panorama mode", () => {
 		const panoramaRect = computeDeviceRect(panorama);
 		expect(panoramaRect?.width).toBeCloseTo(singleRect?.width ?? 0);
 		expect(panoramaRect?.height).toBeCloseTo(singleRect?.height ?? 0);
+	});
+});
+
+describe("createShapeAnnotation", () => {
+	test("builds a stroked shape with defaults scaled to the scene", () => {
+		const scene = { height: 2796, width: 1290 };
+		const shape = createShapeAnnotation("s1", "underline", scene);
+		expect(shape.type).toBe("shape");
+		expect(shape.shape).toBe("underline");
+		expect(shape.width).toBeCloseTo(0.3);
+		expect(shape.strokeWidth).toBeGreaterThan(1);
+		expect(shape.x).toBe(0.5);
+	});
+
+	test("marks (sparkle/star) start smaller than strokes", () => {
+		const scene = { height: 2796, width: 1290 };
+		expect(createShapeAnnotation("s2", "sparkle", scene).width).toBeCloseTo(0.1);
+		expect(createShapeAnnotation("s3", "star", scene).width).toBeCloseTo(0.1);
+	});
+});
+
+describe("measureAnnotationBox (shape)", () => {
+	test("uses the per-shape aspect for the bounding box", () => {
+		const scene = { height: 2000, width: 1000 };
+		const shape = createShapeAnnotation("s1", "underline", scene);
+		const box = measureAnnotationBox(shape, scene);
+		expect(box.width).toBeCloseTo(shape.width * scene.width);
+		expect(box.height).toBeCloseTo(box.width * SHAPE_ASPECT.underline);
+	});
+
+	test("shape annotations are hit-testable through hitTestAnnotation", () => {
+		const scene: SceneData = {
+			annotations: [createShapeAnnotation("s1", "star", { height: 2000, width: 1000 })],
+			background: { type: "color", value: "#000" },
+			height: 2000,
+			textLayers: [],
+			width: 1000,
+		};
+		expect(hitTestAnnotation(scene, 500, 1000)).toBe("s1");
+		expect(hitTestAnnotation(scene, 20, 20)).toBeNull();
+	});
+});
+
+describe("snapNormalizedPosition", () => {
+	const baseScene: SceneData = {
+		background: { type: "color", value: "#000" },
+		device: { frame: "iphone", offsetX: 0.2, offsetY: 0.1, scale: 0.7 },
+		height: 2000,
+		textLayers: [],
+		width: 1000,
+	};
+
+	test("snaps to the canvas center within the threshold", () => {
+		const snap = snapNormalizedPosition(0.492, 0.508, baseScene);
+		expect(snap.x).toBe(0.5);
+		expect(snap.y).toBe(0.5);
+		expect(snap.guideX).toBe(0.5);
+		expect(snap.guideY).toBe(0.5);
+	});
+
+	test("passes positions outside the threshold through unchanged", () => {
+		const snap = snapNormalizedPosition(0.42, 0.3, baseScene);
+		expect(snap.x).toBe(0.42);
+		expect(snap.y).toBe(0.3);
+		expect(snap.guideX).toBeUndefined();
+		expect(snap.guideY).toBeUndefined();
+	});
+
+	test("snaps to the device center", () => {
+		const snap = snapNormalizedPosition(0.708, 0.595, baseScene);
+		expect(snap.x).toBeCloseTo(0.7);
+		expect(snap.y).toBeCloseTo(0.6);
+	});
+
+	test("snaps to panel centers and seams in panorama mode", () => {
+		const panorama: SceneData = { ...baseScene, device: undefined, panels: 2 };
+		expect(snapNormalizedPosition(0.253, 0.3, panorama).x).toBe(0.25);
+		expect(snapNormalizedPosition(0.497, 0.3, panorama).x).toBe(0.5);
+		expect(snapNormalizedPosition(0.748, 0.3, panorama).x).toBe(0.75);
+	});
+});
+
+describe("reorderById", () => {
+	const items = [{ id: "a" }, { id: "b" }, { id: "c" }];
+
+	test("moves an item later (drawn above)", () => {
+		expect(reorderById(items, "a", 1).map((i) => i.id)).toEqual([
+			"b",
+			"a",
+			"c",
+		]);
+	});
+
+	test("moves an item earlier (drawn below)", () => {
+		expect(reorderById(items, "c", -1).map((i) => i.id)).toEqual([
+			"a",
+			"c",
+			"b",
+		]);
+	});
+
+	test("out-of-range moves and unknown ids return the array unchanged", () => {
+		expect(reorderById(items, "a", -1).map((i) => i.id)).toEqual([
+			"a",
+			"b",
+			"c",
+		]);
+		expect(reorderById(items, "c", 1).map((i) => i.id)).toEqual([
+			"a",
+			"b",
+			"c",
+		]);
+		expect(reorderById(items, "zz", 1).map((i) => i.id)).toEqual([
+			"a",
+			"b",
+			"c",
+		]);
+	});
+
+	test("does not mutate the input array", () => {
+		const input = [{ id: "a" }, { id: "b" }];
+		reorderById(input, "a", 1);
+		expect(input.map((i) => i.id)).toEqual(["a", "b"]);
+	});
+});
+
+describe("orientation", () => {
+	test("getSceneOrientation detects portrait and landscape per panel", () => {
+		expect(
+			getSceneOrientation({ height: 2796, width: 1290 }),
+		).toBe("portrait");
+		expect(
+			getSceneOrientation({ height: 1290, width: 2796 }),
+		).toBe("landscape");
+		// Two-panel landscape panorama: full width 2×2796, panel 2796×1290.
+		expect(
+			getSceneOrientation({ height: 1290, panels: 2, width: 5592 }),
+		).toBe("landscape");
+	});
+
+	test("getTargetDimensionsFor swaps dimensions for landscape", () => {
+		expect(getTargetDimensionsFor("APP_IPHONE_67", "portrait")).toEqual([
+			1290, 2796,
+		]);
+		expect(getTargetDimensionsFor("APP_IPHONE_67", "landscape")).toEqual([
+			2796, 1290,
+		]);
+	});
+
+	test("applyOrientation resizes the canvas keeping panels", () => {
+		const scene = applyPanelCount(
+			createDefaultScene("APP_IPHONE_67"),
+			"APP_IPHONE_67",
+			2,
+		);
+		const landscape = applyOrientation(scene, "APP_IPHONE_67", "landscape");
+		expect(landscape.height).toBe(1290);
+		expect(landscape.width).toBe(2796 * 2);
+		expect(landscape.panels).toBe(2);
+	});
+
+	test("applyPanelCount preserves the scene's landscape orientation", () => {
+		const landscape = applyOrientation(
+			createDefaultScene("APP_IPHONE_67"),
+			"APP_IPHONE_67",
+			"landscape",
+		);
+		const panorama = applyPanelCount(landscape, "APP_IPHONE_67", 3);
+		expect(panorama.height).toBe(1290);
+		expect(panorama.width).toBe(2796 * 3);
+	});
+});
+
+describe("deviceAspect (photo bezels)", () => {
+	test("photo style uses the bezel asset aspect", () => {
+		const aspect = deviceAspect({
+			bezelId: "iphone-17-pro-max-deep-blue",
+			frame: "iphone",
+			offsetX: 0,
+			offsetY: 0,
+			scale: 0.7,
+			style: "photo",
+		});
+		expect(aspect).toBeCloseTo(3000 / 1470);
+	});
+
+	test("unknown bezel id falls back to the default bezel", () => {
+		const fallback = deviceAspect({
+			bezelId: "does-not-exist",
+			frame: "iphone",
+			offsetX: 0,
+			offsetY: 0,
+			scale: 0.7,
+			style: "photo",
+		});
+		expect(fallback).toBeCloseTo(3000 / 1470);
+	});
+
+	test("non-photo styles keep the programmatic frame aspect", () => {
+		expect(
+			deviceAspect({ frame: "iphone", offsetX: 0, offsetY: 0, scale: 0.7 }),
+		).toBeCloseTo(2.05);
+	});
+});
+
+describe("locked text layers", () => {
+	test("hitTestTextLayer skips locked layers", () => {
+		const scene: SceneData = {
+			background: { type: "color", value: "#000" },
+			height: 2000,
+			textLayers: [
+				{
+					align: "center",
+					color: "#fff",
+					fontFamily: "sans",
+					fontSize: 100,
+					id: "locked",
+					locked: true,
+					text: "Hello",
+					x: 0.5,
+					y: 0.1,
+				},
+			],
+			width: 1000,
+		};
+		expect(hitTestTextLayer(scene, 500, 200)).toBeNull();
+		const unlocked: SceneData = {
+			...scene,
+			textLayers: [{ ...scene.textLayers[0], locked: false }],
+		};
+		expect(hitTestTextLayer(unlocked, 500, 200)).toBe("locked");
+	});
+});
+
+describe("computePanelSliceRects", () => {
+	test("returns one full-canvas rect for a single-panel scene", () => {
+		expect(
+			computePanelSliceRects({ height: 2796, width: 1290 }),
+		).toEqual([{ height: 2796, width: 1290, x: 0, y: 0 }]);
+	});
+
+	test("splits a panorama into equal side-by-side panels", () => {
+		const rects = computePanelSliceRects({
+			height: 2796,
+			panels: 3,
+			width: 1290 * 3,
+		});
+		expect(rects).toHaveLength(3);
+		expect(rects[0]).toEqual({ height: 2796, width: 1290, x: 0, y: 0 });
+		expect(rects[1].x).toBe(1290);
+		expect(rects[2].x).toBe(2580);
+		// Slices tile the full canvas with no gaps or overlap.
+		expect(rects[2].x + rects[2].width).toBe(1290 * 3);
+	});
+});
+
+describe("extra devices", () => {
+	const base: SceneData = {
+		background: { type: "color", value: "#000" },
+		device: { frame: "iphone", offsetX: 0, offsetY: 0, scale: 0.5 },
+		height: 2000,
+		textLayers: [],
+		width: 1000,
+	};
+
+	test("createExtraDevice offsets the mockup away from the primary", () => {
+		const extra = createExtraDevice("d2", base);
+		expect(extra.id).toBe("d2");
+		expect(extra.offsetX).toBeGreaterThan(0);
+		expect(extra.scale).toBeLessThan(0.5);
+		expect(extra.style).toBe("realistic");
+	});
+
+	test("createExtraDevice inherits the primary's 3D style and model", () => {
+		const scene: SceneData = {
+			...base,
+			device: {
+				...base.device!,
+				modelId: "iphone-15-pro-max",
+				style: "3d",
+			},
+		};
+		const extra = createExtraDevice("d2", scene);
+		expect(extra.style).toBe("3d");
+		expect(extra.modelId).toBe("iphone-15-pro-max");
+	});
+
+	test("createExtraDevice falls back to realistic for the photo style", () => {
+		const scene: SceneData = {
+			...base,
+			device: { ...base.device!, bezelId: "iphone-17-pro", style: "photo" },
+		};
+		const extra = createExtraDevice("d2", scene);
+		expect(extra.style).toBe("realistic");
+		expect(extra.modelId).toBeUndefined();
+	});
+
+	test("hitTestAnyDevice prefers the topmost extra device", () => {
+		const scene: SceneData = {
+			...base,
+			extraDevices: [
+				{
+					frame: "iphone",
+					id: "d2",
+					offsetX: 0,
+					offsetY: 0,
+					rotation: 0,
+					scale: 0.5,
+				},
+			],
+		};
+		// Both devices overlap at the center — the extra one wins (drawn above).
+		expect(hitTestAnyDevice(scene, 500, 1000)).toBe("d2");
+		// A point only the primary covers... shrink extra and move it away.
+		const apart: SceneData = {
+			...scene,
+			extraDevices: [
+				{ ...scene.extraDevices![0], offsetX: 0.4, scale: 0.1 },
+			],
+		};
+		expect(hitTestAnyDevice(apart, 500, 1000)).toBe("primary");
+		expect(hitTestAnyDevice(apart, 10, 10)).toBeNull();
+	});
+
+	test("computeDeviceRectFor centers extras by their own offsets", () => {
+		const rect = computeDeviceRectFor(
+			{ frame: "iphone", offsetX: 0.25, offsetY: 0, scale: 0.4 },
+			base,
+		);
+		expect(rect.width).toBe(400);
+		expect(rect.x + rect.width / 2).toBeCloseTo(1000 * 0.75);
 	});
 });

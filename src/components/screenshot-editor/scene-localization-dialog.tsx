@@ -110,7 +110,11 @@ export function SceneLocalizationDialog({
 			(l) => l.doNotTranslate && l.text.trim(),
 		).length;
 		const dntAnnotations = (sourceScene.annotations ?? []).filter(
-			(a) => a.type !== "image" && a.doNotTranslate && a.text.trim(),
+			(a) =>
+				a.type !== "image" &&
+				a.type !== "shape" &&
+				a.doNotTranslate &&
+				a.text.trim(),
 		).length;
 		return dntLayers + dntAnnotations;
 	}, [sourceScene.textLayers, sourceScene.annotations]);

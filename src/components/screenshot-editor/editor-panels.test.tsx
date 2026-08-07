@@ -31,8 +31,16 @@ const noopLayerProps = {
 	onAddText: mock(() => {}),
 	onDeleteText: mock(() => {}),
 	onAddAnnotation: mock(() => {}),
+	onAddShape: mock(() => {}),
 	onAddImage: mock(() => {}),
 	onDeleteAnnotation: mock(() => {}),
+	onDuplicateText: mock(() => {}),
+	onDuplicateAnnotation: mock(() => {}),
+	onReorderText: mock(() => {}),
+	onReorderAnnotation: mock(() => {}),
+	onAddEmoji: mock(() => {}),
+	onAddDevice: mock(() => {}),
+	onDeleteDevice: mock(() => {}),
 };
 
 const noopPropertiesProps = {
@@ -78,6 +86,34 @@ describe("LayersPanel", () => {
 		expect(screen.getByText("Device + screenshot")).toBeInTheDocument();
 		expect(screen.getByText("Layer 0")).toBeInTheDocument();
 		expect(screen.getByText("Layer 1")).toBeInTheDocument();
+	});
+
+	test("lists extra devices as uniform 'Device + screenshot N' objects", () => {
+		const scene: SceneData = {
+			...buildScene(0),
+			extraDevices: [
+				{ frame: "iphone", id: "d2", offsetX: 0.1, offsetY: 0.1, scale: 0.4 },
+				{
+					frame: "android",
+					id: "d3",
+					offsetX: 0.2,
+					offsetY: 0.2,
+					scale: 0.4,
+					style: "3d",
+				},
+			],
+		};
+		render(
+			<LayersPanel
+				scene={scene}
+				selectedLayerId={null}
+				onSelectLayer={mock(() => {})}
+				{...noopLayerProps}
+			/>,
+		);
+		expect(screen.getByText("Device + screenshot")).toBeInTheDocument();
+		expect(screen.getByText("Device + screenshot 2")).toBeInTheDocument();
+		expect(screen.getByText("Device + screenshot 3")).toBeInTheDocument();
 	});
 
 	test("shows an empty hint when there are no text layers", () => {

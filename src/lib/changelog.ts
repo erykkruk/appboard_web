@@ -7,6 +7,85 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.10.3",
+    serverVersion: "0.8.1",
+    date: "2026-07-27",
+    changes: [
+      "Analytics: the community invite popup now reports anonymous usage - how often it is shown, how many people open Discord or Reddit from it, and how many dismiss it",
+    ],
+  },
+  {
+    version: "0.10.2",
+    serverVersion: "0.8.1",
+    date: "2026-07-27",
+    changes: [
+      "Split panorama download now delivers ONE .zip file with all the cut screenshots inside, instead of firing several separate browser downloads",
+    ],
+  },
+  {
+    version: "0.10.1",
+    serverVersion: "0.8.1",
+    date: "2026-07-27",
+    changes: [
+      "3D devices: fixed dark square corners poking past the phone body - the screen texture now composites with proper transparency, and empty 3D screens get the same rounded corners",
+      "New scenes start with the true-3D device by default: iPhone targets get the iPhone 15 Pro Max model, Android targets the Galaxy S25 Ultra (tablets keep the drawn style); switching the frame swaps the matching model automatically",
+    ],
+  },
+  {
+    version: "0.10.0",
+    serverVersion: "0.8.1",
+    date: "2026-07-27",
+    changes: [
+      "Every device layer is now the same 'Device + screenshot' object: extra devices support the true-3D WebGL models (own screenshot, model choice and X/Y/Z rotation), so you can stack as many rotating 3D mockups in one scene as you like",
+      "New devices added from the Layers panel inherit the primary device's style and 3D model, so a multi-device scene stays consistent out of the box",
+      "Panorama download got a split option: next to the single wide PNG you can download the panorama pre-cut into X store-ready screenshots, sliced at the exact panel seams",
+      "Scene thumbnails now render extra devices' screenshots and 3D models, matching the export pixel-for-pixel",
+      "Free editor and self-hosted installs: a small invite to our new Discord and Reddit communities - join in and help shape the roadmap",
+    ],
+  },
+  {
+    version: "0.9.2",
+    serverVersion: "0.8.1",
+    date: "2026-07-27",
+    changes: [
+      "Fixed two console errors on every page load: analytics no longer calls the feature-flag and remote-config endpoints we do not use",
+    ],
+  },
+  {
+    version: "0.9.1",
+    serverVersion: "0.8.1",
+    date: "2026-07-27",
+    changes: [
+      "Product analytics (PostHog, self-hosted): we now measure how the free screenshot editor is used and how many people sign up, so we can improve the parts that matter",
+      "Analytics is opt-in and off by default - self-hosted installs send nothing unless a PostHog key is configured, and no events are sent from development builds",
+      "Guests in the free editor stay anonymous: no person profile is created unless you sign in",
+    ],
+  },
+  {
+    version: "0.9.0",
+    serverVersion: "0.8.0",
+    date: "2026-07-16",
+    changes: [
+      "Screenshot editor got a major upgrade: new device mockups — iPad, Android tablet, Apple Watch (with band and digital crown) and a laptop — next to the existing iPhone and Android phone frames",
+      "True 3D devices: iPhone 15 Pro Max and Galaxy S25 Ultra as real WebGL models that rotate in X/Y/Z, plus photographic Apple bezels (iPhone 17 family, iPad Pro 13\", Apple Watch S11) with your screenshot composited into the real screen cutout",
+      "3D device rotation: tilt any mockup in X/Y/Z with one-click pose presets (Hero, Tilt left/right, Lean back) — the export matches the preview pixel-for-pixel",
+      "Clay device style: render the frame in any color you pick, ButterKit-style, next to the realistic titanium look",
+      "Social-proof elements: review cards (quote, stars, author), award laurels, 5-star rows, hearts, checkmarks and emoji stickers",
+      "Text power-ups: accent words in a second color, style presets, lock layers, copy a text's or annotation's style to all others, annotation borders and corner radius",
+      "20 scene templates inspired by the best App Store pages (Ascent, Sahara, Serif, Midnight, Blueprint, Sunset Blvd, Ethereal, Pinecrest and more) with topographic, dune and grain backgrounds",
+      "Drag & drop an image onto the canvas: on the device it becomes the screenshot, elsewhere an image layer",
+      "Background gallery: 28 one-click presets — linear, radial and mesh gradients plus pattern combos (dots, grid, waves, diagonal lines, rings) with color, opacity and density controls",
+      "Decorative text: gradient fills, marker highlights, curved text, letter spacing, line height and one-click style presets (Hero, Subtitle, Sticker, Marker)",
+      "Hand-drawn shapes: arrows, underlines, squiggles, circle marks, sparkles, stars and blobs — recolor, rotate, flip and resize them like any layer",
+      "Scene templates: 8 ready-made layouts (Hero 3D, Feature callout, Minimal light/dark, Panorama duo, Bold statement, Curved promo, Clay showcase) that adapt to every App Store and Google Play size and keep your screenshot and fonts when applied",
+      "Undo/redo with Cmd+Z / Cmd+Shift+Z, layer duplication and draw-order (z-order) controls",
+      "Figma-style snap guides while dragging: layers snap to canvas/panel centers, panorama seams and the device center (hold Alt to bypass)",
+      "Landscape mode: flip any scene between portrait and landscape — layers re-flow and exports upload at the correct store size",
+      "Export all: render and upload every saved scene for a language/device in one click, with progress and per-scene error reporting",
+      "Finishing touches: ground shadow under the device, glass screen glare and a film-grain background pattern",
+    ],
+  },
+  {
     version: "0.8.2",
     serverVersion: "0.8.0",
     date: "2026-07-10",

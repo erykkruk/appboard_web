@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 
+import { getDeviceBezel } from "@/lib/device-bezels";
 import type { SceneData } from "@/lib/types";
 
 export interface LoadedImage {
@@ -16,8 +17,12 @@ export interface LoadedImage {
 interface SceneImages {
 	background?: LoadedImage;
 	screenshot?: LoadedImage;
+	/** Photographic device bezel ("photo" device style, same-origin asset). */
+	bezel?: LoadedImage;
 	/** Decoded image-annotation sources keyed by annotation id. */
 	annotations?: Record<string, LoadedImage>;
+	/** Decoded screenshots of extra device mockups, keyed by device id. */
+	extraScreenshots?: Record<string, LoadedImage>;
 	/** True if any drawn image tainted the canvas (remote, no CORS headers). */
 	tainted: boolean;
 }
@@ -93,7 +98,12 @@ export function useSceneImages(
 
 	const backgroundSrc =
 		scene.background.type === "image" ? scene.background.value : undefined;
+	const bezelSrc =
+		scene.device?.style === "photo"
+			? getDeviceBezel(scene.device.bezelId).src
+			: undefined;
 	const annotations = scene.annotations;
+	const extraDevices = scene.extraDevices;
 
 	useEffect(() => {
 		let cancelled = false;
@@ -120,6 +130,16 @@ export function useSceneImages(
 					.catch(() => {}),
 			);
 		}
+		if (bezelSrc) {
+			// Same-origin /public asset — never taints the canvas.
+			tasks.push(
+				loadImageCached(bezelSrc)
+					.then((img) => {
+						next.bezel = img;
+					})
+					.catch(() => {}),
+			);
+		}
 		for (const annotation of annotations ?? []) {
 			if (annotation.type !== "image" || !annotation.url) continue;
 			const { id, url } = annotation;
@@ -127,6 +147,18 @@ export function useSceneImages(
 				loadImageCached(url)
 					.then((img) => {
 						next.annotations = { ...next.annotations, [id]: img };
+						if (img.tainted) next.tainted = true;
+					})
+					.catch(() => {}),
+			);
+		}
+		for (const extra of extraDevices ?? []) {
+			if (!extra.screenshotUrl) continue;
+			const { id, screenshotUrl } = extra;
+			tasks.push(
+				loadImageCached(screenshotUrl)
+					.then((img) => {
+						next.extraScreenshots = { ...next.extraScreenshots, [id]: img };
 						if (img.tainted) next.tainted = true;
 					})
 					.catch(() => {}),
@@ -140,7 +172,7 @@ export function useSceneImages(
 		return () => {
 			cancelled = true;
 		};
-	}, [backgroundSrc, screenshotSrc, annotations]);
+	}, [backgroundSrc, bezelSrc, screenshotSrc, annotations, extraDevices]);
 
 	return images;
 }
