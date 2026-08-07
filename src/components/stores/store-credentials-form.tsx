@@ -109,10 +109,16 @@ export function StoreCredentialsForm({
             </Label>
             <Input
               id={fieldId}
+              type={field.type === "email" ? "email" : "text"}
               placeholder={field.placeholder}
               value={value}
               onChange={(e) => onChange(field.key, e.target.value)}
             />
+            {field.help && (
+              <p className="mt-1.5 text-xs text-muted-foreground">
+                {field.help}
+              </p>
+            )}
           </div>
         );
       })}

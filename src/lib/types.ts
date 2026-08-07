@@ -287,7 +287,7 @@ export interface AiResponse {
 export interface ConnectStoreData {
 	name: string;
 	type: StoreType;
-	credentials: Record<string, string | boolean>;
+	credentials: Record<string, string | boolean | string[]>;
 	capabilities?: string[];
 }
 

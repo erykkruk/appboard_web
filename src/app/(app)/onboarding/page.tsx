@@ -536,7 +536,9 @@ export default function OnboardingPage() {
     }
   };
 
-  const parseCredentials = (): Record<string, string | boolean> | null => {
+  const parseCredentials = ():
+    | Record<string, string | boolean | string[]>
+    | null => {
     if (!storeType) return null;
     if (storeType === "google_play") {
       try {

@@ -112,9 +112,13 @@ export default function PublishPage() {
       } else {
         toast.success(`Published ${total} change(s) to the store`);
       }
-    } catch {
+    } catch (err) {
       setPublishReport([]);
-      toast.error("Failed to publish changes");
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to publish changes",
+      );
     }
   };
 
@@ -130,8 +134,12 @@ export default function PublishPage() {
       const langMsg = langCount > 0 ? ` with ${langCount} languages` : "";
       toast.success(`Version ${version} created${langMsg}`);
       setNewVersionString("");
-    } catch {
-      toast.error("Failed to create new version");
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to create new version",
+      );
     }
   };
 
@@ -144,8 +152,12 @@ export default function PublishPage() {
           : "Changes sent for Google review",
       );
       setShowReviewDialog(false);
-    } catch {
-      toast.error("Failed to submit for review");
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to submit for review",
+      );
     }
   };
 

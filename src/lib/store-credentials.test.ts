@@ -9,15 +9,24 @@ import {
 import { ALTERNATIVE_STORE_TYPES } from "@/lib/stores";
 import type { AlternativeStoreType } from "@/lib/stores";
 
-/** The exact JSON keys the backend store providers expect. */
+/**
+ * The exact JSON keys the backend store providers expect
+ * (appboard_backend src/providers/alternative/credentials.schema.ts).
+ * `packageNames` is optional and only accepted by Huawei and Amazon.
+ */
 const BACKEND_CONTRACT: Record<AlternativeStoreType, string[]> = {
-  amazon_appstore: ["clientId", "clientSecret"],
-  huawei_appgallery: ["clientId", "clientSecret"],
+  amazon_appstore: ["clientId", "clientSecret", "packageNames"],
+  huawei_appgallery: ["clientId", "clientSecret", "packageNames"],
   onestore: ["clientId", "clientSecret"],
   rustore: ["keyId", "privateKey"],
   samsung_galaxy: ["serviceAccountId", "privateKey"],
   xiaomi_getapps: ["email", "privateKey"],
 };
+
+const STORES_WITH_PACKAGE_NAMES: AlternativeStoreType[] = [
+  "huawei_appgallery",
+  "amazon_appstore",
+];
 
 describe("ALTERNATIVE_STORE_CREDENTIALS", () => {
   test("every alternative store has a credential schema", () => {
@@ -43,9 +52,32 @@ describe("ALTERNATIVE_STORE_CREDENTIALS", () => {
       }
     }
   });
+
+  test("packageNames is offered only where the store API cannot list apps", () => {
+    for (const type of ALTERNATIVE_STORE_TYPES) {
+      const field = storeCredentialSchema(type).fields.find(
+        (f) => f.key === "packageNames",
+      );
+      if (STORES_WITH_PACKAGE_NAMES.includes(type)) {
+        expect(field?.type).toBe("list");
+        expect(field?.optional).toBe(true);
+      } else {
+        expect(field).toBeUndefined();
+      }
+    }
+  });
 });
 
 describe("isCredentialFormComplete", () => {
+  test("does not require the optional packageNames field", () => {
+    expect(
+      isCredentialFormComplete("amazon_appstore", {
+        clientId: "amzn1.application-oa2-client.x",
+        clientSecret: "secret",
+      }),
+    ).toBe(true);
+  });
+
   test("requires every declared field", () => {
     expect(
       isCredentialFormComplete("huawei_appgallery", { clientId: "123" }),
@@ -84,5 +116,29 @@ describe("buildCredentialPayload", () => {
       email: "",
       privateKey: "",
     });
+  });
+
+  test("splits packageNames into a trimmed string array", () => {
+    expect(
+      buildCredentialPayload("huawei_appgallery", {
+        clientId: "id",
+        clientSecret: "secret",
+        packageNames: " com.example.app , com.example.other ,, ",
+      }),
+    ).toEqual({
+      clientId: "id",
+      clientSecret: "secret",
+      packageNames: ["com.example.app", "com.example.other"],
+    });
+  });
+
+  test("omits packageNames entirely when left empty", () => {
+    const payload = buildCredentialPayload("amazon_appstore", {
+      clientId: "id",
+      clientSecret: "secret",
+      packageNames: "   ",
+    });
+    expect(payload).toEqual({ clientId: "id", clientSecret: "secret" });
+    expect("packageNames" in payload).toBe(false);
   });
 });
