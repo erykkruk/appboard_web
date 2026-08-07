@@ -22,6 +22,7 @@ import {
   StoreCapabilitiesPicker,
   initialCapabilitySelection,
 } from "@/components/stores/store-capabilities-picker";
+import { StoreCredentialsForm } from "@/components/stores/store-credentials-form";
 import { StoreSetupPlan } from "@/components/stores/store-setup-plan";
 import {
   Alert,
@@ -47,6 +48,10 @@ import {
   useVerifyStoreAccess,
 } from "@/hooks/use-stores";
 import { ApiError } from "@/lib/api";
+import {
+  buildCredentialPayload,
+  isCredentialFormComplete,
+} from "@/lib/store-credentials";
 import {
   ALTERNATIVE_STORE_TYPES,
   isAlternativeStoreType,
@@ -155,7 +160,8 @@ function StoreTypeStep({
                     {STORE_TYPE_LABELS[type]}
                   </CardTitle>
                   <CardDescription className="text-xs">
-                    Connect with an API token. Full sync coming soon.
+                    Connect with the API credentials from your developer
+                    console.
                   </CardDescription>
                 </CardHeader>
               </Card>
@@ -470,7 +476,9 @@ export default function OnboardingPage() {
   const [keyId, setKeyId] = useState("");
   const [issuerId, setIssuerId] = useState("");
   const [privateKey, setPrivateKey] = useState("");
-  const [apiToken, setApiToken] = useState("");
+  const [altCredentials, setAltCredentials] = useState<Record<string, string>>(
+    {},
+  );
 
   const [selectedCaps, setSelectedCaps] = useState<string[]>([]);
   const [accessReport, setAccessReport] = useState<CapabilityAccessResult[] | null>(
@@ -499,8 +507,12 @@ export default function OnboardingPage() {
 
   const handleStoreSelect = (type: StoreType) => {
     setStoreType(type);
+    setAltCredentials({});
     setStep(2);
   };
+
+  const handleAltCredentialChange = (key: string, value: string) =>
+    setAltCredentials((current) => ({ ...current, [key]: value }));
 
   const handleDemo = async () => {
     setIsDemoLoading(true);
@@ -535,7 +547,7 @@ export default function OnboardingPage() {
       }
     }
     if (isAlternativeStoreType(storeType)) {
-      return { apiToken };
+      return buildCredentialPayload(storeType, altCredentials);
     }
     return { keyId, issuerId, privateKey };
   };
@@ -595,7 +607,7 @@ export default function OnboardingPage() {
     (storeType === "google_play"
       ? serviceAccountJson.trim().length > 0
       : storeType && isAlternativeStoreType(storeType)
-        ? apiToken.trim().length > 0
+        ? isCredentialFormComplete(storeType, altCredentials)
         : keyId.trim().length > 0 &&
           issuerId.trim().length > 0 &&
           privateKey.trim().length > 0);
@@ -685,9 +697,8 @@ export default function OnboardingPage() {
               {storeTypeLabel(storeType)} Credentials
             </h2>
             <p className="mb-6 text-sm text-muted-foreground">
-              Paste an API token from your {storeTypeLabel(storeType)} developer
-              console. Full publishing support is coming soon — for now the
-              connection syncs sample data so you can explore the workflow.
+              Provide the API credentials issued by your{" "}
+              {storeTypeLabel(storeType)} developer console.
             </p>
             <div className="mb-4">
               <label className="mb-2 block text-sm font-medium" htmlFor="account-name">
@@ -700,17 +711,13 @@ export default function OnboardingPage() {
                 onChange={(e) => setAccountName(e.target.value)}
               />
             </div>
-            <div>
-              <label className="mb-2 block text-sm font-medium" htmlFor="api-token">
-                API Token
-              </label>
-              <Textarea
-                id="api-token"
-                placeholder={`Paste your ${storeTypeLabel(storeType)} API token here...`}
-                value={apiToken}
-                onChange={(e) => setApiToken(e.target.value)}
-                rows={4}
-              />
+            <StoreCredentialsForm
+              storeType={storeType}
+              values={altCredentials}
+              onChange={handleAltCredentialChange}
+            />
+            <div className="mt-6">
+              <VaultBanners />
             </div>
           </div>
         )}
@@ -810,6 +817,7 @@ export default function OnboardingPage() {
                 setStep(1);
                 setStoreType(null);
                 setAccountName("");
+                setAltCredentials({});
               }}
             >
               <ArrowLeft className="mr-2 h-4 w-4" />

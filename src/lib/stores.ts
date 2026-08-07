@@ -25,17 +25,21 @@ export const STORE_TYPE_BADGE: Record<StoreType, string> = {
 };
 
 /** Alternative stores are gated behind the MULTI_STORE feature flag. */
-export const ALTERNATIVE_STORE_TYPES: StoreType[] = [
+export const ALTERNATIVE_STORE_TYPES = [
   "huawei_appgallery",
   "amazon_appstore",
   "samsung_galaxy",
   "xiaomi_getapps",
   "rustore",
   "onestore",
-];
+] as const satisfies readonly StoreType[];
 
-export function isAlternativeStoreType(type: StoreType): boolean {
-  return ALTERNATIVE_STORE_TYPES.includes(type);
+export type AlternativeStoreType = (typeof ALTERNATIVE_STORE_TYPES)[number];
+
+export function isAlternativeStoreType(
+  type: StoreType,
+): type is AlternativeStoreType {
+  return (ALTERNATIVE_STORE_TYPES as readonly StoreType[]).includes(type);
 }
 
 export function storeTypeLabel(type: StoreType): string {
