@@ -123,7 +123,7 @@ export function useVerifyStoreAccess() {
   return useMutation({
     mutationFn: (data: {
       type: StoreType;
-      credentials: Record<string, string | boolean>;
+      credentials: Record<string, string | boolean | string[]>;
     }) => api.stores.verifyAccess(data),
   });
 }

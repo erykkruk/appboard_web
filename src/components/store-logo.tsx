@@ -1,3 +1,4 @@
+import { isAlternativeStoreType, STORE_TYPE_BADGE } from "@/lib/stores";
 import { cn } from "@/lib/utils";
 import type { StoreType } from "@/lib/types";
 
@@ -31,6 +32,21 @@ interface StoreLogoProps {
 }
 
 export function StoreLogo({ type, className, monochrome = false }: StoreLogoProps) {
+	// Alternative stores don't ship a brand mark yet — show a compact letter badge.
+	if (isAlternativeStoreType(type)) {
+		return (
+			<span
+				className={cn(
+					"inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-[4px] bg-muted text-[8px] font-bold leading-none text-muted-foreground",
+					className,
+				)}
+				aria-hidden="true"
+			>
+				{STORE_TYPE_BADGE[type]}
+			</span>
+		);
+	}
+
 	if (type === "app_store") {
 		return (
 			<svg

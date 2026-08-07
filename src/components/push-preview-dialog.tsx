@@ -73,6 +73,14 @@ export function PushPreviewDialog({
     ageRating: "idle",
     privacy: "idle",
   });
+  // Stores reject operations their API cannot perform (e.g. no screenshot
+  // upload on AppGallery) with a typed message - keep it per section.
+  const [errors, setErrors] = useState<Record<PushSection, string | null>>({
+    listings: null,
+    categories: null,
+    ageRating: null,
+    privacy: null,
+  });
   const [isPushingAll, setIsPushingAll] = useState(false);
   const [showDiffDetails, setShowDiffDetails] = useState(false);
   const diffsQuery = useListingDiffs(appId, open && showDiffDetails);
@@ -100,6 +108,7 @@ export function PushPreviewDialog({
 
   const pushSection = useCallback(async (section: PushSection) => {
     setStatuses((prev) => ({ ...prev, [section]: "pushing" }));
+    setErrors((prev) => ({ ...prev, [section]: null }));
     try {
       switch (section) {
         case "listings":
@@ -122,8 +131,13 @@ export function PushPreviewDialog({
           break;
       }
       setStatuses((prev) => ({ ...prev, [section]: "done" }));
-    } catch {
+    } catch (err) {
       setStatuses((prev) => ({ ...prev, [section]: "error" }));
+      setErrors((prev) => ({
+        ...prev,
+        [section]:
+          err instanceof Error && err.message ? err.message : "Push failed",
+      }));
     }
   }, [appId, isIos]);
 
@@ -142,6 +156,12 @@ export function PushPreviewDialog({
       categories: "idle",
       ageRating: "idle",
       privacy: "idle",
+    });
+    setErrors({
+      listings: null,
+      categories: null,
+      ageRating: null,
+      privacy: null,
     });
     setIsPushingAll(false);
     onOpenChange(false);
@@ -192,6 +212,7 @@ export function PushPreviewDialog({
               badge={hasListingChanges ? data!.listings.count : undefined}
               skipped={!sectionHasData.listings}
               status={statuses.listings}
+              errorMessage={errors.listings}
               onPush={() => pushSection("listings")}
               canPush={sectionHasData.listings && statuses.listings === "idle" && !isPushingAll}
             >
@@ -319,6 +340,7 @@ export function PushPreviewDialog({
                 title="Categories"
                 skipped={!hasCategories}
                 status={statuses.categories}
+                errorMessage={errors.categories}
                 onPush={() => pushSection("categories")}
                 canPush={sectionHasData.categories && statuses.categories === "idle" && !isPushingAll}
               >
@@ -339,6 +361,7 @@ export function PushPreviewDialog({
                 title="Age Rating"
                 skipped={!hasAgeRating}
                 status={statuses.ageRating}
+                errorMessage={errors.ageRating}
                 onPush={() => pushSection("ageRating")}
                 canPush={sectionHasData.ageRating && statuses.ageRating === "idle" && !isPushingAll}
               >
@@ -360,6 +383,7 @@ export function PushPreviewDialog({
                 title="Privacy Declaration"
                 skipped={!hasPrivacy}
                 status={statuses.privacy}
+                errorMessage={errors.privacy}
                 onPush={() => pushSection("privacy")}
                 canPush={sectionHasData.privacy && statuses.privacy === "idle" && !isPushingAll}
               >
@@ -413,6 +437,7 @@ function Section({
   badge,
   skipped,
   status,
+  errorMessage,
   onPush,
   canPush,
   children,
@@ -422,6 +447,7 @@ function Section({
   badge?: number;
   skipped?: boolean;
   status: SectionStatus;
+  errorMessage?: string | null;
   onPush?: () => void;
   canPush?: boolean;
   children?: React.ReactNode;
@@ -465,6 +491,9 @@ function Section({
           </button>
         )}
       </div>
+      {status === "error" && errorMessage && (
+        <p className="mt-1.5 text-xs text-red-400">{errorMessage}</p>
+      )}
       {children && <div className="mt-1.5">{children}</div>}
     </div>
   );

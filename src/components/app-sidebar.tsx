@@ -41,6 +41,7 @@ import { StoreLogo } from "@/components/store-logo";
 import { HelpMenu } from "@/components/help-menu";
 import { VersionDialog } from "@/components/version-dialog";
 import { WEBSITE_URL } from "@/lib/external-links";
+import { storeTypeLabel } from "@/lib/stores";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -1426,7 +1427,7 @@ export function AppSidebar() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate font-medium">{store.name}</p>
                       <p className="text-xs text-muted-foreground">
-                        {store.type === "app_store" ? "App Store" : "Google Play"}
+                        {storeTypeLabel(store.type)}
                       </p>
                     </div>
                   </DropdownMenuItem>

@@ -194,8 +194,10 @@ export default function AppLayout({
       } else {
         toast.success("Everything synced");
       }
-    } catch {
-      toast.error("Sync failed");
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message ? err.message : "Sync failed",
+      );
     } finally {
       setIsSyncing(false);
     }

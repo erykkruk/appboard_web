@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.11.0",
+    serverVersion: "0.9.0",
+    date: "2026-08-07",
+    changes: [
+      "Alternative app stores: connect Huawei AppGallery, Samsung Galaxy Store, Amazon Appstore, Xiaomi GetApps, RuStore and ONE Store",
+      "Each alternative store now asks for its real API credentials (client ID and secret, service account, or PEM private key) instead of a single generic token, with a hint telling you where to create the key in that store's console",
+      "Huawei AppGallery and Amazon Appstore let you list your package names when connecting, because their APIs cannot discover your apps on their own",
+      "When a store cannot perform an operation (for example screenshot upload on AppGallery, or publishing on RuStore), the panel now shows the store's own explanation instead of a generic failure message",
+    ],
+  },
+  {
     version: "0.10.3",
     serverVersion: "0.8.1",
     date: "2026-07-27",
