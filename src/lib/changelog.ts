@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.11.1",
+    serverVersion: "0.9.0",
+    date: "2026-08-10",
+    changes: [
+      "Mobile: views that need a desktop now say so instead of breaking - the screenshot editor, the free editor and the app workspace show a short explanation with a way back",
+      "Mobile: the main navigation is now a drawer opened from a top bar, so the sidebar no longer squeezes the page on a phone",
+      "Mobile: the settings screens stack properly and their sections are reachable from a scrollable tab strip",
+    ],
+  },
+  {
     version: "0.11.0",
     serverVersion: "0.9.0",
     date: "2026-08-07",

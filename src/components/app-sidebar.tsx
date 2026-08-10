@@ -25,6 +25,7 @@ import {
   EyeOff,
   FolderOpen,
   Loader2,
+  Menu,
   Microscope,
   Pencil,
   Plus,
@@ -1122,6 +1123,9 @@ export function AppSidebar() {
   const reorderMembersMutation = useReorderGroupMembers();
   const [manageOpen, setManageOpen] = useState(false);
   const [groupsOpen, setGroupsOpen] = useState(false);
+  // Below md the sidebar is an off-canvas drawer. Storing the path it was
+  // opened at closes it on navigation without a setState-in-effect round trip.
+  const [mobileNav, setMobileNav] = useState({ openedAt: "" });
   const [createGroupForApp, setCreateGroupForApp] = useState<string | null>(null);
   const [newGroupNameInput, setNewGroupNameInput] = useState("");
   const { getColor, setColor } = useAppColors();
@@ -1352,8 +1356,56 @@ export function AppSidebar() {
     [visibleGroups],
   );
 
+  const mobileNavOpen = mobileNav.openedAt === currentPath;
+  const openMobileNav = () => setMobileNav({ openedAt: currentPath });
+  const closeMobileNav = () => setMobileNav({ openedAt: "" });
+
   return (
-    <aside className="flex w-60 shrink-0 flex-col border-r border-border bg-[#111111] py-3">
+    <>
+    {/* Mobile top bar — the only way to reach the drawer below md. Fixed so it
+        does not disturb the desktop flex layout. */}
+    <header className="fixed inset-x-0 top-0 z-30 flex h-14 items-center gap-2 border-b border-border bg-[#111111] px-2 md:hidden">
+      <Button
+        aria-label="Open navigation"
+        onClick={openMobileNav}
+        size="icon"
+        variant="ghost"
+      >
+        <Menu className="h-5 w-5" />
+      </Button>
+      <Link className="flex items-center gap-2" href="/dashboard">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img alt="AppBoard" className="h-6 w-5 object-contain" src="/appboard-logo.svg" />
+        <span className="text-[15px] font-semibold tracking-tight text-foreground">
+          AppBoard
+        </span>
+      </Link>
+    </header>
+    {mobileNavOpen && (
+      <button
+        aria-label="Close navigation"
+        className="fixed inset-0 z-40 bg-black/60 md:hidden"
+        onClick={closeMobileNav}
+        type="button"
+      />
+    )}
+    <aside
+      className={cn(
+        "flex w-60 shrink-0 flex-col border-r border-border bg-[#111111] py-3",
+        "fixed inset-y-0 left-0 z-50 -translate-x-full overflow-y-auto transition-transform duration-200",
+        "md:static md:z-auto md:translate-x-0 md:overflow-visible md:transition-none",
+        mobileNavOpen && "translate-x-0",
+      )}
+    >
+      <Button
+        aria-label="Close navigation"
+        className="absolute right-2 top-2 md:hidden"
+        onClick={closeMobileNav}
+        size="icon"
+        variant="ghost"
+      >
+        <X className="h-5 w-5" />
+      </Button>
       <a
         aria-label="Go to appboard.dev"
         className="mb-3 flex items-center gap-2.5 px-4 pt-1 transition-opacity hover:opacity-80"
@@ -1833,5 +1885,6 @@ export function AppSidebar() {
         </DialogContent>
       </Dialog>
     </aside>
+    </>
   );
 }

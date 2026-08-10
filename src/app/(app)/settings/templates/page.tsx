@@ -526,7 +526,7 @@ export default function PrivacyTemplatePage() {
       </Alert>
 
       {/* Template selector + AI generate */}
-      <div className="mb-8 flex items-end gap-3">
+      <div className="mb-8 flex flex-col items-stretch gap-3 sm:flex-row sm:items-end">
         <div className="flex-1">
           <Label className="mb-2 block text-sm font-medium">Template</Label>
           <Select value={state.templateId} onValueChange={handleTemplateChange}>

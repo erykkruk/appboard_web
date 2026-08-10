@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useParams } from "next/navigation";
 import { Info, Settings } from "lucide-react";
 
+import { MobileGate } from "@/components/mobile-gate";
 import { useAppGroups } from "@/hooks/use-app-groups";
 import { cn } from "@/lib/utils";
 
@@ -17,6 +18,14 @@ export default function GroupLayout({
 }: {
   children: React.ReactNode;
 }) {
+  return (
+    <MobileGate>
+      <GroupWorkspace>{children}</GroupWorkspace>
+    </MobileGate>
+  );
+}
+
+function GroupWorkspace({ children }: { children: React.ReactNode }) {
   const params = useParams<{ groupId: string }>();
   const groupId = params.groupId;
   const currentPath = usePathname();

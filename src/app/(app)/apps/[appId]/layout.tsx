@@ -38,6 +38,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { MobileGate } from "@/components/mobile-gate";
 import { PushPreviewDialog } from "@/components/push-preview-dialog";
 import { useApp } from "@/hooks/use-apps";
 import { useFeatures } from "@/hooks/use-features";
@@ -89,6 +90,14 @@ export default function AppLayout({
 }: {
   children: React.ReactNode;
 }) {
+  return (
+    <MobileGate>
+      <AppWorkspace>{children}</AppWorkspace>
+    </MobileGate>
+  );
+}
+
+function AppWorkspace({ children }: { children: React.ReactNode }) {
   const params = useParams<{ appId: string }>();
   const appId = params.appId;
   const currentPath = usePathname();

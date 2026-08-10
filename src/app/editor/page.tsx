@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { CommunityPopup } from "@/components/community-popup";
+import { MobileGate } from "@/components/mobile-gate";
 import { LayersPanel, PropertiesPanel } from "@/components/screenshot-editor/editor-panels";
 import {
 	exportScenePanelPngs,
@@ -178,6 +179,14 @@ function readImageAspect(src: string): Promise<number> {
 }
 
 export default function GuestEditorPage() {
+	return (
+		<MobileGate backHref="/" backLabel="Back to home">
+			<GuestEditor />
+		</MobileGate>
+	);
+}
+
+function GuestEditor() {
 	const draft = useMemo(
 		() => (typeof window === "undefined" ? null : loadDraft()),
 		[],
