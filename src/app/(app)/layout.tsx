@@ -16,7 +16,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           {/* Content column scrolls whenever a page exceeds the viewport height.
               Nested layouts (apps/[appId], settings) fill this exactly and keep
               their own inner scroll, so they never double-scroll. */}
-          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          {/* pt-14 clears the fixed mobile top bar rendered by AppSidebar. */}
+          <div className="flex min-h-0 flex-1 flex-col overflow-y-auto pt-14 md:pt-0">
             {children}
           </div>
         </div>

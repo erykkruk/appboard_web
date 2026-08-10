@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { APP_STORE_LANGUAGES, type VersionScreenshot } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { MobileGate } from "@/components/mobile-gate";
 import { ScreenshotCropDialog } from "@/components/screenshot-crop-dialog";
 import { ScreenshotEditorEntry } from "@/components/screenshot-editor";
 import { ScreenshotSplitDialog } from "@/components/screenshot-split-dialog";
@@ -188,6 +189,14 @@ function SortableScreenshot({
 }
 
 export default function VersionScreenshotsPage() {
+  return (
+    <MobileGate>
+      <VersionScreenshots />
+    </MobileGate>
+  );
+}
+
+function VersionScreenshots() {
   const params = useParams<{ appId: string; versionId: string }>();
   const appData = useApp(params.appId);
   const isAndroid = appData.data?.platform === "android";
