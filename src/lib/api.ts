@@ -1467,7 +1467,7 @@ export const api = {
 			}),
 		verifyAccess: (data: {
 			type: StoreType;
-			credentials: Record<string, string | boolean>;
+			credentials: Record<string, string | boolean | string[]>;
 		}) =>
 			fetchApi<CapabilityAccessReport>("/api/stores/verify-access", {
 				body: JSON.stringify(data),

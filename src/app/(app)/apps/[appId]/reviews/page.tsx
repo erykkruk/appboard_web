@@ -100,8 +100,12 @@ function ReviewCard({
       });
       setIsReplying(false);
       toast.success("Reply sent");
-    } catch {
-      toast.error("Failed to send reply");
+    } catch (err) {
+      toast.error(
+        err instanceof Error && err.message
+          ? err.message
+          : "Failed to send reply",
+      );
     }
   };
 
