@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.12.1",
+    serverVersion: "0.12.0",
+    date: "2026-08-31",
+    changes: [
+      "Research: new Keyword Scores tab - score up to 20 App Store keywords at once with search popularity (1-100), competition difficulty (full sub-score breakdown plus Top 5/10/20 ranking tiers), opportunity score, targeting advice (Sweet Spot, Hidden Gem, ...) and estimated daily downloads per ranking position",
+      "Every scored keyword lists the top apps ranking for it - icons, ratings, review counts, genre, release year and App Store links - so you can size up the competition at a glance",
+      "Country Opportunity Finder: scan up to 30 App Store regions for one keyword and get them ranked by where your ranking opportunity is best",
+      "On an app's Research page the Keyword Scores tab also shows your app's current search rank for every scored keyword and country",
+      "Keyword results export to CSV, and recent searches are kept in your browser for one-click reloading",
+    ],
+  },
+  {
     version: "0.12.0",
     serverVersion: "0.12.0",
     date: "2026-08-30",
