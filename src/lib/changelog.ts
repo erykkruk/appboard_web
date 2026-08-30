@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.11.3",
+    serverVersion: "0.11.0",
+    date: "2026-08-30",
+    changes: [
+      "MCP server: new research_keyword_scores tool - AI agents connected over MCP (Claude Code, Cursor, Claude Desktop) can now score App Store keywords (popularity, difficulty with ranking tiers, opportunity, classification and download estimates) directly from the assistant",
+    ],
+  },
+  {
     version: "0.11.2",
     serverVersion: "0.10.0",
     date: "2026-08-30",
