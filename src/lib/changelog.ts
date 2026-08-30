@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.11.2",
+    serverVersion: "0.10.0",
+    date: "2026-08-30",
+    changes: [
+      "Research: new keyword scoring API - estimates search popularity (1-100), competition difficulty with a full sub-score breakdown and Top 5/10/20 ranking tiers, opportunity score and targeting classification (Sweet Spot, Hidden Gem, ...) plus daily download estimates per ranking position, for up to 10 keywords per request",
+      "Keyword difficulty automatically corrects for Apple's search backfill (weak leaders, padded results) and detects brand keywords, so niche keywords are no longer misread as highly competitive",
+    ],
+  },
+  {
     version: "0.11.1",
     serverVersion: "0.9.0",
     date: "2026-08-10",
