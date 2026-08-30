@@ -388,31 +388,29 @@ function VaultBanners() {
     <div className="space-y-3">
       <Alert>
         <ShieldCheck className="h-4 w-4" />
-        <AlertTitle>End-to-end encrypted</AlertTitle>
+        <AlertTitle>Stored encrypted</AlertTitle>
         <AlertDescription>
-          Your key is encrypted end-to-end — we only store an encrypted blob and
-          can&apos;t read it.
+          Your key is stored encrypted - we only keep an encrypted blob. Enable
+          passphrase encryption in Settings for end-to-end protection.
         </AlertDescription>
       </Alert>
-      {!unlocked && (
+      {exists && !unlocked && (
         <Alert>
           <Lock className="h-4 w-4" />
-          <AlertTitle>Vault {exists ? "locked" : "required"}</AlertTitle>
+          <AlertTitle>Vault locked</AlertTitle>
           <AlertDescription className="gap-2">
             <p>
               Unlock your vault with your password to perform actions on your
               stores.
             </p>
-            {exists && (
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-1"
-                onClick={requestUnlock}
-              >
-                <Lock className="mr-2 h-4 w-4" /> Unlock vault
-              </Button>
-            )}
+            <Button
+              variant="outline"
+              size="sm"
+              className="mt-1"
+              onClick={requestUnlock}
+            >
+              <Lock className="mr-2 h-4 w-4" /> Unlock vault
+            </Button>
           </AlertDescription>
         </Alert>
       )}

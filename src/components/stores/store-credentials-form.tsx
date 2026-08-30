@@ -124,8 +124,9 @@ export function StoreCredentialsForm({
       })}
 
       <p className="text-xs text-muted-foreground">
-        {storeTypeLabel(storeType)} credentials are stored in your end-to-end
-        encrypted vault - we only keep an encrypted blob.
+        {storeTypeLabel(storeType)} credentials are always stored encrypted -
+        we only keep an encrypted blob. Enable passphrase encryption in
+        Settings for end-to-end protection.
       </p>
     </div>
   );
