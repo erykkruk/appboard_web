@@ -147,6 +147,19 @@ export function VaultSettingsCard() {
     }
   };
 
+  const disable = async () => {
+    try {
+      await api.vault.disable();
+      toast.success(
+        "Passphrase encryption disabled. Credentials are now encrypted with the server key.",
+      );
+    } catch {
+      toast.error("Could not disable encryption. Unlock the vault and try again.");
+    } finally {
+      await refresh();
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -199,6 +212,34 @@ export function VaultSettingsCard() {
                 <Button variant="outline" size="sm" onClick={requestUnlock}>
                   <LockOpen className="mr-2 h-4 w-4" /> Unlock
                 </Button>
+              )}
+              {unlocked && (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="ghost" size="sm" disabled={busy}>
+                      Disable encryption
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>
+                        Disable passphrase encryption?
+                      </AlertDialogTitle>
+                      <AlertDialogDescription>
+                        Your store credentials are kept and re-encrypted with
+                        the server key, so everything keeps working without a
+                        passphrase. You can enable encryption again at any
+                        time.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={() => withBusy(disable)}>
+                        Disable encryption
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
               )}
               <AlertDialog>
                 <AlertDialogTrigger asChild>
