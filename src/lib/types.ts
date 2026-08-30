@@ -1665,3 +1665,94 @@ export interface TrackingSummary {
 	positions: LatestRankPosition[];
 	stats: TrackingSummaryStats;
 }
+
+// ============ Keyword scoring (research) ============
+
+export type KeywordClassification =
+	| "sweet-spot"
+	| "good-target"
+	| "hidden-gem"
+	| "moderate"
+	| "high-competition"
+	| "low-volume"
+	| "avoid"
+	| "unknown";
+
+export interface KeywordCompetitor {
+	trackId: string;
+	title: string;
+	developer: string;
+	rating?: number;
+	ratingsCount?: number;
+	released?: string;
+	genre?: string;
+	icon?: string;
+	url?: string;
+	price?: string;
+}
+
+export interface KeywordDifficultyBreakdown {
+	rawTotal: number;
+	overrideReason: "smallResultSet" | "weakLeader" | "backfill" | null;
+	isBrandKeyword: boolean;
+	brandName: string | null;
+	ratingVolume: number;
+	reviewVelocity: number;
+	dominantPlayers: number;
+	ratingQuality: number;
+	marketAge: number;
+	publisherDiversity: number;
+	titleRelevance: number;
+	titleMatchCount: number;
+	medianReviews: number;
+	avgReviews: number;
+}
+
+export interface KeywordRankingTier {
+	tierScore: number;
+	label: string;
+	minReviews: number;
+	weakestApp: string | null;
+	medianReviews: number;
+	weakCount: number;
+	freshCount: number;
+	titleKeywordCount: number;
+	totalApps: number;
+}
+
+export interface KeywordRankingTiers {
+	top5: KeywordRankingTier;
+	top10: KeywordRankingTier;
+	top20: KeywordRankingTier;
+}
+
+export interface KeywordDownloadEstimates {
+	dailySearches: number;
+	positions: Array<{
+		position: number;
+		ttr: number;
+		low: number;
+		high: number;
+	}>;
+	tiers: {
+		top5: { low: number; high: number };
+		top6to10: { low: number; high: number };
+		top11to20: { low: number; high: number };
+	};
+}
+
+export interface KeywordScore {
+	keyword: string;
+	country: string;
+	popularity: number | null;
+	difficulty: number;
+	difficultyLabel: string;
+	opportunity: number;
+	classification: KeywordClassification;
+	breakdown: KeywordDifficultyBreakdown;
+	tiers: KeywordRankingTiers;
+	downloads: KeywordDownloadEstimates;
+	appRank?: number | null;
+	competitors: KeywordCompetitor[];
+	error?: string;
+}

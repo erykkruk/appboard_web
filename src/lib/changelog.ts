@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.12.0",
+    serverVersion: "0.12.0",
+    date: "2026-08-30",
+    changes: [
+      "Passphrase encryption (E2EE vault) is now optional and off by default - store credentials are always encrypted, and you can turn end-to-end passphrase protection on or off anytime in Settings",
+      "New 'Disable encryption' action in Settings keeps all your store credentials working - they are safely re-encrypted with the server key, no reconnecting needed",
+    ],
+  },
+  {
     version: "0.11.3",
     serverVersion: "0.11.0",
     date: "2026-08-30",

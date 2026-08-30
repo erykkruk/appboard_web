@@ -4,6 +4,8 @@ import { useState } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import { AnalysisOptionsSection } from "@/components/research/analysis-options-section";
+import { CountryOpportunitySection } from "@/components/research/country-opportunity-section";
+import { KeywordScoresSection } from "@/components/research/keyword-scores-section";
 import { AppListSection } from "@/components/research/app-list-section";
 import { AppReport } from "@/components/research/app-report";
 import { STORE_SHORT_LABELS } from "@/components/research/shared";
@@ -50,6 +52,21 @@ export default function ResearchPage() {
       />
       <div>
         <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
+          <Tabs defaultValue="apps">
+            <TabsList>
+              <TabsTrigger value="apps">App analysis</TabsTrigger>
+              <TabsTrigger value="keywords">Keyword scores</TabsTrigger>
+              <TabsTrigger value="countries">Country finder</TabsTrigger>
+            </TabsList>
+
+            <TabsContent value="keywords" className="mt-6">
+              <KeywordScoresSection />
+            </TabsContent>
+            <TabsContent value="countries" className="mt-6">
+              <CountryOpportunitySection />
+            </TabsContent>
+
+            <TabsContent value="apps" className="mt-6 space-y-6">
           <div className="grid items-start gap-6 lg:grid-cols-2">
             <AppListSection
               apps={list.apps}
@@ -93,6 +110,8 @@ export default function ResearchPage() {
           )}
 
           <SavedResearchList />
+            </TabsContent>
+          </Tabs>
         </div>
       </div>
     </div>

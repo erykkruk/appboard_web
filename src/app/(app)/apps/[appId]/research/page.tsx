@@ -2,7 +2,11 @@
 
 import { useParams, useSearchParams } from "next/navigation";
 
+import { useApp } from "@/hooks/use-apps";
+
 import { AppResearchRunTab } from "@/components/tracking/app-research-run-tab";
+import { CountryOpportunitySection } from "@/components/research/country-opportunity-section";
+import { KeywordScoresSection } from "@/components/research/keyword-scores-section";
 import { AutomationTab } from "@/components/tracking/automation-tab";
 import { KeywordsRankingsTab } from "@/components/tracking/keywords-rankings-tab";
 import { ResearchHistoryTab } from "@/components/tracking/research-history-tab";
@@ -13,8 +17,26 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs";
 
-const RESEARCH_TABS = ["run", "keywords", "history", "automation"] as const;
+const RESEARCH_TABS = [
+  "run",
+  "keywords",
+  "scores",
+  "history",
+  "automation",
+] as const;
 type ResearchTab = (typeof RESEARCH_TABS)[number];
+
+function AppKeywordScoresTab({ appId }: { appId: string }) {
+  const app = useApp(appId);
+  const appstoreId =
+    app.data?.platform === "ios" ? app.data.externalId : undefined;
+  return (
+    <div className="space-y-10">
+      <KeywordScoresSection appstoreId={appstoreId} />
+      <CountryOpportunitySection appstoreId={appstoreId} />
+    </div>
+  );
+}
 
 export default function AppResearchPage() {
   const { appId } = useParams<{ appId: string }>();
@@ -39,6 +61,7 @@ export default function AppResearchPage() {
         <TabsList>
           <TabsTrigger value="run">Research</TabsTrigger>
           <TabsTrigger value="keywords">Keywords &amp; Rankings</TabsTrigger>
+          <TabsTrigger value="scores">Keyword Scores</TabsTrigger>
           <TabsTrigger value="history">History</TabsTrigger>
           <TabsTrigger value="automation">Automation</TabsTrigger>
         </TabsList>
@@ -48,6 +71,9 @@ export default function AppResearchPage() {
         </TabsContent>
         <TabsContent value="keywords" className="mt-6">
           <KeywordsRankingsTab appId={appId} />
+        </TabsContent>
+        <TabsContent value="scores" className="mt-6">
+          <AppKeywordScoresTab appId={appId} />
         </TabsContent>
         <TabsContent value="history" className="mt-6">
           <ResearchHistoryTab appId={appId} />
