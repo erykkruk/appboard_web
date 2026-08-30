@@ -1,4 +1,5 @@
 import type {
+	KeywordScore,
 	AgeRating,
 	AgeRatingInput,
 	AgeRatingPreset,
@@ -1062,6 +1063,15 @@ export const api = {
 				"/api/research/keywords",
 				{ body: JSON.stringify(body), method: "POST" },
 			).then((r) => r.positions),
+		keywordScores: (body: {
+			appstoreId?: string;
+			country: string;
+			keywords: string[];
+		}) =>
+			fetchApi<{ scores: KeywordScore[] }>("/api/research/keyword-scores", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}).then((r) => r.scores),
 		markets: (body: {
 			id: string;
 			markets?: string[];
@@ -1482,6 +1492,10 @@ export const api = {
 		changePassphrase: (body: VaultParams) =>
 			fetchApi<{ changed: boolean }>("/api/vault/change-passphrase", {
 				body: JSON.stringify(body),
+				method: "POST",
+			}),
+		disable: () =>
+			fetchApi<{ disabled: boolean; migrated: number }>("/api/vault/disable", {
 				method: "POST",
 			}),
 		lock: () =>
