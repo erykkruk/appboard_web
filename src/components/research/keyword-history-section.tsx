@@ -26,10 +26,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useAppleMovers, useAppleAdsStatus } from "@/hooks/use-apple-ads";
+import { KeywordScoreDetails } from "@/components/research/keyword-score-details";
+import {
+  useAppleAdsStatus,
+  useAppleMovers,
+  useAppleTrend,
+} from "@/hooks/use-apple-ads";
 import {
   useDeleteScoreSnapshot,
   useScoreHistory,
+  useScoreSnapshot,
   useScoreSummary,
   useScoreTrend,
 } from "@/hooks/use-keyword-history";
@@ -218,12 +224,66 @@ function MoversCard({ country }: { country: string }) {
   );
 }
 
-function TrendRow({ country, keyword }: { country: string; keyword: string }) {
-  const trend = useScoreTrend(keyword, country);
-  if (trend.isLoading) {
+function AppleWeeklyTrend({
+  country,
+  keyword,
+}: {
+  country: string;
+  keyword: string;
+}) {
+  const status = useAppleAdsStatus();
+  const hasApple =
+    status.data?.activeWeeks.some((w) => w.country === country) ?? false;
+  const trend = useAppleTrend(country, keyword, hasApple);
+  if (!hasApple || !trend.data?.length) return null;
+  return (
+    <div className="text-xs text-muted-foreground">
+      Official weekly popularity:{" "}
+      {trend.data
+        .map((point) => `${point.week}: ${point.popularity}`)
+        .join(" · ")}
+    </div>
+  );
+}
+
+function SnapshotDetails({ snapshotId }: { snapshotId: string }) {
+  const snapshot = useScoreSnapshot(snapshotId);
+  if (snapshot.isLoading) {
     return <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />;
   }
-  return <TrendChart points={trend.data ?? []} />;
+  if (!snapshot.data) return null;
+  return <KeywordScoreDetails score={snapshot.data.payload} />;
+}
+
+function TrendRow({
+  country,
+  keyword,
+  snapshotId,
+}: {
+  country: string;
+  keyword: string;
+  snapshotId: string;
+}) {
+  const trend = useScoreTrend(keyword, country);
+  const [showDetails, setShowDetails] = useState(false);
+  return (
+    <div className="space-y-3">
+      {trend.isLoading ? (
+        <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+      ) : (
+        <TrendChart points={trend.data ?? []} />
+      )}
+      <AppleWeeklyTrend country={country} keyword={keyword} />
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={() => setShowDetails((v) => !v)}
+      >
+        {showDetails ? "Hide" : "Show"} full snapshot details
+      </Button>
+      {showDetails && <SnapshotDetails snapshotId={snapshotId} />}
+    </div>
+  );
 }
 
 /**
@@ -356,6 +416,7 @@ export function KeywordHistorySection() {
                             <TrendRow
                               country={entry.country}
                               keyword={entry.keyword}
+                              snapshotId={entry.id}
                             />
                           </TableCell>
                         </TableRow>
