@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.14.0",
+    serverVersion: "0.14.0",
+    date: "2026-08-31",
+    changes: [
+      "Free ASO check-up at /aso-check - paste any App Store link and get a full report with zero setup: keyword scores, your rankings (top 200), competition breakdown, listing audit with an ASO score and three concrete next steps",
+      "The check-up runs entirely in your browser: your device talks directly to Apple's public API and computes all scores locally with the same engine the panel uses - no account, nothing to connect",
+      "Each check-up anonymously contributes its keyword scores to a growing crowd dataset, which will keep making popularity data better for everyone",
+    ],
+  },
+  {
     version: "0.13.1",
     serverVersion: "0.13.0",
     date: "2026-08-31",
