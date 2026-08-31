@@ -12,6 +12,7 @@ import {
 import { Fragment, useState } from "react";
 
 import { KeywordScoreDetails } from "@/components/research/keyword-score-details";
+import { MethodologyDialog } from "@/components/research/methodology-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -157,6 +158,7 @@ export function KeywordScoresSection({
                 Export CSV
               </Button>
             )}
+            <MethodologyDialog />
           </div>
         </CardContent>
       </Card>
@@ -220,6 +222,19 @@ export function KeywordScoresSection({
                       </TableCell>
                       <TableCell className="tabular-nums">
                         {score.popularity ?? "-"}
+                        {score.popularitySource === "apple" && (
+                          <Badge variant="outline" className="ml-1.5 text-[10px]">
+                            official
+                          </Badge>
+                        )}
+                        {score.popularityFallback && (
+                          <span
+                            className="ml-1 text-xs text-muted-foreground"
+                            title="Not in Apple's weekly dataset - estimate capped below its category floor"
+                          >
+                            est.
+                          </span>
+                        )}
                       </TableCell>
                       <TableCell>
                         <span className={`font-medium ${diff.className}`}>
