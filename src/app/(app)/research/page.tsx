@@ -5,6 +5,7 @@ import { useState } from "react";
 import { PageHeader } from "@/components/page-header";
 import { AnalysisOptionsSection } from "@/components/research/analysis-options-section";
 import { CountryOpportunitySection } from "@/components/research/country-opportunity-section";
+import { KeywordHistorySection } from "@/components/research/keyword-history-section";
 import { KeywordScoresSection } from "@/components/research/keyword-scores-section";
 import { AppListSection } from "@/components/research/app-list-section";
 import { AppReport } from "@/components/research/app-report";
@@ -57,7 +58,12 @@ export default function ResearchPage() {
               <TabsTrigger value="apps">App analysis</TabsTrigger>
               <TabsTrigger value="keywords">Keyword scores</TabsTrigger>
               <TabsTrigger value="countries">Country finder</TabsTrigger>
+              <TabsTrigger value="history">History &amp; trends</TabsTrigger>
             </TabsList>
+
+            <TabsContent value="history" className="mt-6">
+              <KeywordHistorySection />
+            </TabsContent>
 
             <TabsContent value="keywords" className="mt-6">
               <KeywordScoresSection />

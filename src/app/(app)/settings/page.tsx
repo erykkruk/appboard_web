@@ -60,6 +60,7 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
+import { AppleAdsSettingsCard } from "@/components/apple-ads/apple-ads-settings-card";
 import { VaultSettingsCard } from "@/components/vault/vault-settings-card";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
@@ -820,6 +821,8 @@ export default function SettingsGeneralPage() {
       />
 
       <VaultSettingsCard />
+
+      <AppleAdsSettingsCard />
 
       <Dialog
         open={packageStore !== null}

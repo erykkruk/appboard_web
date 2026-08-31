@@ -1744,7 +1744,13 @@ export interface KeywordDownloadEstimates {
 export interface KeywordScore {
 	keyword: string;
 	country: string;
+	/** Effective popularity: internal estimate, or Apple's official value. */
 	popularity: number | null;
+	internalPopularity?: number | null;
+	applePopularity?: number | null;
+	popularitySource?: "internal" | "apple";
+	popularityFallback?: boolean;
+	appleGenre?: string | null;
 	difficulty: number;
 	difficultyLabel: string;
 	opportunity: number;
@@ -1755,4 +1761,78 @@ export interface KeywordScore {
 	appRank?: number | null;
 	competitors: KeywordCompetitor[];
 	error?: string;
+}
+
+
+// ============ Keyword score history (server-side snapshots) ============
+
+export interface KeywordHistoryRow {
+	id: string;
+	keyword: string;
+	country: string;
+	day: string;
+	popularity: number | null;
+	difficulty: number;
+	opportunity: number;
+	classification: string;
+	appRank: number | null;
+}
+
+export interface KeywordTrendPoint {
+	day: string;
+	popularity: number | null;
+	difficulty: number;
+	opportunity: number;
+	classification: string;
+	appRank: number | null;
+}
+
+export interface KeywordCountrySummary {
+	country: string;
+	keywords: number;
+	ranked: number;
+	estimatedDailyDownloads: { low: number; high: number };
+	classifications: Record<string, number>;
+	topOpportunities: Array<{
+		keyword: string;
+		opportunity: number;
+		classification: string;
+		popularity: number | null;
+	}>;
+}
+
+// ============ Apple Ads (official search popularity) ============
+
+export interface AppleAdsStatus {
+	connected: boolean;
+	orgId: string | null;
+	source: "internal" | "apple";
+	latestAvailableWeek: string;
+	activeWeeks: Array<{ country: string; week: string; termCount: number }>;
+}
+
+export interface AppleTrendPoint {
+	week: string;
+	popularity: number;
+	genre: string;
+	rankInGenre: number;
+}
+
+export interface AppleMover {
+	term: string;
+	genre: string;
+	previous: number;
+	current: number;
+	delta: number;
+}
+
+export interface AppleImpressionRow {
+	id: string;
+	country: string;
+	searchTerm: string;
+	week: string;
+	lowShare: number;
+	highShare: number;
+	rank: number | null;
+	popularityTier: number | null;
 }

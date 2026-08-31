@@ -7,6 +7,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.13.0",
+    serverVersion: "0.13.0",
+    date: "2026-08-31",
+    changes: [
+      "Apple Ads integration: connect your free Apple Ads API key in Settings to power keyword scoring with Apple's OFFICIAL weekly search popularity - scored keywords show an 'official' badge, and terms outside Apple's dataset keep the estimate capped below their category floor",
+      "Keyword score history: every search now stores one snapshot per keyword, country and day (kept 90 days) - the new History & trends tab shows the latest scores, per-day popularity/difficulty/opportunity trend charts and lets you delete entries",
+      "Automatic nightly refresh: keywords tracked on an app re-score every night, so trends build up without manual searches",
+      "ASO posture summary: per-country cards with estimated daily downloads from your current ranks (as ranges), targeting-label distribution and top opportunities",
+      "Official popularity movers: week-over-week biggest changes from Apple's dataset, per country",
+      "Impression share (Apple Ads): per-app card showing the search terms where your ads served and the share of impressions captured",
+      "Sturdier scoring: when the iTunes API is throttled, searches fall back to the App Store website data; rank checks now scan the top 200 (was 50)",
+      "New 'How scoring works' methodology reference right next to the keyword tools",
+    ],
+  },
+  {
     version: "0.12.1",
     serverVersion: "0.12.0",
     date: "2026-08-31",

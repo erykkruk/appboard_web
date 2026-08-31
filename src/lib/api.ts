@@ -1,5 +1,12 @@
 import type {
+	AppleAdsStatus,
+	AppleImpressionRow,
+	AppleMover,
+	AppleTrendPoint,
+	KeywordCountrySummary,
+	KeywordHistoryRow,
 	KeywordScore,
+	KeywordTrendPoint,
 	AgeRating,
 	AgeRatingInput,
 	AgeRatingPreset,
@@ -1019,6 +1026,56 @@ export const api = {
 			).then((r) => r.versions),
 	},
 
+	appleAds: {
+		connect: (body: {
+			clientId: string;
+			keyId: string;
+			privateKey: string;
+			teamId: string;
+		}) =>
+			fetchApi<{ adAccountId: string; orgId: string | null }>(
+				"/api/apple-ads/connect",
+				{ body: JSON.stringify(body), method: "POST" },
+			),
+		disconnect: () =>
+			fetchApi<{ success: boolean }>("/api/apple-ads/connect", {
+				method: "DELETE",
+			}),
+		impressions: (appId: string) =>
+			fetchApi<{ rows: AppleImpressionRow[] }>(
+				`/api/apple-ads/impressions?appId=${encodeURIComponent(appId)}`,
+			).then((r) => r.rows),
+		movers: (country: string, genre?: string) =>
+			fetchApi<{ movers: AppleMover[]; weeks: string[] }>(
+				`/api/apple-ads/movers?country=${encodeURIComponent(country)}${genre ? `&genre=${encodeURIComponent(genre)}` : ""}`,
+			),
+		setSource: (source: "internal" | "apple") =>
+			fetchApi<{ source: string }>("/api/apple-ads/source", {
+				body: JSON.stringify({ source }),
+				method: "PATCH",
+			}),
+		status: () => fetchApi<AppleAdsStatus>("/api/apple-ads/status"),
+		sync: (country: string) =>
+			fetchApi<{
+				alreadySynced: boolean;
+				country: string;
+				terms: number;
+				week: string;
+			}>("/api/apple-ads/sync", {
+				body: JSON.stringify({ country }),
+				method: "POST",
+			}),
+		syncImpressions: (appId: string) =>
+			fetchApi<{ stored: number }>("/api/apple-ads/impressions/sync", {
+				body: JSON.stringify({ appId }),
+				method: "POST",
+			}),
+		trend: (country: string, term: string) =>
+			fetchApi<{ points: AppleTrendPoint[] }>(
+				`/api/apple-ads/trend?country=${encodeURIComponent(country)}&term=${encodeURIComponent(term)}`,
+			).then((r) => r.points),
+	},
+
 	research: {
 		analyze: (body: {
 			deep?: boolean;
@@ -1072,6 +1129,32 @@ export const api = {
 				body: JSON.stringify(body),
 				method: "POST",
 			}).then((r) => r.scores),
+		keywordScoresHistory: (filters?: { country?: string; keyword?: string }) => {
+			const params = new URLSearchParams();
+			if (filters?.country) params.set("country", filters.country);
+			if (filters?.keyword) params.set("keyword", filters.keyword);
+			const qs = params.toString();
+			return fetchApi<{ entries: KeywordHistoryRow[] }>(
+				`/api/research/keyword-scores/history${qs ? `?${qs}` : ""}`,
+			).then((r) => r.entries);
+		},
+		keywordScoreSnapshot: (snapshotId: string) =>
+			fetchApi<{ snapshot: KeywordHistoryRow & { payload: KeywordScore } }>(
+				`/api/research/keyword-scores/history/${snapshotId}`,
+			).then((r) => r.snapshot),
+		deleteKeywordScoreSnapshot: (snapshotId: string) =>
+			fetchApi<{ success: boolean }>(
+				`/api/research/keyword-scores/history/${snapshotId}`,
+				{ method: "DELETE" },
+			),
+		keywordScoresTrend: (keyword: string, country: string, days?: number) =>
+			fetchApi<{ points: KeywordTrendPoint[] }>(
+				`/api/research/keyword-scores/trend?keyword=${encodeURIComponent(keyword)}&country=${encodeURIComponent(country)}${days ? `&days=${days}` : ""}`,
+			).then((r) => r.points),
+		keywordScoresSummary: () =>
+			fetchApi<{ countries: KeywordCountrySummary[] }>(
+				"/api/research/keyword-scores/summary",
+			).then((r) => r.countries),
 		markets: (body: {
 			id: string;
 			markets?: string[];

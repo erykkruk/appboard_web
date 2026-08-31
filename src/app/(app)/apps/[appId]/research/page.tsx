@@ -5,6 +5,7 @@ import { useParams, useSearchParams } from "next/navigation";
 import { useApp } from "@/hooks/use-apps";
 
 import { AppResearchRunTab } from "@/components/tracking/app-research-run-tab";
+import { AppleImpressionsCard } from "@/components/research/apple-impressions-card";
 import { CountryOpportunitySection } from "@/components/research/country-opportunity-section";
 import { KeywordScoresSection } from "@/components/research/keyword-scores-section";
 import { AutomationTab } from "@/components/tracking/automation-tab";
@@ -34,6 +35,7 @@ function AppKeywordScoresTab({ appId }: { appId: string }) {
     <div className="space-y-10">
       <KeywordScoresSection appstoreId={appstoreId} />
       <CountryOpportunitySection appstoreId={appstoreId} />
+      <AppleImpressionsCard appId={appId} />
     </div>
   );
 }
