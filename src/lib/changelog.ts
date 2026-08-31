@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.13.1",
+    serverVersion: "0.13.0",
+    date: "2026-08-31",
+    changes: [
+      "History & trends: expanding a keyword now also shows Apple's official weekly popularity (when synced) and a full snapshot view - the difficulty breakdown, ranking tiers, download table and competitor list exactly as stored that day",
+    ],
+  },
+  {
     version: "0.13.0",
     serverVersion: "0.13.0",
     date: "2026-08-31",
