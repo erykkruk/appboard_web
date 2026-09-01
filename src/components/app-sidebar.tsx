@@ -24,6 +24,7 @@ import {
   Eye,
   EyeOff,
   FolderOpen,
+  KeyRound,
   Loader2,
   Menu,
   Microscope,
@@ -38,6 +39,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { AddAppDialog } from "@/components/add-app-dialog";
 import { StoreLogo } from "@/components/store-logo";
 import { HelpMenu } from "@/components/help-menu";
 import { VersionDialog } from "@/components/version-dialog";
@@ -1122,6 +1124,7 @@ export function AppSidebar() {
   const reorderGroupsMutation = useReorderGroups();
   const reorderMembersMutation = useReorderGroupMembers();
   const [manageOpen, setManageOpen] = useState(false);
+  const [addAppOpen, setAddAppOpen] = useState(false);
   const [groupsOpen, setGroupsOpen] = useState(false);
   // Below md the sidebar is an off-canvas drawer. Storing the path it was
   // opened at closes it on navigation without a setState-in-effect round trip.
@@ -1477,7 +1480,14 @@ export function AppSidebar() {
                     </div>
                     <StoreLogo type={store.type} className="h-4 w-4 shrink-0 text-foreground" />
                     <div className="min-w-0 flex-1">
-                      <p className="truncate font-medium">{store.name}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="truncate font-medium">{store.name}</p>
+                        {store.connectionMode === "public" && (
+                          <span className="shrink-0 rounded-full bg-[#3a3a3a] px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-wide text-muted-foreground">
+                            Public
+                          </span>
+                        )}
+                      </div>
                       <p className="text-xs text-muted-foreground">
                         {storeTypeLabel(store.type)}
                       </p>
@@ -1497,9 +1507,19 @@ export function AppSidebar() {
                 </button>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
-                <Link href="/onboarding">
+                <button
+                  type="button"
+                  className="w-full"
+                  onClick={() => setAddAppOpen(true)}
+                >
                   <Plus className="mr-2 h-4 w-4" />
-                  Add Store
+                  Add app (link)
+                </button>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/onboarding">
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Connect store API
                 </Link>
               </DropdownMenuItem>
             </DropdownMenuContent>
@@ -1507,18 +1527,19 @@ export function AppSidebar() {
         ) : (
           <Tooltip delayDuration={0}>
             <TooltipTrigger asChild>
-              <Link
-                href="/onboarding"
+              <button
+                type="button"
+                onClick={() => setAddAppOpen(true)}
                 className="flex w-full items-center gap-2.5 rounded-xl border-2 border-dashed border-muted-foreground/30 px-2 py-1.5 text-muted-foreground transition-colors hover:border-foreground/50 hover:text-foreground"
               >
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center">
                   <Plus className="h-5 w-5" />
                 </div>
-                <span className="text-sm">Connect a store</span>
-              </Link>
+                <span className="text-sm">Add your app</span>
+              </button>
             </TooltipTrigger>
             <TooltipContent side="right" sideOffset={8}>
-              Connect a store
+              Add your app - paste a store link
             </TooltipContent>
           </Tooltip>
         )}
@@ -1884,6 +1905,8 @@ export function AppSidebar() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <AddAppDialog open={addAppOpen} onOpenChange={setAddAppOpen} />
     </aside>
     </>
   );

@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Apple, ExternalLink, Plus, Smartphone, Store } from "lucide-react";
+import { Apple, KeyRound, Plus, Smartphone, Store } from "lucide-react";
+import { useState } from "react";
 
+import { AddAppDialog } from "@/components/add-app-dialog";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -68,6 +70,7 @@ function AppCard({ app }: { app: App }) {
 export default function DashboardPage() {
   const stores = useStores();
   const apps = useApps();
+  const [showAddApp, setShowAddApp] = useState(false);
 
   const hasStores = (stores.data ?? []).length > 0;
   const appsList = apps.data ?? [];
@@ -91,33 +94,32 @@ export default function DashboardPage() {
         <Card className="max-w-lg border-dashed">
           <CardHeader className="items-center text-center">
             <div className="mb-4 flex h-20 w-20 items-center justify-center rounded-2xl bg-[#2a2a2a]">
-              <Store className="h-10 w-10 text-muted-foreground" />
+              <Smartphone className="h-10 w-10 text-muted-foreground" />
             </div>
-            <CardTitle className="text-xl">No store connected</CardTitle>
+            <CardTitle className="text-xl">No apps yet</CardTitle>
             <CardDescription className="max-w-sm text-base">
-              Connect your Google Play or App Store account to start managing
-              your apps.
+              Paste an App Store or Google Play link and get a fully synced
+              app in seconds - listing, screenshots, ratings and reviews.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center gap-3">
-            <Button asChild size="lg">
-              <Link href="/onboarding">
-                <Plus className="mr-2 h-4 w-4" />
-                Connect a Store
-              </Link>
+            <Button size="lg" onClick={() => setShowAddApp(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add your app - paste a store link
             </Button>
             <p className="text-center text-xs text-muted-foreground">
-              You will need API credentials.{" "}
+              Publishing from AppBoard?{" "}
               <Link
                 href="/onboarding"
                 className="inline-flex items-center gap-1 text-primary underline underline-offset-4"
               >
-                See setup guide
-                <ExternalLink className="h-3 w-3" />
+                <KeyRound className="h-3 w-3" />
+                Connect store API
               </Link>
             </p>
           </CardContent>
         </Card>
+        <AddAppDialog open={showAddApp} onOpenChange={setShowAddApp} />
       </div>
     );
   }

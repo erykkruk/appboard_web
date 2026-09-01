@@ -597,7 +597,7 @@ export default function SettingsGeneralPage() {
                 href="/onboarding"
                 className="text-primary underline underline-offset-4"
               >
-                Connect one
+                Add an app by link or connect a store API
               </Link>
               .
             </p>
@@ -635,6 +635,14 @@ export default function SettingsGeneralPage() {
                           >
                             {statusBadge.label}
                           </Badge>
+                          {store.connectionMode === "public" && (
+                            <Badge
+                              variant="outline"
+                              className="text-xs text-muted-foreground"
+                            >
+                              Public
+                            </Badge>
+                          )}
                         </div>
                         {store.lastSyncedAt && (
                           <p className="text-xs text-muted-foreground">
