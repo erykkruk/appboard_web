@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { Apple, Download, MessageSquare, Package, Star, Store } from "lucide-react";
 
+import { AsoQuickcheckCard } from "@/components/apps/aso-quickcheck-card";
 import { KeywordRankingsCard } from "@/components/tracking/keyword-rankings-card";
 import { ReviewSentimentCard } from "@/components/tracking/review-sentiment-card";
 import { Badge } from "@/components/ui/badge";
@@ -107,6 +108,9 @@ export default function AppDashboardPage() {
           {isIos ? "App Store" : "Google Play"}
         </Badge>
       </div>
+
+      {/* Browser-side ASO check-up on the live public listing */}
+      <AsoQuickcheckCard app={data} />
 
       {/* Stats + rating */}
       <div className="grid items-start gap-6 lg:grid-cols-2">
