@@ -72,7 +72,7 @@ export function AddAppForm({ autoFocus = false }: { autoFocus?: boolean }) {
         const result = await importApp.mutateAsync(input);
         toast.success(
           result.created
-            ? `${result.app.name} added - public data synced`
+            ? `${result.app.name} added - deep research is running in the background`
             : `${result.app.name} is already in your workspace`,
         );
         router.push(`/apps/${result.app.id}/dashboard`);

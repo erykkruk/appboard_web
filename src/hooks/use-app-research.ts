@@ -2,12 +2,18 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { useRef } from "react";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
 
 const appRunsKey = (appId: string) => ["apps", appId, "research-runs"] as const;
 const standaloneRunsKey = ["research", "runs"] as const;
+
+// A fresh import auto-starts a background deep research run - poll lightly
+// so it appears without a manual refresh, then stop.
+const EMPTY_POLL_INTERVAL_MS = 20_000;
+const EMPTY_POLL_WINDOW_MS = 5 * 60_000;
 
 function isMissingKeyError(err: unknown): err is ApiError {
 	return (
@@ -19,11 +25,26 @@ function isMissingKeyError(err: unknown): err is ApiError {
 
 // ── Per-app research runs ──────────────────────────────────────────
 
-export function useAppResearchRuns(appId: string) {
+export function useAppResearchRuns(
+	appId: string,
+	opts?: { pollWhileEmpty?: boolean },
+) {
+	// Set on the first interval check (outside render, keeps the hook pure).
+	const pollStartedAt = useRef<number | null>(null);
+	const pollWhileEmpty = opts?.pollWhileEmpty ?? false;
 	return useQuery({
 		enabled: !!appId,
 		queryFn: () => api.tracking.listRuns(appId),
 		queryKey: appRunsKey(appId),
+		refetchInterval: pollWhileEmpty
+			? (query) => {
+					pollStartedAt.current ??= Date.now();
+					const empty = (query.state.data?.length ?? 0) === 0;
+					const withinWindow =
+						Date.now() - pollStartedAt.current < EMPTY_POLL_WINDOW_MS;
+					return empty && withinWindow ? EMPTY_POLL_INTERVAL_MS : false;
+				}
+			: undefined,
 	});
 }
 
