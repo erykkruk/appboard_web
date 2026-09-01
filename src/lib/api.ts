@@ -43,6 +43,8 @@ import type {
 	GroupAsoProfileInput,
 	GroupLocalization,
 	HistoryEntry,
+	ImportAppInput,
+	ImportAppResponse,
 	InAppPurchase,
 	Listing,
 	ListingDiff,
@@ -147,6 +149,17 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 			window.dispatchEvent(new CustomEvent("vault-required"));
 		}
 		const error = await res.json().catch(() => ({ code: "UNKNOWN" }));
+		if (res.status === 403 && error.code === "INTEGRATION_REQUIRED") {
+			// Public (credential-less) stores cannot perform store writes —
+			// degrade to a readable message instead of a generic error.
+			throw new ApiError(
+				403,
+				error.code,
+				error.data ?? {
+					info: "This app was added from a public store link. Connect your store API to perform this action.",
+				},
+			);
+		}
 		throw new ApiError(res.status, error.code, error.data);
 	}
 	return res.json();
@@ -1528,6 +1541,11 @@ export const api = {
 			fetchApi<void>(`/api/stores/${id}`, { method: "DELETE" }),
 		getCapabilities: (id: string) =>
 			fetchApi<StoreCapabilities>(`/api/stores/${id}/capabilities`),
+		importApp: (data: ImportAppInput) =>
+			fetchApi<ImportAppResponse>("/api/stores/import", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}),
 		list: () =>
 			fetchApi<{ stores: Store[] }>("/api/stores").then((r) => r.stores),
 		rename: (id: string, name: string) =>

@@ -8,11 +8,14 @@ export type StoreType =
 	| "rustore"
 	| "onestore";
 
+export type StoreConnectionMode = "api" | "public";
+
 export interface Store {
 	id: string;
 	type: StoreType;
 	name: string;
 	status: string;
+	connectionMode: StoreConnectionMode;
 	createdAt: string;
 	lastSyncedAt: string | null;
 	capabilities: string[];
@@ -99,11 +102,25 @@ export interface App {
 	createdAt?: string;
 	updatedAt?: string;
 	lastSyncedAt: string | null;
+	rawData?: { publicCountry?: string } | null;
 	store?: {
 		id: string;
 		name: string;
 		type: string;
+		connectionMode?: StoreConnectionMode;
 	};
+}
+
+export interface ImportAppInput {
+	url?: string;
+	platform?: Platform;
+	externalId?: string;
+	country?: string;
+}
+
+export interface ImportAppResponse {
+	app: App;
+	created: boolean;
 }
 
 export interface Listing {
