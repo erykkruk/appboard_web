@@ -618,27 +618,32 @@ export default function SettingsGeneralPage() {
                 return (
                   <div
                     key={store.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
+                    className="flex items-center justify-between gap-3 rounded-lg border p-3"
                   >
-                    <div className="flex items-center gap-3">
+                    <div className="flex min-w-0 flex-1 items-center gap-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
                         <StoreLogo
                           type={store.type}
                           className="h-5 w-5 text-foreground"
                         />
                       </div>
-                      <div>
+                      <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium">{store.name}</p>
+                          <p className="min-w-0 truncate text-sm font-medium">
+                            {store.name}
+                          </p>
                           <Badge
-                            className={cn("text-xs", statusBadge.className)}
+                            className={cn(
+                              "shrink-0 text-xs",
+                              statusBadge.className,
+                            )}
                           >
                             {statusBadge.label}
                           </Badge>
                           {store.connectionMode === "public" && (
                             <Badge
                               variant="outline"
-                              className="text-xs text-muted-foreground"
+                              className="shrink-0 text-xs text-muted-foreground"
                             >
                               Public
                             </Badge>
@@ -652,7 +657,7 @@ export default function SettingsGeneralPage() {
                         )}
                       </div>
                     </div>
-                    <div className="flex gap-1">
+                    <div className="flex shrink-0 gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
