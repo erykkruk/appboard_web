@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.15.0",
+    serverVersion: "0.15.0",
+    date: "2026-09-01",
+    changes: [
+      "Add your app with just a store link: paste an App Store or Google Play URL (or search by name) and get a fully synced app - listing, screenshots, ratings and reviews - with research, rank tracking and an ASO check-up. No API credentials needed",
+      "Connecting store API credentials is now an optional add-on, needed only for publishing: pushing listings, uploading screenshots, replying to reviews and managing purchases - each of those surfaces now shows a one-click 'Connect store API' setup",
+      "New ASO Check-up card on every app dashboard: score your live listing in your browser on demand and get the top things to improve, each linking straight to the screen that fixes it",
+      "Apps from public links are marked with a 'Public' badge on their store, and everything read-only keeps working exactly as for API-connected apps",
+    ],
+  },
+  {
     version: "0.14.0",
     serverVersion: "0.14.0",
     date: "2026-08-31",
