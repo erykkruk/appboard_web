@@ -181,7 +181,7 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
   const handleSyncAll = useCallback(async () => {
     setIsSyncing(true);
     try {
-      const syncTasks = [
+      const syncTasks: Promise<unknown>[] = [
         api.listings.sync(appId),
         api.assets.sync(appId),
         api.reviews.sync(appId),
