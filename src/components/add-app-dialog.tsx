@@ -56,15 +56,22 @@ export function AddAppForm({ autoFocus = false }: { autoFocus?: boolean }) {
 
   const term = query.trim();
   const isLink = parseStoreUrl(term) !== null;
+  // A half-typed URL is not a name search yet.
+  const looksLikeUrl = isLink || term.includes("://");
   const debouncedTerm = useDebouncedValue(term, SEARCH_DEBOUNCE_MS);
   const search = useResearchSearch(
-    researchEnabled && !isLink && !importApp.isPending ? debouncedTerm : "",
+    researchEnabled && !looksLikeUrl && !importApp.isPending
+      ? debouncedTerm
+      : "",
     country,
     "both",
   );
   const suggestions = search.data ?? [];
   const showSuggestions =
-    researchEnabled && !isLink && term.length >= 2 && debouncedTerm.length >= 2;
+    researchEnabled &&
+    !looksLikeUrl &&
+    term.length >= 2 &&
+    debouncedTerm.length >= 2;
 
   const runImport = useCallback(
     async (input: ImportAppInput) => {
