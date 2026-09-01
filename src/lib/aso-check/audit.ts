@@ -6,7 +6,7 @@
 import type { KeywordScore } from "@/lib/aso-engine/scoring-types";
 import type { CheckedApp } from "./itunes";
 
-export const MAX_CANDIDATES = 8;
+export const MAX_CANDIDATES = 14;
 
 const STOPWORDS = new Set(
 	(
@@ -64,12 +64,12 @@ export function extractKeywordCandidates(app: CheckedApp): string[] {
 	const topBigrams = [...bigrams.entries()]
 		.filter(([, count]) => count >= 2)
 		.sort((a, b) => b[1] - a[1])
-		.slice(0, 6);
+		.slice(0, 10);
 	for (const [phrase] of topBigrams) push(phrase);
 	const topUnigrams = [...unigrams.entries()]
 		.filter(([, count]) => count >= 3)
 		.sort((a, b) => b[1] - a[1])
-		.slice(0, 4);
+		.slice(0, 6);
 	for (const [word] of topUnigrams) push(word);
 
 	// Genre as a fallback seed ("Health & Fitness" -> "health fitness").
@@ -84,7 +84,29 @@ export interface AuditIssue {
 	title: string;
 	detail: string;
 	scorePenalty: number;
+	/** How AppBoard makes this fix easy - shown as a hint under the issue. */
+	appboard?: string;
 }
+
+/** Issue id -> the AppBoard capability that makes the fix easy. */
+export const APPBOARD_FIXES: Record<string, string> = {
+	"description-opening":
+		"AppBoard's AI writes benefit-first descriptions in every language you ship.",
+	"description-short":
+		"Generate a keyword-rich description with AppBoard AI and publish it in one click.",
+	"few-ratings":
+		"AppBoard tracks new reviews and drafts replies with AI, so ratings momentum builds faster.",
+	"low-rating":
+		"AppBoard's review analysis pinpoints the #1 complaint to fix first, with real quotes.",
+	"no-ranks":
+		"Track these keywords in AppBoard - nightly re-checks show which changes move the needle.",
+	screenshots:
+		"Design store-ready screenshots in AppBoard's free Screenshot Editor (no account needed).",
+	"stale-update":
+		"Manage versions and publish updates straight from AppBoard.",
+	"title-keywords":
+		"Edit the title in AppBoard and publish it to the store in one click.",
+};
 
 export interface AuditResult {
 	asoScore: number;
@@ -226,6 +248,10 @@ export function buildAudit(
 	// Listing themes (what the listing talks about) - honest, no-AI version
 	// of "what your app is about".
 	const themes = extractKeywordCandidates(app).slice(0, 4);
+
+	for (const issue of issues) {
+		issue.appboard = APPBOARD_FIXES[issue.id];
+	}
 
 	return { asoScore, issues, strengths, themes };
 }

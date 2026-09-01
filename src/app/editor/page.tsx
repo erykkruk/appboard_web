@@ -16,6 +16,7 @@ import { toast } from "sonner";
 
 import { CommunityPopup } from "@/components/community-popup";
 import { MobileGate } from "@/components/mobile-gate";
+import { ToolsMenu } from "@/components/public/site-header";
 import { LayersPanel, PropertiesPanel } from "@/components/screenshot-editor/editor-panels";
 import {
 	exportScenePanelPngs,
@@ -1009,6 +1010,9 @@ function GuestEditor() {
 					<Link href="/" className="shrink-0 text-sm font-bold">
 						AppBoard
 					</Link>
+					<div className="hidden shrink-0 sm:block">
+						<ToolsMenu compact pathname="/editor" />
+					</div>
 					<span className="hidden rounded-full border border-border px-2 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground sm:inline">
 						Free editor · nothing leaves your browser
 					</span>
