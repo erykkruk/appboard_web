@@ -15,17 +15,9 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import { useIsFeatureEnabled } from "@/hooks/use-features";
 import { useResearchSearch } from "@/hooks/use-research";
 import { useImportApp } from "@/hooks/use-stores";
-import { KEYWORD_COUNTRIES } from "@/lib/keyword-research";
 import { parseStoreUrl } from "@/lib/research";
 import type { ImportAppInput, ResearchSuggestion } from "@/lib/types";
 
@@ -51,7 +43,6 @@ export function AddAppForm({ autoFocus = false }: { autoFocus?: boolean }) {
   const researchEnabled = useIsFeatureEnabled("RESEARCH");
 
   const [query, setQuery] = useState("");
-  const [country, setCountry] = useState("us");
   const [formError, setFormError] = useState("");
 
   const term = query.trim();
@@ -63,7 +54,7 @@ export function AddAppForm({ autoFocus = false }: { autoFocus?: boolean }) {
     researchEnabled && !looksLikeUrl && !importApp.isPending
       ? debouncedTerm
       : "",
-    country,
+    "us",
     "both",
   );
   const suggestions = search.data ?? [];
@@ -99,7 +90,6 @@ export function AddAppForm({ autoFocus = false }: { autoFocus?: boolean }) {
 
   const pickSuggestion = (suggestion: ResearchSuggestion) =>
     runImport({
-      country,
       externalId: suggestion.id,
       platform: suggestion.store === "appstore" ? "ios" : "android",
     });
@@ -107,7 +97,14 @@ export function AddAppForm({ autoFocus = false }: { autoFocus?: boolean }) {
   const submitQuery = () => {
     if (!term) return;
     if (isLink) {
-      runImport({ country, url: term });
+      // Country only when the pasted URL actually carries one - the backend
+      // derives it from the link otherwise (defaults to "us").
+      const parsed = parseStoreUrl(term, "");
+      runImport(
+        parsed?.country
+          ? { country: parsed.country, url: term }
+          : { url: term },
+      );
       return;
     }
     if (suggestions.length > 0) {
@@ -129,18 +126,6 @@ export function AddAppForm({ autoFocus = false }: { autoFocus?: boolean }) {
       }}
     >
       <div className="flex gap-2">
-        <Select value={country} onValueChange={setCountry}>
-          <SelectTrigger className="!h-11 w-40 flex-none">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {KEYWORD_COUNTRIES.map((c) => (
-              <SelectItem key={c.code} value={c.code}>
-                {c.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
         <div className="relative flex-1">
           <Input
             autoFocus={autoFocus}
@@ -154,8 +139,6 @@ export function AddAppForm({ autoFocus = false }: { autoFocus?: boolean }) {
             onChange={(e) => {
               setQuery(e.target.value);
               setFormError("");
-              const parsed = parseStoreUrl(e.target.value.trim());
-              if (parsed?.country) setCountry(parsed.country);
             }}
             className="h-11"
           />
