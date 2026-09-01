@@ -37,7 +37,14 @@ function useDebouncedValue(value: string, delayMs: number): string {
  * (or search by name) and get a fully synced app from public data - no API
  * credentials needed.
  */
-export function AddAppForm({ autoFocus = false }: { autoFocus?: boolean }) {
+export function AddAppForm({
+  autoFocus = false,
+  onImported,
+}: {
+  autoFocus?: boolean;
+  /** Called after a successful import, before navigation (dialogs close here). */
+  onImported?: () => void;
+}) {
   const router = useRouter();
   const importApp = useImportApp();
   const researchEnabled = useIsFeatureEnabled("RESEARCH");
@@ -75,6 +82,8 @@ export function AddAppForm({ autoFocus = false }: { autoFocus?: boolean }) {
             ? `${result.app.name} added - deep research is running in the background`
             : `${result.app.name} is already in your workspace`,
         );
+        setQuery("");
+        onImported?.();
         router.push(`/apps/${result.app.id}/dashboard`);
       } catch (err) {
         const message =
@@ -85,7 +94,7 @@ export function AddAppForm({ autoFocus = false }: { autoFocus?: boolean }) {
         toast.error(message);
       }
     },
-    [importApp, router],
+    [importApp, onImported, router],
   );
 
   const pickSuggestion = (suggestion: ResearchSuggestion) =>
@@ -240,7 +249,7 @@ export function AddAppDialog({
             credentials later only if you want to publish.
           </DialogDescription>
         </DialogHeader>
-        <AddAppForm autoFocus />
+        <AddAppForm autoFocus onImported={() => onOpenChange(false)} />
       </DialogContent>
     </Dialog>
   );
