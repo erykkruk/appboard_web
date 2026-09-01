@@ -618,46 +618,45 @@ export default function SettingsGeneralPage() {
                 return (
                   <div
                     key={store.id}
-                    className="flex items-center justify-between gap-3 rounded-lg border p-3"
+                    className="space-y-2 rounded-lg border p-3"
                   >
-                    <div className="flex min-w-0 flex-1 items-center gap-3">
+                    {/* Line 1: identity - the name always keeps its space */}
+                    <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
                         <StoreLogo
                           type={store.type}
                           className="h-5 w-5 text-foreground"
                         />
                       </div>
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <p className="min-w-0 truncate text-sm font-medium">
-                            {store.name}
-                          </p>
-                          <Badge
-                            className={cn(
-                              "shrink-0 text-xs",
-                              statusBadge.className,
-                            )}
-                          >
-                            {statusBadge.label}
-                          </Badge>
-                          {store.connectionMode === "public" && (
-                            <Badge
-                              variant="outline"
-                              className="shrink-0 text-xs text-muted-foreground"
-                            >
-                              Public
-                            </Badge>
-                          )}
-                        </div>
-                        {store.lastSyncedAt && (
-                          <p className="text-xs text-muted-foreground">
-                            Last synced:{" "}
-                            {new Date(store.lastSyncedAt).toLocaleString()}
-                          </p>
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {store.name}
+                      </p>
+                      <Badge
+                        className={cn(
+                          "shrink-0 text-xs",
+                          statusBadge.className,
                         )}
-                      </div>
+                      >
+                        {statusBadge.label}
+                      </Badge>
+                      {store.connectionMode === "public" && (
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 text-xs text-muted-foreground"
+                        >
+                          Public
+                        </Badge>
+                      )}
                     </div>
-                    <div className="flex shrink-0 gap-1">
+                    {/* Line 2: sync info + actions; icons wrap below in a narrow column */}
+                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                      {store.lastSyncedAt && (
+                        <p className="min-w-0 truncate whitespace-nowrap text-xs text-muted-foreground">
+                          Last synced:{" "}
+                          {new Date(store.lastSyncedAt).toLocaleString()}
+                        </p>
+                      )}
+                      <div className="ml-auto flex shrink-0 gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -744,6 +743,7 @@ export default function SettingsGeneralPage() {
                           <Trash2 className="h-4 w-4" />
                         )}
                       </Button>
+                      </div>
                     </div>
                   </div>
                 );
