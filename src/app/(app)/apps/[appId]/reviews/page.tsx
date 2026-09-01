@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   Bot,
+  KeyRound,
   Loader2,
   MessageSquare,
   RefreshCw,
@@ -82,10 +84,14 @@ function ReviewCard({
   review,
   appName,
   appId,
+  canReply,
+  storeType,
 }: {
   review: Review;
   appName: string;
   appId: string;
+  canReply: boolean;
+  storeType?: string;
 }) {
   const [replyText, setReplyText] = useState(review.replyText ?? "");
   const [isReplying, setIsReplying] = useState(false);
@@ -156,21 +162,36 @@ function ReviewCard({
               Your Reply
             </p>
             <p className="text-sm">{review.replyText}</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-2"
-              onClick={() => {
-                setReplyText(review.replyText ?? "");
-                setIsReplying(true);
-              }}
-            >
-              Edit
-            </Button>
+            {canReply && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
+                onClick={() => {
+                  setReplyText(review.replyText ?? "");
+                  setIsReplying(true);
+                }}
+              >
+                Edit
+              </Button>
+            )}
           </div>
         )}
 
-        {!review.replyText && !isReplying && (
+        {!canReply && !review.replyText && (
+          <p className="mt-4 text-xs text-muted-foreground">
+            <KeyRound className="mr-1 inline h-3 w-3" />
+            Replying needs a store API integration.{" "}
+            <Link
+              href={storeType ? `/onboarding?type=${storeType}` : "/onboarding"}
+              className="text-primary underline underline-offset-4"
+            >
+              Connect store API
+            </Link>
+          </p>
+        )}
+
+        {canReply && !review.replyText && !isReplying && (
           <div className="mt-4 flex gap-2">
             <Button
               variant="outline"
@@ -399,6 +420,8 @@ export default function ReviewsManager() {
               review={review}
               appName={app.data?.name ?? ""}
               appId={appId}
+              canReply={app.data?.store?.connectionMode !== "public"}
+              storeType={app.data?.store?.type}
             />
           ))}
         </div>

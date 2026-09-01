@@ -38,7 +38,13 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { MobileGate } from "@/components/mobile-gate";
+import { RequiresIntegrationRailCard } from "@/components/requires-integration";
 import { PushPreviewDialog } from "@/components/push-preview-dialog";
 import { useApp } from "@/hooks/use-apps";
 import { useFeatures } from "@/hooks/use-features";
@@ -127,6 +133,10 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
 
   const isGpDraftApp = !isIos && app.data?.status === "draft";
 
+  // Apps imported from a public store link can read public data but cannot
+  // write to the store until real API credentials are connected.
+  const isPublicApp = app.data?.store?.connectionMode === "public";
+
   // Detect version from URL
   const versionMatch = currentPath.match(/\/versions\/([^/]+)/);
   const urlVersionId = versionMatch?.[1] ?? null;
@@ -175,11 +185,15 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
         api.listings.sync(appId),
         api.assets.sync(appId),
         api.reviews.sync(appId),
-        api.purchases.sync(appId),
       ];
 
+      // Purchases and version sync need store API credentials
+      if (!isPublicApp) {
+        syncTasks.push(api.purchases.sync(appId));
+      }
+
       // Version sync is iOS/App Store only
-      if (isIos) {
+      if (isIos && !isPublicApp) {
         syncTasks.push(api.publishing.syncVersions(appId));
       }
 
@@ -210,7 +224,7 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
     } finally {
       setIsSyncing(false);
     }
-  }, [appId, isIos, queryClient]);
+  }, [appId, isIos, isPublicApp, queryClient]);
 
   const lastSyncedAt = app.data?.lastSyncedAt;
 
@@ -449,16 +463,40 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
               </div>
             </Link>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            className="w-full justify-center gap-2 text-muted-foreground"
-            onClick={() => setShowPushPreview(true)}
-            disabled={isGpDraftApp}
-          >
-            <Upload className="h-3.5 w-3.5" />
-            {isIos ? "Push to App Store" : "Push as Draft"}
-          </Button>
+          {isPublicApp && (
+            <RequiresIntegrationRailCard storeType={app.data?.store?.type} />
+          )}
+          {isPublicApp ? (
+            <Tooltip delayDuration={0}>
+              <TooltipTrigger asChild>
+                <span className="block w-full">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full justify-center gap-2 text-muted-foreground"
+                    disabled
+                  >
+                    <Upload className="h-3.5 w-3.5" />
+                    {isIos ? "Push to App Store" : "Push as Draft"}
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent side="right" sideOffset={8}>
+                Requires store API integration
+              </TooltipContent>
+            </Tooltip>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-center gap-2 text-muted-foreground"
+              onClick={() => setShowPushPreview(true)}
+              disabled={isGpDraftApp}
+            >
+              <Upload className="h-3.5 w-3.5" />
+              {isIos ? "Push to App Store" : "Push as Draft"}
+            </Button>
+          )}
           <PushPreviewDialog
             appId={appId}
             isIos={isIos}

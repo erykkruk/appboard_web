@@ -40,6 +40,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PublishReport } from "@/components/publishing/publish-report";
+import { RequiresIntegrationBanner } from "@/components/requires-integration";
 import { useApp } from "@/hooks/use-apps";
 import {
   useCreateVersion,
@@ -91,6 +92,15 @@ export default function PublishPage() {
   const [publishReport, setPublishReport] = useState<PublishReportItem[]>([]);
 
   const isIos = app.data?.platform === "ios";
+
+  // Publishing writes to the store - a public (credential-less) app cannot.
+  if (app.data?.store?.connectionMode === "public") {
+    return (
+      <div className="mx-auto w-full max-w-4xl p-6">
+        <RequiresIntegrationBanner storeType={app.data.store.type} />
+      </div>
+    );
+  }
 
   const handlePublish = async () => {
     try {
