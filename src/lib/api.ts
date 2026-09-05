@@ -1,4 +1,10 @@
 import type {
+	AppAuditResponse,
+	BulkCopyPreview,
+	BulkCopyRequest,
+	BulkCopyResult,
+	SuggestionsResponse,
+	WorkspaceOverview,
 	AppleAdsStatus,
 	AppleImpressionRow,
 	AppleMover,
@@ -174,6 +180,40 @@ function toQuery(params: Record<string, string | boolean | undefined>): string {
 }
 
 export const api = {
+	bulk: {
+		apply: (body: BulkCopyRequest) =>
+			fetchApi<BulkCopyResult>("/api/apps/bulk-copy", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}),
+		preview: (body: BulkCopyRequest) =>
+			fetchApi<BulkCopyPreview>("/api/apps/bulk-copy/preview", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}),
+	},
+
+	overview: {
+		get: () => fetchApi<WorkspaceOverview>("/api/overview"),
+	},
+
+	audit: {
+		suggestions: (appId: string, language?: string) =>
+			fetchApi<SuggestionsResponse>(
+				`/api/apps/${appId}/audit/suggestions${toQuery({ language })}`,
+			),
+		/**
+		 * Cache-first: returns instantly. A "measuring" status means the real
+		 * measurement is running in the background - poll until "ready".
+		 */
+		get: (appId: string, params?: { country?: string; refresh?: boolean }) =>
+			fetchApi<AppAuditResponse>(
+				`/api/apps/${appId}/audit${toQuery({
+					country: params?.country,
+					refresh: params?.refresh ? "true" : undefined,
+				})}`,
+			),
+	},
 	ai: {
 		draftReply: (data: DraftReplyRequest) =>
 			fetchApi<AiResponse>("/api/ai/draft-reply", {
@@ -441,6 +481,16 @@ export const api = {
 			fetchApi<{ capabilities: PlatformCapabilities }>(
 				`/api/apps/${appId}/capabilities`,
 			).then((r) => r.capabilities),
+		/** An app you have not published in any store yet. */
+		createLocal: (body: {
+			bundleId?: string;
+			name: string;
+			platform: "ios" | "android";
+		}) =>
+			fetchApi<{ app: App }>("/api/apps", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}).then((r) => r.app),
 		get: (appId: string) =>
 			fetchApi<{ app: App }>(`/api/apps/${appId}`).then((r) => r.app),
 		list: (params?: { platform?: string; storeId?: string }) =>
