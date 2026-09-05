@@ -216,7 +216,7 @@ export default function DashboardPage() {
             title="Add your app from a store link"
             description="Paste an App Store or Google Play link. You get the listing text, screenshots, ratings and reviews in your workspace in seconds."
             cta="Paste a link"
-            onClick={() => setShowAddApp(true)}
+            href="/start"
           />
           <FirstRunTile
             icon={Search}
