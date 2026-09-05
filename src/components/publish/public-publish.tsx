@@ -13,16 +13,23 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useListingDiffs } from "@/hooks/use-listing-diffs";
 import { computeDiff } from "@/lib/diff";
 import { getListingFieldLabel } from "@/lib/field-labels";
-import type { ListingDiff } from "@/lib/types";
+import { listingFieldsFor } from "@/lib/listing-limits";
+import type { ListingDiff, Platform } from "@/lib/types";
+
+/** The name the store console uses for a field, so the paste matches the form. */
+function labelFor(platform: Platform, field: string): string {
+  const spec = listingFieldsFor(platform).find((f) => f.key === field);
+  return spec?.label ?? getListingFieldLabel(field);
+}
 
 /** Plain text a person can paste into a store console, field by field. */
-function changesAsText(diffs: ListingDiff[]): string {
+function changesAsText(platform: Platform, diffs: ListingDiff[]): string {
   return diffs
     .map((d) =>
       [
         `== ${d.language} ==`,
         ...d.fields.map(
-          (f) => `${getListingFieldLabel(f.field)}:\n${f.newValue ?? ""}`,
+          (f) => `${labelFor(platform, f.field)}:\n${f.newValue ?? ""}`,
         ),
       ].join("\n\n"),
     )
@@ -73,10 +80,12 @@ function download(filename: string, content: string) {
 export function PublicPublishView({
   appId,
   appName,
+  platform,
   storeType,
 }: {
   appId: string;
   appName: string;
+  platform: Platform;
   storeType?: string;
 }) {
   const diffs = useListingDiffs(appId);
@@ -108,7 +117,7 @@ export function PublicPublishView({
         </div>
         {changed > 0 && (
           <div className="flex gap-2">
-            <Button size="sm" onClick={() => copy(changesAsText(list), "All changes")}>
+            <Button size="sm" onClick={() => copy(changesAsText(platform, list), "All changes")}>
               <Copy className="mr-1.5 h-3.5 w-3.5" />
               Copy all changes
             </Button>
@@ -145,11 +154,11 @@ export function PublicPublishView({
               return (
                 <div key={f.field} className="space-y-1.5">
                   <div className="flex items-center justify-between">
-                    <span className="font-medium text-sm">{getListingFieldLabel(f.field)}</span>
+                    <span className="font-medium text-sm">{labelFor(platform, f.field)}</span>
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => copy(f.newValue ?? "", getListingFieldLabel(f.field))}
+                      onClick={() => copy(f.newValue ?? "", labelFor(platform, f.field))}
                     >
                       <Copy className="mr-1.5 h-3.5 w-3.5" />
                       Copy

@@ -100,6 +100,7 @@ export default function PublishPage() {
       <PublicPublishView
         appId={appId}
         appName={app.data.name}
+        platform={app.data.platform}
         storeType={app.data.store.type}
       />
     );
