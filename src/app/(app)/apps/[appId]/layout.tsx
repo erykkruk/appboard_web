@@ -1,34 +1,22 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useParams, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter } from "next/navigation";
 import {
   AlertTriangle,
   ChevronDown,
-  Clock,
-  CreditCard,
-  FileText,
-  Globe,
-  Image,
-  ImagePlus,
-  Info,
-  LayoutDashboard,
+  KeyRound,
   Loader2,
-  type LucideIcon,
-  Microscope,
   Plus,
   RefreshCw,
-  Rocket,
-  Settings,
-  ShieldCheck,
-  ShieldAlert,
-  Star,
   Upload,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { MobileGate } from "@/components/mobile-gate";
+import { PushPreviewDialog } from "@/components/push-preview-dialog";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -43,43 +31,12 @@ import {
   TooltipContent,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { MobileGate } from "@/components/mobile-gate";
-import { RequiresIntegrationRailCard } from "@/components/requires-integration";
-import { PushPreviewDialog } from "@/components/push-preview-dialog";
 import { useApp } from "@/hooks/use-apps";
-import { useFeatures } from "@/hooks/use-features";
-import { api } from "@/lib/api";
+import { useFeatureFilter } from "@/hooks/use-features";
 import { useCreateVersion, useVersions } from "@/hooks/use-publishing";
-import type { FeatureKey } from "@/lib/types";
+import { api } from "@/lib/api";
+import { APP_NAV, VERSION_NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
-
-type NavItem = {
-  label: string;
-  icon: LucideIcon;
-  suffix: string;
-  iosOnly?: boolean;
-  featureKey?: FeatureKey;
-};
-
-const NAV_ITEMS: NavItem[] = [
-  { label: "Dashboard", icon: LayoutDashboard, suffix: "/dashboard" },
-  { label: "Information", icon: Info, suffix: "/information" },
-  { label: "Research", icon: Microscope, suffix: "/research", featureKey: "RESEARCH" },
-  { label: "Publish", icon: Rocket, suffix: "/publish", featureKey: "PUBLISHING" },
-  { label: "Purchases", icon: CreditCard, suffix: "/purchases", featureKey: "PURCHASES" },
-  { label: "Reviews", icon: Star, suffix: "/reviews", featureKey: "REVIEWS" },
-  { label: "History", icon: Clock, suffix: "/history", featureKey: "HISTORY" },
-  { label: "Settings", icon: Settings, suffix: "/settings" },
-];
-
-const VERSION_NAV_ITEMS: NavItem[] = [
-  { label: "Languages", icon: Globe, suffix: "/languages" },
-  { label: "Listings", icon: FileText, suffix: "", featureKey: "LISTINGS" },
-  { label: "Previews & Screenshots", icon: Image, suffix: "/screenshots", featureKey: "SCREENSHOTS" },
-  { label: "Store Graphics", icon: ImagePlus, suffix: "/graphics", featureKey: "SCREENSHOTS" },
-  { label: "App Review", icon: ShieldCheck, suffix: "/review", iosOnly: true },
-  { label: "Age Rating", icon: ShieldAlert, suffix: "/age-rating", iosOnly: true, featureKey: "AGE_RATING" },
-];
 
 const STATE_BAR_COLORS: Record<string, string> = {
   PREPARE_FOR_SUBMISSION: "bg-yellow-400",
@@ -91,11 +48,7 @@ const STATE_BAR_COLORS: Record<string, string> = {
   PENDING_DEVELOPER_RELEASE: "bg-purple-400",
 };
 
-export default function AppLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
     <MobileGate>
       <AppWorkspace>{children}</AppWorkspace>
@@ -103,21 +56,44 @@ export default function AppLayout({
   );
 }
 
+function NavPill({
+  href,
+  active,
+  children,
+}: {
+  href: string;
+  active: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <Link
+      href={href}
+      className={cn(
+        "shrink-0 whitespace-nowrap rounded-md px-2.5 py-1.5 font-medium text-sm transition-colors",
+        active
+          ? "bg-muted text-foreground"
+          : "text-muted-foreground hover:bg-muted/60 hover:text-foreground",
+      )}
+    >
+      {children}
+    </Link>
+  );
+}
+
+/**
+ * The app's own navigation, as one horizontal context bar instead of a second
+ * vertical rail. Everything the rail carried survives here: section links, the
+ * iOS version selector and its sub-navigation, push and sync.
+ */
 function AppWorkspace({ children }: { children: React.ReactNode }) {
   const params = useParams<{ appId: string }>();
   const appId = params.appId;
   const currentPath = usePathname();
   const router = useRouter();
   const app = useApp(appId);
-  const { data: featuresData } = useFeatures();
-  const features = featuresData?.features;
+  const isFeatureAllowed = useFeatureFilter();
   const versions = useVersions(appId);
 
-  const isFeatureAllowed = (featureKey?: FeatureKey) => {
-    if (!featureKey) return true;
-    if (!features) return true;
-    return features[featureKey] ?? true;
-  };
   const createVersion = useCreateVersion(appId);
   const [newVersion, setNewVersion] = useState("");
   const [showNewVersion, setShowNewVersion] = useState(false);
@@ -126,39 +102,28 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
   const queryClient = useQueryClient();
 
   const basePath = `/apps/${appId}`;
-
   const versionList = versions.data ?? [];
   const draftVersion = versionList.find((v) => v.isEditable);
   const isIos = app.data?.platform === "ios";
-
   const isGpDraftApp = !isIos && app.data?.status === "draft";
-
-  // Apps imported from a public store link can read public data but cannot
-  // write to the store until real API credentials are connected.
   const isPublicApp = app.data?.store?.connectionMode === "public";
 
-  // Detect version from URL
   const versionMatch = currentPath.match(/\/versions\/([^/]+)/);
   const urlVersionId = versionMatch?.[1] ?? null;
   const isVersionPage = currentPath.includes("/versions/");
 
-  // Persist selected version across navigation
-  const [rememberedVersionId, setRememberedVersionId] = useState<string | null>(null);
+  const [rememberedVersionId, setRememberedVersionId] = useState<string | null>(
+    null,
+  );
 
-  // Sync URL version → remembered state
   useEffect(() => {
-    if (urlVersionId) {
-      setRememberedVersionId(urlVersionId);
-    }
+    if (urlVersionId) setRememberedVersionId(urlVersionId);
   }, [urlVersionId]);
 
-  // Auto-select draft (or first) version when none remembered yet
   useEffect(() => {
     if (versionList.length === 0 || rememberedVersionId) return;
     const target = draftVersion ?? versionList[0];
-    if (target) {
-      setRememberedVersionId(target.id);
-    }
+    if (target) setRememberedVersionId(target.id);
   }, [versionList, rememberedVersionId, draftVersion]);
 
   const selectedVersionId = rememberedVersionId;
@@ -186,19 +151,12 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
         api.assets.sync(appId),
         api.reviews.sync(appId),
       ];
-
-      // Purchases and version sync need store API credentials
-      if (!isPublicApp) {
-        syncTasks.push(api.purchases.sync(appId));
-      }
-
-      // Version sync is iOS/App Store only
+      if (!isPublicApp) syncTasks.push(api.purchases.sync(appId));
       if (isIos && !isPublicApp) {
         syncTasks.push(api.publishing.syncVersions(appId));
       }
 
       const results = await Promise.allSettled(syncTasks);
-
       const errors = results
         .filter((r): r is PromiseRejectedResult => r.status === "rejected")
         .map((r) => (r.reason as Error)?.message ?? String(r.reason));
@@ -208,12 +166,11 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
       queryClient.invalidateQueries({ queryKey: ["reviews", appId] });
       queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
       queryClient.invalidateQueries({ queryKey: ["publishing", appId] });
+      queryClient.invalidateQueries({ queryKey: ["app-audit", appId] });
       queryClient.invalidateQueries({ queryKey: ["apps"] });
 
       if (errors.length > 0) {
-        for (const msg of errors) {
-          toast.error(msg);
-        }
+        for (const msg of errors) toast.error(msg);
       } else {
         toast.success("Everything synced");
       }
@@ -227,261 +184,159 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
   }, [appId, isIos, isPublicApp, queryClient]);
 
   const lastSyncedAt = app.data?.lastSyncedAt;
+  const sectionItems = APP_NAV.filter(
+    (item) => !item.iosOnly || isIos,
+  ).filter((item) => isFeatureAllowed(item.featureKey));
+  const versionItems = VERSION_NAV.filter(
+    (item) => !item.iosOnly || isIos,
+  ).filter((item) => isFeatureAllowed(item.featureKey));
 
   return (
-    <div className="flex flex-1 overflow-hidden">
-      {/* Left nav */}
-      <div className="flex w-[200px] shrink-0 flex-col border-r border-border bg-[#1a1a1a]">
-        <div className="flex h-14 items-center border-b border-border px-4">
-          <p className="truncate text-sm font-bold tracking-tight text-foreground">
-            {app.data?.name ?? "Loading..."}
-          </p>
-        </div>
+    <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+      <div className="shrink-0 border-border border-b bg-background">
+        <div className="flex h-11 items-center gap-1 overflow-x-auto px-4">
+          {sectionItems.map((item) => {
+            const href = `${basePath}${item.suffix ?? ""}`;
+            return (
+              <NavPill
+                key={item.label}
+                href={href}
+                active={currentPath.startsWith(href) && !isVersionPage}
+              >
+                {item.label}
+              </NavPill>
+            );
+          })}
 
-        <nav className="flex-1 overflow-y-auto px-2 py-3">
-          <div className="space-y-0.5">
-            {NAV_ITEMS
-              .filter((item) => !item.iosOnly || isIos)
-              .filter((item) => isFeatureAllowed(item.featureKey))
-              .map((item) => {
-              const href = `${basePath}${item.suffix}`;
-              const isActive =
-                currentPath.startsWith(href) && !isVersionPage;
-              return (
-                <Link
-                  key={item.label}
-                  href={href}
-                  className={cn(
-                    "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                    isActive
-                      ? "bg-primary text-primary-foreground"
-                      : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
-                  )}
-                >
-                  <item.icon className="h-4 w-4" />
-                  {item.label}
-                </Link>
-              );
-            })}
-          </div>
-
-          {/* Version select — App Store only */}
           {isIos && (
             <>
-              <div className="mx-3 my-3 h-px bg-border" />
-              <div className="space-y-1">
-                <DropdownMenu>
-                  <DropdownMenuTrigger asChild>
-                    <button
-                      type="button"
-                      className={cn(
-                        "flex w-full items-center gap-2.5 rounded-lg py-2 pl-2 pr-3 text-sm font-medium transition-colors",
-                        isVersionPage
-                          ? "bg-primary text-primary-foreground"
-                          : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
-                      )}
-                    >
-                      {selectedVersion ? (
-                        <div
-                          className={cn(
-                            "h-4 w-1 shrink-0 rounded-full",
-                            STATE_BAR_COLORS[selectedVersion.state] ??
-                              "bg-muted-foreground",
-                          )}
-                        />
-                      ) : (
-                        <div className="h-4 w-1 shrink-0 rounded-full bg-muted-foreground" />
-                      )}
-                      <span className="flex-1 truncate text-left">
-                        {selectedVersion
-                          ? `Version ${selectedVersion.versionString}`
-                          : "Version"}
-                      </span>
-                      <ChevronDown className="h-3.5 w-3.5 shrink-0 opacity-60" />
-                    </button>
-                  </DropdownMenuTrigger>
-                  <DropdownMenuContent
-                    side="bottom"
-                    align="start"
-                    className="w-[176px]"
+              <span className="mx-1 h-5 w-px shrink-0 bg-border" />
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    variant={isVersionPage ? "secondary" : "ghost"}
+                    size="sm"
+                    className="shrink-0 gap-2"
                   >
-                    {versions.isLoading && (
-                      <div className="flex justify-center py-2">
-                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                      </div>
-                    )}
-                    {versionList.map((v) => (
-                      <DropdownMenuItem
-                        key={v.id}
-                        className="gap-2.5"
-                        onSelect={() =>
-                          router.push(`${basePath}/versions/${v.id}`)
-                        }
-                      >
-                        <div
-                          className={cn(
-                            "h-4 w-1 shrink-0 rounded-full",
-                            STATE_BAR_COLORS[v.state] ??
-                              "bg-muted-foreground",
-                          )}
-                        />
-                        <span className="truncate">{v.versionString}</span>
-                      </DropdownMenuItem>
-                    ))}
-                    {!draftVersion && versionList.length > 0 && (
-                      <DropdownMenuSeparator />
-                    )}
-                    {!draftVersion && (
-                      <DropdownMenuItem
-                        onSelect={(e) => {
-                          e.preventDefault();
-                          setShowNewVersion(true);
-                        }}
-                      >
-                        <Plus className="h-3.5 w-3.5" />
-                        <span>New Version</span>
-                      </DropdownMenuItem>
-                    )}
-                  </DropdownMenuContent>
-                </DropdownMenu>
-
-                {showNewVersion && (
-                  <div className="flex items-center gap-1.5 px-1">
-                    <Input
-                      value={newVersion}
-                      onChange={(e) => setNewVersion(e.target.value)}
-                      placeholder="1.0.0"
-                      className="h-7 text-xs"
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") handleCreateVersion();
-                        if (e.key === "Escape") {
-                          setShowNewVersion(false);
-                          setNewVersion("");
-                        }
-                      }}
-                      autoFocus
-                    />
-                    <Button
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      onClick={handleCreateVersion}
-                      disabled={
-                        createVersion.isPending || !newVersion.trim()
-                      }
-                    >
-                      {createVersion.isPending ? (
-                        <Loader2 className="h-3 w-3 animate-spin" />
-                      ) : (
-                        "Add"
+                    <span
+                      className={cn(
+                        "h-3.5 w-1 shrink-0 rounded-full",
+                        selectedVersion
+                          ? (STATE_BAR_COLORS[selectedVersion.state] ??
+                            "bg-muted-foreground")
+                          : "bg-muted-foreground",
                       )}
-                    </Button>
-                  </div>
-                )}
-
-                {/* Version sub-navigation */}
-                {selectedVersionId && (
-                  <div className="mt-1 space-y-0.5">
-                    {VERSION_NAV_ITEMS
-                      .filter((item) => isFeatureAllowed(item.featureKey))
-                      .map((item) => {
-                      const href = `${basePath}/versions/${selectedVersionId}${item.suffix}`;
-                      const isActive =
-                        item.suffix === ""
-                          ? currentPath === `${basePath}/versions/${selectedVersionId}`
-                          : currentPath.startsWith(href);
-                      return (
-                        <Link
-                          key={item.label}
-                          href={href}
-                          className={cn(
-                            "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                            isActive
-                              ? "bg-[#2a2a2a] text-foreground"
-                              : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
-                          )}
-                        >
-                          <item.icon className="h-4 w-4" />
-                          {item.label}
-                        </Link>
-                      );
-                    })}
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-
-          {/* Content navigation — Google Play (no version selector) */}
-          {!isIos && selectedVersionId && (
-            <>
-              <div className="mx-3 my-3 h-px bg-border" />
-              <div className="space-y-0.5">
-                {VERSION_NAV_ITEMS
-                  .filter((item) => !item.iosOnly)
-                  .filter((item) => isFeatureAllowed(item.featureKey))
-                  .map((item) => {
-                    const href = `${basePath}/versions/${selectedVersionId}${item.suffix}`;
-                    const isActive =
-                      item.suffix === ""
-                        ? currentPath === `${basePath}/versions/${selectedVersionId}`
-                        : currentPath.startsWith(href);
-                    return (
-                      <Link
-                        key={item.label}
-                        href={href}
+                    />
+                    {selectedVersion
+                      ? `Version ${selectedVersion.versionString}`
+                      : "Version"}
+                    <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start" className="w-[200px]">
+                  {versions.isLoading && (
+                    <div className="flex justify-center py-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                    </div>
+                  )}
+                  {versionList.map((v) => (
+                    <DropdownMenuItem
+                      key={v.id}
+                      className="gap-2.5"
+                      onSelect={() => router.push(`${basePath}/versions/${v.id}`)}
+                    >
+                      <span
                         className={cn(
-                          "flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors",
-                          isActive
-                            ? "bg-primary text-primary-foreground"
-                            : "text-muted-foreground hover:bg-[#2a2a2a] hover:text-foreground",
+                          "h-4 w-1 shrink-0 rounded-full",
+                          STATE_BAR_COLORS[v.state] ?? "bg-muted-foreground",
                         )}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        {item.label}
-                      </Link>
-                    );
-                  })}
-              </div>
+                      />
+                      <span className="truncate">{v.versionString}</span>
+                    </DropdownMenuItem>
+                  ))}
+                  {!draftVersion && versionList.length > 0 && (
+                    <DropdownMenuSeparator />
+                  )}
+                  {!draftVersion && (
+                    <DropdownMenuItem
+                      onSelect={(e) => {
+                        e.preventDefault();
+                        setShowNewVersion(true);
+                      }}
+                    >
+                      <Plus className="h-3.5 w-3.5" />
+                      <span>New Version</span>
+                    </DropdownMenuItem>
+                  )}
+                </DropdownMenuContent>
+              </DropdownMenu>
             </>
           )}
-        </nav>
 
-        <div className="border-t border-border px-2 py-3 space-y-2">
+          {showNewVersion && (
+            <div className="flex shrink-0 items-center gap-1.5">
+              <Input
+                value={newVersion}
+                onChange={(e) => setNewVersion(e.target.value)}
+                placeholder="1.0.0"
+                className="h-7 w-24 text-xs"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") handleCreateVersion();
+                  if (e.key === "Escape") {
+                    setShowNewVersion(false);
+                    setNewVersion("");
+                  }
+                }}
+                autoFocus
+              />
+              <Button
+                size="sm"
+                className="h-7 px-2 text-xs"
+                onClick={handleCreateVersion}
+                disabled={createVersion.isPending || !newVersion.trim()}
+              >
+                {createVersion.isPending ? (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                ) : (
+                  "Add"
+                )}
+              </Button>
+            </div>
+          )}
+
+          <div className="flex-1" />
+
           {isGpDraftApp && (
             <Link
               href={`${basePath}/setup`}
-              className="flex items-start gap-2 rounded-lg border border-amber-500/30 bg-amber-500/5 px-2.5 py-2 transition-colors hover:bg-amber-500/10"
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[11px] text-amber-500"
             >
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" />
-              <div className="min-w-0">
-                <p className="text-[11px] font-medium leading-tight text-amber-500">
-                  Setup required
-                </p>
-                <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
-                  App not yet published on GP. Click for details.
-                </p>
-              </div>
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Setup required
             </Link>
           )}
+
           {isPublicApp && (
-            <RequiresIntegrationRailCard storeType={app.data?.store?.type} />
+            <Link
+              href="/onboarding"
+              className="flex shrink-0 items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[11px] text-amber-500"
+            >
+              <KeyRound className="h-3.5 w-3.5" />
+              Public data only - connect the store API
+            </Link>
           )}
+
           {isPublicApp ? (
             <Tooltip delayDuration={0}>
               <TooltipTrigger asChild>
-                <span className="block w-full">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="w-full justify-center gap-2 text-muted-foreground"
-                    disabled
-                  >
+                <span className="shrink-0">
+                  <Button variant="outline" size="sm" disabled className="gap-2">
                     <Upload className="h-3.5 w-3.5" />
                     {isIos ? "Push to App Store" : "Push as Draft"}
                   </Button>
                 </span>
               </TooltipTrigger>
-              <TooltipContent side="right" sideOffset={8}>
+              <TooltipContent side="bottom" sideOffset={8}>
                 Requires store API integration
               </TooltipContent>
             </Tooltip>
@@ -489,7 +344,7 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
             <Button
               variant="outline"
               size="sm"
-              className="w-full justify-center gap-2 text-muted-foreground"
+              className="shrink-0 gap-2"
               onClick={() => setShowPushPreview(true)}
               disabled={isGpDraftApp}
             >
@@ -497,42 +352,60 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
               {isIos ? "Push to App Store" : "Push as Draft"}
             </Button>
           )}
-          <PushPreviewDialog
-            appId={appId}
-            isIos={isIos}
-            open={showPushPreview}
-            onOpenChange={setShowPushPreview}
-            onComplete={() => {
-              queryClient.invalidateQueries({ queryKey: ["apps"] });
-              queryClient.invalidateQueries({ queryKey: ["listings", appId] });
-              queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
-              queryClient.invalidateQueries({ queryKey: ["publishing", appId] });
-            }}
-          />
+
           <Button
             variant="outline"
             size="sm"
-            className="w-full justify-center gap-2 text-muted-foreground"
+            className="shrink-0 gap-2"
             onClick={handleSyncAll}
             disabled={isSyncing}
           >
-            <RefreshCw
-              className={cn("h-3.5 w-3.5", isSyncing && "animate-spin")}
-            />
+            <RefreshCw className={cn("h-3.5 w-3.5", isSyncing && "animate-spin")} />
             {isSyncing ? "Syncing..." : "Sync All"}
           </Button>
           {lastSyncedAt && (
-            <p className="text-center text-[10px] text-muted-foreground">
-              Last synced: {new Date(lastSyncedAt).toLocaleString()}
-            </p>
+            <span className="shrink-0 text-[10px] text-muted-foreground">
+              Synced {new Date(lastSyncedAt).toLocaleDateString()}
+            </span>
           )}
         </div>
+
+        {/* Version sub-navigation. Shown whenever a version exists, exactly
+            like the old rail did - hiding it behind "you are already on a
+            version page" made Store Graphics and App Review unreachable. */}
+        {selectedVersionId && (
+          <div className="flex h-10 items-center gap-1 overflow-x-auto border-border border-t px-4">
+            {versionItems.map((item) => {
+              const suffix = item.suffix ?? "";
+              const href = `${basePath}/versions/${selectedVersionId}${suffix}`;
+              const active =
+                suffix === ""
+                  ? currentPath === `${basePath}/versions/${selectedVersionId}`
+                  : currentPath.startsWith(href);
+              return (
+                <NavPill key={item.label} href={href} active={active}>
+                  {item.label}
+                </NavPill>
+              );
+            })}
+          </div>
+        )}
       </div>
 
-      {/* Main content */}
-      <div className="flex flex-1 flex-col overflow-hidden">
-        <div className="flex-1 overflow-y-auto">{children}</div>
-      </div>
+      <PushPreviewDialog
+        appId={appId}
+        isIos={isIos}
+        open={showPushPreview}
+        onOpenChange={setShowPushPreview}
+        onComplete={() => {
+          queryClient.invalidateQueries({ queryKey: ["apps"] });
+          queryClient.invalidateQueries({ queryKey: ["listings", appId] });
+          queryClient.invalidateQueries({ queryKey: ["purchases", appId] });
+          queryClient.invalidateQueries({ queryKey: ["publishing", appId] });
+        }}
+      />
+
+      <div className="min-h-0 flex-1 overflow-y-auto">{children}</div>
     </div>
   );
 }
