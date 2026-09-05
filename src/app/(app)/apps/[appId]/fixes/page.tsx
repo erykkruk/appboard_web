@@ -96,7 +96,8 @@ export default function FixesPage() {
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 p-6">
       <FlowSteps current="audit" />
-      <div>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
         <h1 className="font-bold text-xl tracking-tight">Text fixes</h1>
         <p className="mt-1 text-muted-foreground text-sm">
           Each change is a proposal. Accept it and it becomes your draft;
@@ -104,6 +105,10 @@ export default function FixesPage() {
           publish.
           {suggestions.data?.language ? ` Language: ${suggestions.data.language}.` : ""}
         </p>
+        </div>
+        <Button variant="outline" size="sm" onClick={() => router.push(`/apps/${appId}/text`)}>
+          Edit all text
+        </Button>
       </div>
 
       {measuring && (

@@ -44,8 +44,9 @@ export type NavItem = {
 export const APP_NAV: NavItem[] = [
   { label: "Dashboard", icon: LayoutDashboard, suffix: "/dashboard" },
   { label: "Fixes", icon: Wand2, suffix: "/fixes" },
+  { featureKey: "LISTINGS", icon: FileText, label: "Text & keywords", suffix: "/text" },
   { featureKey: "AI", icon: Sparkles, label: "Write with AI", suffix: "/write" },
-  { label: "Information", icon: Info, suffix: "/information" },
+  { label: "About this app", icon: Info, suffix: "/information" },
   {
     featureKey: "SCREENSHOTS",
     icon: Image,

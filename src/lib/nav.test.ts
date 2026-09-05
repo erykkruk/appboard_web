@@ -29,8 +29,9 @@ describe("nav model", () => {
     expect(labels(APP_NAV)).toEqual([
       "Dashboard",
       "Fixes",
+      "Text & keywords",
       "Write with AI",
-      "Information",
+      "About this app",
       "Screenshots",
       "Research",
       "Publish",
