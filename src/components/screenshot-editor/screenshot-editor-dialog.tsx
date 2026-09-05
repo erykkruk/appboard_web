@@ -27,6 +27,7 @@ import {
 	DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { useAssets } from "@/hooks/use-assets";
 import { useDeviceModel, useExtraDeviceModels } from "@/hooks/use-device-model";
 import { useSceneHistory } from "@/hooks/use-scene-history";
 import {
@@ -80,6 +81,7 @@ import {
 } from "@/lib/scene-templates";
 import type {
 	SceneAnnotation,
+	Asset,
 	SceneAnnotationType,
 	SceneData,
 	SceneExtraDevice,
@@ -101,11 +103,18 @@ interface ScreenshotEditorDialogProps {
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
 	appId: string;
-	versionId: string;
+	versionId?: string;
 	language: string;
 	displayType: string;
 	/** Existing scene to reopen, or null to start a fresh scene. */
 	editingScene?: ScreenshotScene | null;
+	/**
+	 * Start a fresh scene with this store screenshot already in the device.
+	 * The fix queue and the gallery send people here to improve THEIR
+	 * screenshots, so opening on an empty frame would make them hunt for
+	 * their own files.
+	 */
+	seedScreenshot?: { externalId: string; url: string } | null;
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -146,14 +155,30 @@ export function ScreenshotEditorDialog({
 	open,
 	onOpenChange,
 	appId,
-	versionId,
+	versionId = "",
 	language,
 	displayType,
 	editingScene,
+	seedScreenshot = null,
 }: ScreenshotEditorDialogProps) {
-	const [scene, setScene, history] = useSceneHistory<SceneData>(
-		() => editingScene?.scene ?? createDefaultScene(displayType),
-	);
+	const [scene, setScene, history] = useSceneHistory<SceneData>(() => {
+		if (editingScene) return editingScene.scene;
+		const fresh = createDefaultScene(displayType);
+		// A fresh scene opened from the gallery or the fix queue starts on the
+		// user's own store screenshot. Seeding here rather than in an effect
+		// keeps the first render already correct; the entry remounts the
+		// dialog per seed, so initial state is the right place for it.
+		return seedScreenshot
+			? {
+					...fresh,
+					screenshot: {
+						...fresh.screenshot,
+						assetId: seedScreenshot.externalId,
+						url: seedScreenshot.url,
+					},
+				}
+			: fresh;
+	});
 	const [sceneName, setSceneName] = useState(
 		() => editingScene?.name ?? "New scene",
 	);
@@ -164,7 +189,7 @@ export function ScreenshotEditorDialog({
 		"__device",
 	);
 	const [screenshotSrc, setScreenshotSrc] = useState<string | undefined>(
-		editingScene?.scene.screenshot?.url,
+		() => editingScene?.scene.screenshot?.url ?? seedScreenshot?.url,
 	);
 	const [localizeOpen, setLocalizeOpen] = useState(false);
 	const [pickerOpen, setPickerOpen] = useState(false);
@@ -193,6 +218,25 @@ export function ScreenshotEditorDialog({
 	// Screenshots already uploaded for this app/version (incl. panorama splits),
 	// so the editor can reuse them as the device screenshot from the DB.
 	const existingScreenshots = useVersionScreenshots(appId, versionId);
+	// No store version means no version screenshots endpoint, but the app's
+	// synced assets hold exactly the same images - that is what a link-imported
+	// app has, and the editor must open with the user's real screenshots.
+	const appAssets = useAssets(appId, { assetType: "screenshot" });
+	const baseScreenshots = versionId
+		? (existingScreenshots.data ?? [])
+		: (appAssets.data ?? []).map((asset: Asset) => ({
+				deviceType: asset.deviceType,
+				displayType: asset.deviceType,
+				externalId: asset.externalId ?? asset.id,
+				height: asset.height,
+				language: asset.language,
+				screenshotSetId: "",
+				url: asset.url,
+				width: asset.width,
+			}));
+	const baseLoading = versionId
+		? existingScreenshots.isLoading
+		: appAssets.isLoading;
 
 	const loaded = useSceneImages(scene, screenshotSrc);
 	const deviceModelImage = useDeviceModel(
@@ -1261,8 +1305,8 @@ export function ScreenshotEditorDialog({
 				<ExistingScreenshotPicker
 					open={pickerOpen}
 					onOpenChange={setPickerOpen}
-					screenshots={existingScreenshots.data ?? []}
-					loading={existingScreenshots.isLoading}
+					screenshots={baseScreenshots}
+					loading={baseLoading}
 					displayType={displayType}
 					onPick={handlePickExistingScreenshot}
 				/>

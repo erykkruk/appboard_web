@@ -20,7 +20,7 @@ import { exportSceneToPng } from "./export-scene";
 
 interface SceneGalleryProps {
 	appId: string;
-	versionId: string;
+	versionId?: string;
 	language: string;
 	displayType: string;
 	onNew: () => void;
@@ -35,7 +35,7 @@ interface SceneGalleryProps {
  */
 export function SceneGallery({
 	appId,
-	versionId,
+	versionId = "",
 	language,
 	displayType,
 	onNew,

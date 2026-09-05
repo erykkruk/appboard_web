@@ -9,9 +9,19 @@ import { ScreenshotEditorDialog } from "./screenshot-editor-dialog";
 
 interface ScreenshotEditorEntryProps {
 	appId: string;
-	versionId: string;
+	/**
+	 * Empty for an app that has no store version yet (a link import, or an app
+	 * not published at all). The editor still works: scenes are app-scoped and
+	 * the base screenshots come from the app's synced assets. Only uploading
+	 * back to the store needs a version.
+	 */
+	versionId?: string;
 	language: string;
 	displayType: string;
+	/** Open the editor straight away - the fix queue sends people here to edit, not to browse. */
+	autoOpen?: boolean;
+	/** Store screenshot to start a fresh scene from (gallery click, or the first one from the queue). */
+	seedScreenshot?: { externalId: string; url: string } | null;
 }
 
 /**
@@ -22,11 +32,13 @@ interface ScreenshotEditorEntryProps {
  */
 export function ScreenshotEditorEntry({
 	appId,
-	versionId,
+	versionId = "",
 	language,
 	displayType,
+	autoOpen = false,
+	seedScreenshot = null,
 }: ScreenshotEditorEntryProps) {
-	const [open, setOpen] = useState(false);
+	const [open, setOpen] = useState(autoOpen);
 	const [editingScene, setEditingScene] = useState<ScreenshotScene | null>(
 		null,
 	);
@@ -58,6 +70,7 @@ export function ScreenshotEditorEntry({
 					onOpenChange={setOpen}
 					appId={appId}
 					versionId={versionId}
+					seedScreenshot={editingScene ? null : seedScreenshot}
 					language={language}
 					displayType={displayType}
 					editingScene={editingScene}

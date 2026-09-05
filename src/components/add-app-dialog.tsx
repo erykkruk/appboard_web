@@ -40,10 +40,16 @@ function useDebouncedValue(value: string, delayMs: number): string {
 export function AddAppForm({
   autoFocus = false,
   onImported,
+  // Every entry point lands in the same flow: what we pulled from the store,
+  // yours to edit, then the audit. Dropping straight onto the dashboard is
+  // how the steps became invisible depending on which button you pressed.
+  destination = (appId) => `/apps/${appId}/start`,
 }: {
   autoFocus?: boolean;
   /** Called after a successful import, before navigation (dialogs close here). */
   onImported?: () => void;
+  /** Where to land after a successful import. */
+  destination?: (appId: string) => string;
 }) {
   const router = useRouter();
   const importApp = useImportApp();
@@ -84,7 +90,7 @@ export function AddAppForm({
         );
         setQuery("");
         onImported?.();
-        router.push(`/apps/${result.app.id}/dashboard`);
+        router.push(destination(result.app.id));
       } catch (err) {
         const message =
           err instanceof Error && err.message
@@ -94,7 +100,7 @@ export function AddAppForm({
         toast.error(message);
       }
     },
-    [importApp, onImported, router],
+    [destination, importApp, onImported, router],
   );
 
   const pickSuggestion = (suggestion: ResearchSuggestion) =>
