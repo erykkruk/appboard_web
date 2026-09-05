@@ -7,6 +7,9 @@ const PUBLIC_PATHS = [
 	"/login",
 	"/register",
 	"/demo",
+	// Local-only fresh-workspace entry; the backend route behind it is absent
+	// on production, so the page there just links to sign-in.
+	"/fresh",
 	"/editor",
 	"/aso-check",
 	"/keyword-check",
