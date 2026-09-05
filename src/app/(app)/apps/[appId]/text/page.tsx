@@ -222,7 +222,12 @@ function LanguageEditor({
       // Only the fields this platform has, so an iOS PUT never carries a
       // Google Play promo video and vice versa.
       const patch: Partial<Record<FieldKey, string>> = {};
-      for (const f of fields) patch[f.key] = data[f.key];
+      for (const f of fields) {
+        // An empty field the store never had is not a change - sending it
+        // would make Publish list a blank "Keywords:" row as work to do.
+        if (data[f.key] === "" && storeForm[f.key] === "") continue;
+        patch[f.key] = data[f.key];
+      }
       await update.mutateAsync({ data: patch, language });
     },
   });
