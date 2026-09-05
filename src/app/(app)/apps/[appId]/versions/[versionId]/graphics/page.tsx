@@ -6,11 +6,14 @@ import { useCallback, useMemo, useRef, useState } from "react";
 
 import { useApp } from "@/hooks/use-apps";
 import { useAssets, useUploadAsset, useDeleteAsset } from "@/hooks/use-assets";
+import { useAutoSave } from "@/hooks/use-auto-save";
+import { useListing, useUpdateListing } from "@/hooks/use-listings";
 import { useVersionDetail } from "@/hooks/use-publishing";
 import { cn } from "@/lib/utils";
 import type { Asset } from "@/lib/types";
 import { APP_STORE_LANGUAGES } from "@/lib/types";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import {
   Select,
   SelectContent,
@@ -21,6 +24,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+
+// Matches the backend's `videoUrl` column limit (listings.schema.ts).
+const VIDEO_URL_MAX_LENGTH = 1024;
 
 const STATE_COLORS: Record<string, string> = {
   ACTIVE: "bg-green-400",
@@ -134,6 +140,92 @@ function SingleAssetSection({
   );
 }
 
+/**
+ * Promo video URL for a single language. The parent keys this by language, so
+ * switching languages remounts it with a fresh draft value instead of having
+ * to re-seed state from the query.
+ */
+function VideoUrlSection({
+  appId,
+  externalId,
+  initialValue,
+  language,
+}: {
+  appId: string;
+  externalId: string | undefined;
+  initialValue: string;
+  language: string;
+}) {
+  const updateListing = useUpdateListing(appId);
+  const [value, setValue] = useState(initialValue);
+  const [savedValue, setSavedValue] = useState(initialValue);
+
+  const overLimit = value.length > VIDEO_URL_MAX_LENGTH;
+
+  useAutoSave({
+    data: value,
+    onSave: async (next) => {
+      if (next === savedValue || next.length > VIDEO_URL_MAX_LENGTH) return;
+      await updateListing.mutateAsync({ data: { videoUrl: next }, language });
+      setSavedValue(next);
+    },
+  });
+
+  return (
+    <VideoUrlCard externalId={externalId}>
+      <p className="text-xs text-muted-foreground/60">
+        Saved to the {language} draft and sent to Google Play on the next
+        publish
+      </p>
+      <Input
+        type="url"
+        inputMode="url"
+        placeholder="https://www.youtube.com/watch?v=..."
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        aria-invalid={overLimit}
+        className="mt-3"
+      />
+      {overLimit && (
+        <p className="mt-2 text-xs text-destructive">
+          Too long - {value.length} of {VIDEO_URL_MAX_LENGTH} characters
+          allowed
+        </p>
+      )}
+    </VideoUrlCard>
+  );
+}
+
+/** Shared shell so the loading and editable states stay visually identical. */
+function VideoUrlCard({
+  children,
+  externalId,
+}: {
+  children: React.ReactNode;
+  externalId: string | undefined;
+}) {
+  return (
+    <div className="rounded-xl border border-border p-5">
+      <p className="text-sm font-medium">Video URL</p>
+      <p className="text-xs text-muted-foreground">
+        YouTube link shown on your Google Play listing
+      </p>
+      {children}
+      {externalId && (
+        <a
+          href={`https://play.google.com/console/developers/app/${externalId}/store-listing`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex items-center gap-1.5 text-xs font-medium text-muted-foreground hover:text-primary hover:underline"
+        >
+          Open in Play Console
+          <ExternalLink className="h-3.5 w-3.5" />
+        </a>
+      )}
+    </div>
+  );
+}
+
 export default function StoreGraphicsPage() {
   const params = useParams<{ appId: string; versionId: string }>();
   const appData = useApp(params.appId);
@@ -167,6 +259,9 @@ export default function StoreGraphicsPage() {
 
   const featureGraphic = (featureGraphicAssets.data ?? [])[0];
   const tvBanner = (tvBannerAssets.data ?? [])[0];
+
+  // The promo video lives on the draft listing, not on an asset.
+  const listing = useListing(params.appId, activeLang);
 
   const handleUpload = useCallback(
     (assetType: string, file: File) => {
@@ -272,28 +367,29 @@ export default function StoreGraphicsPage() {
         disabled={!hasLanguage}
       />
 
-      {/* Video / Promo URL — managed in Play Console */}
-      <div className="rounded-xl border border-border p-5">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="text-sm font-medium">Video URL</p>
-            <p className="text-xs text-muted-foreground">
-              Promo videos can only be managed directly in Google Play Console
-            </p>
-          </div>
-          {appData.data?.externalId && (
-            <a
-              href={`https://play.google.com/console/developers/app/${appData.data.externalId}/store-listing`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-            >
-              Open in Play Console
-              <ExternalLink className="h-3.5 w-3.5" />
-            </a>
-          )}
-        </div>
-      </div>
+      {/* Promo video URL - a draft listing field, published with the listing */}
+      {listing.isSuccess ? (
+        <VideoUrlSection
+          key={activeLang}
+          appId={params.appId}
+          externalId={appData.data?.externalId}
+          initialValue={listing.data?.videoUrl ?? ""}
+          language={activeLang}
+        />
+      ) : (
+        <VideoUrlCard externalId={appData.data?.externalId}>
+          <p className="mt-3 flex h-9 items-center gap-2 text-xs text-muted-foreground">
+            {hasLanguage ? (
+              <>
+                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                Loading the draft listing
+              </>
+            ) : (
+              "Select a language to edit the video URL"
+            )}
+          </p>
+        </VideoUrlCard>
+      )}
 
       {/* TV Banner (optional, mainly for TV apps) */}
       <SingleAssetSection

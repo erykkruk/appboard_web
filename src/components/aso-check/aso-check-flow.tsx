@@ -6,6 +6,7 @@ import {
   ChevronRight,
   Loader2,
   Lock,
+  Plus,
   Search,
   Sparkles,
   Star,
@@ -86,6 +87,26 @@ const CALL_DELAY_MS = 300;
 const SEARCH_DEBOUNCE_MS = 400;
 const SIGNUP_URL = "/register?from=aso-check";
 const QUOTA_TOOL = "aso-check" as const;
+
+/**
+ * Public store link of the checked app. The lookup normally carries one; the
+ * canonical fallback is rebuilt from the store id so the signup link is never
+ * empty.
+ */
+function storeLinkFor(app: CheckedApp, store: StoreKind): string {
+  if (app.url) return app.url;
+  return store === "playstore"
+    ? `https://play.google.com/store/apps/details?id=${encodeURIComponent(app.trackId)}&gl=${encodeURIComponent(app.country)}`
+    : `https://apps.apple.com/${encodeURIComponent(app.country)}/app/id${encodeURIComponent(app.trackId)}`;
+}
+
+/**
+ * Signup link that carries the checked app along, so the free report does not
+ * dead-end: the panel picks the link up and imports the app after signup.
+ */
+function importSignupUrl(app: CheckedApp, store: StoreKind): string {
+  return `${SIGNUP_URL}&url=${encodeURIComponent(storeLinkFor(app, store))}`;
+}
 
 /**
  * Google Play artwork is re-served from our own origin: privacy blockers
@@ -537,7 +558,15 @@ export function AsoCheckFlow() {
           </p>
         </div>
         {!isRunning && (
-          <div className="ml-auto">
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            {report && (
+              <Button asChild>
+                <Link href={importSignupUrl(app, store)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add this app to AppBoard
+                </Link>
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setPhase("idle")}>
               Check another app
             </Button>

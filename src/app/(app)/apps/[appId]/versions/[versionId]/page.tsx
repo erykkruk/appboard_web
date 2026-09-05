@@ -76,6 +76,7 @@ import { useAutoSave } from "@/hooks/use-auto-save";
 import { useCapabilities } from "@/hooks/use-capabilities";
 import { useHistory, useRollback } from "@/hooks/use-history";
 import { useListingDiffs } from "@/hooks/use-listing-diffs";
+import { useListing, useUpdateListing } from "@/hooks/use-listings";
 import {
 	useCreateVersion,
 	usePublishingOverview,
@@ -139,6 +140,10 @@ const EDITABLE_STATES = new Set([
 ]);
 
 const WHATS_NEW_EDITABLE_STATES = new Set(["DEVELOPER_REJECTED", "REJECTED"]);
+
+// Matches the backend's `videoUrl` column limit (listings.schema.ts).
+const PROMO_VIDEO_URL_MAX_LENGTH = 1024;
+const PROMO_VIDEO_FIELD_KEY = "videoUrl";
 
 const AI_FIELDS: ListingFieldName[] = [
 	"title",
@@ -374,6 +379,114 @@ function HistoryPreviewDiff({
 	);
 }
 
+interface PromoVideoFieldProps {
+	appId: string;
+	disabled: boolean;
+	fieldDiff: { oldValue: string | null; newValue: string | null } | null;
+	initialValue: string;
+	isDiffExpanded: boolean;
+	language: string;
+	onToggleDiff: () => void;
+}
+
+/**
+ * Google Play promo video (YouTube link). It lives on the draft listing rather
+ * than on the version localization, so it is saved through the listings PUT
+ * instead of the localization PATCH the other fields use. The parent keys it
+ * by language so switching languages remounts it with a fresh draft value.
+ */
+function PromoVideoField({
+	appId,
+	disabled,
+	fieldDiff,
+	initialValue,
+	isDiffExpanded,
+	language,
+	onToggleDiff,
+}: PromoVideoFieldProps) {
+	const updateListing = useUpdateListing(appId);
+	const [value, setValue] = useState(initialValue);
+	const [savedValue, setSavedValue] = useState(initialValue);
+
+	const overLimit = value.length > PROMO_VIDEO_URL_MAX_LENGTH;
+	// Soft hint only: Google Play needs a full https:// link, but an
+	// in-progress value is still saved so nothing typed is lost.
+	const showHttpsHint = value.trim() !== "" && !value.startsWith("https://");
+
+	useAutoSave({
+		data: value,
+		enabled: !disabled,
+		onSave: async (next) => {
+			if (next === savedValue || next.length > PROMO_VIDEO_URL_MAX_LENGTH) {
+				return;
+			}
+			await updateListing.mutateAsync({
+				data: { videoUrl: next },
+				language,
+			});
+			setSavedValue(next);
+		},
+	});
+
+	return (
+		<div className="space-y-1.5">
+			<div className="flex items-center justify-between">
+				<div className="flex items-center gap-1.5">
+					<Label className="text-sm font-medium" htmlFor={PROMO_VIDEO_FIELD_KEY}>
+						{getListingFieldLabel(PROMO_VIDEO_FIELD_KEY)}
+					</Label>
+					{fieldDiff && (
+						<DiffBadge
+							onClick={onToggleDiff}
+							originalValue={fieldDiff.oldValue}
+						/>
+					)}
+				</div>
+				<span
+					className={cn(
+						"text-xs tabular-nums",
+						overLimit
+							? "text-destructive font-medium"
+							: "text-muted-foreground",
+					)}
+				>
+					{value.length}/{PROMO_VIDEO_URL_MAX_LENGTH}
+				</span>
+			</div>
+			<Input
+				className={cn(
+					"bg-[#1a1a1a] border-border",
+					overLimit && "border-destructive",
+				)}
+				disabled={disabled}
+				id={PROMO_VIDEO_FIELD_KEY}
+				inputMode="url"
+				onChange={(e) => setValue(e.target.value)}
+				placeholder="https://www.youtube.com/watch?v=..."
+				type="url"
+				value={value}
+			/>
+			{overLimit ? (
+				<p className="flex items-center gap-1 text-xs text-destructive">
+					<AlertCircle className="h-3 w-3 shrink-0" />
+					Exceeds maximum of {PROMO_VIDEO_URL_MAX_LENGTH} characters
+				</p>
+			) : showHttpsHint ? (
+				<p className="text-xs text-muted-foreground">
+					Google Play expects a full https:// YouTube link. The value is
+					saved as typed.
+				</p>
+			) : null}
+			{fieldDiff && isDiffExpanded && (
+				<FieldDiffPanel
+					newValue={fieldDiff.newValue}
+					oldValue={fieldDiff.oldValue}
+				/>
+			)}
+		</div>
+	);
+}
+
 export default function VersionDetailPage() {
 	const params = useParams<{ appId: string; versionId: string }>();
 	const detail = useVersionDetail(params.appId, params.versionId);
@@ -440,6 +553,14 @@ export default function VersionDetailPage() {
 	const [previewSince, setPreviewSince] = useState<Date | null>(null);
 	const diffsQuery = useListingDiffs(params.appId);
 	const historyQuery = useHistory(params.appId, { enabled: historyOpen });
+	const isAndroid = appData.data?.platform === "android";
+	const isIos = appData.data?.platform === "ios";
+	// The promo video is stored on the draft listing (Google Play only), which
+	// the version localizations do not carry, so it is fetched separately.
+	const draftListing = useListing(
+		params.appId,
+		isAndroid ? selectedLanguage : "",
+	);
 	const rollbackMutation = useRollback(params.appId);
 
 	const getDiffForField = useCallback(
@@ -2254,6 +2375,37 @@ export default function VersionDetailPage() {
 							</div>
 						);
 					})}
+
+					{/* Promo video (Android only). Kept out of FIELDS on purpose: it is
+					    a draft-listing field, not a localization field, and must stay
+					    out of the AI generate / translate / DNT flows. */}
+					{isAndroid && draftListing.isSuccess && (
+						<PromoVideoField
+							appId={params.appId}
+							disabled={!isEditable}
+							fieldDiff={getDiffForField(
+								selectedLanguage,
+								PROMO_VIDEO_FIELD_KEY,
+							)}
+							initialValue={draftListing.data?.videoUrl ?? ""}
+							isDiffExpanded={expandedDiffs.has(
+								`${selectedLanguage}:${PROMO_VIDEO_FIELD_KEY}`,
+							)}
+							key={selectedLanguage}
+							language={selectedLanguage}
+							onToggleDiff={() =>
+								toggleDiff(selectedLanguage, PROMO_VIDEO_FIELD_KEY)
+							}
+						/>
+					)}
+
+					{/* No fake control for iOS: AppBoard does not upload app previews yet. */}
+					{isIos && (
+						<p className="text-xs text-muted-foreground">
+							App previews (video) are managed in App Store Connect for
+							now - AppBoard does not upload them yet.
+						</p>
+					)}
 
 					{/* Per-language translation settings (DNT toggles + instructions).
 					    Hidden by default — toggled from the top-right actions menu. */}
