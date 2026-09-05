@@ -2003,3 +2003,13 @@ export interface WorkspaceOverview {
     downloadsAvailable: boolean;
   };
 }
+
+// ── AI availability ───────────────────────────────────────────────────
+
+export interface AiStatus {
+  configured: boolean;
+  /** "workspace" = own key in Settings, "instance" = the self-hosted env key. */
+  source: "workspace" | "instance" | null;
+  /** Last OpenRouter failure for this workspace, e.g. a rejected key. */
+  lastError: string | null;
+}

@@ -1,4 +1,5 @@
 import type {
+	AiStatus,
 	AppAuditResponse,
 	BulkCopyPreview,
 	BulkCopyRequest,
@@ -215,6 +216,7 @@ export const api = {
 			),
 	},
 	ai: {
+		status: () => fetchApi<AiStatus>("/api/ai/status"),
 		draftReply: (data: DraftReplyRequest) =>
 			fetchApi<AiResponse>("/api/ai/draft-reply", {
 				body: JSON.stringify(data),

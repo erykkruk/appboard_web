@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
+import { AiUnlockCard } from "@/components/ai-unlock-card";
 import { AiOffHint } from "@/components/write/ai-off-hint";
 import { KeywordChips } from "@/components/write/keyword-chips";
 import { useApp } from "@/hooks/use-apps";
@@ -223,6 +224,7 @@ export default function WriteWithAiPage() {
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6 p-6">
       <PageHeader />
+      <AiUnlockCard />
 
       <Card>
         <CardHeader>

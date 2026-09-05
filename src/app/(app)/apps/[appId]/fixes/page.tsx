@@ -6,6 +6,7 @@ import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import { useQueryClient } from "@tanstack/react-query";
 
+import { AiUnlockCard } from "@/components/ai-unlock-card";
 import { InlineDiff } from "@/components/diff/inline-diff";
 import { FlowSteps } from "@/components/flow-steps";
 import { Badge } from "@/components/ui/badge";
@@ -192,6 +193,10 @@ export default function FixesPage() {
           </Card>
         );
       })}
+
+      {/* Everything above is deterministic. The description itself is the one
+          field only a model can rewrite well - say so instead of hiding it. */}
+      <AiUnlockCard compact />
 
       {!measuring && list.length > 0 && open.length === 0 && (
         <Card>

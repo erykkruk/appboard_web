@@ -16,6 +16,7 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AiUnlockCard } from "@/components/ai-unlock-card";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -115,6 +116,31 @@ function ReviewCard({
     }
   };
 
+  // Without a store integration the reply cannot be SENT from here, but it
+  // can still be written: draft it, copy it, paste it in the console.
+  const [copyDraft, setCopyDraft] = useState<string | null>(null);
+  const handleDraftToCopy = async () => {
+    try {
+      const result = await draftReply.mutateAsync({
+        reviewText: `${review.title ?? ""} ${review.body}`,
+        rating: review.rating,
+        appName,
+      });
+      setCopyDraft(result.result);
+    } catch {
+      toast.error("Failed to generate AI draft");
+    }
+  };
+  const copyToClipboard = async () => {
+    if (!copyDraft) return;
+    try {
+      await navigator.clipboard.writeText(copyDraft);
+      toast.success("Copied - paste it in the store console");
+    } catch {
+      toast.error("Could not copy");
+    }
+  };
+
   const handleAiDraft = async () => {
     try {
       const result = await draftReply.mutateAsync({
@@ -179,16 +205,51 @@ function ReviewCard({
         )}
 
         {!canReply && !review.replyText && (
-          <p className="mt-4 text-xs text-muted-foreground">
-            <KeyRound className="mr-1 inline h-3 w-3" />
-            Replying needs a store API integration.{" "}
-            <Link
-              href={storeType ? `/onboarding?type=${storeType}` : "/onboarding"}
-              className="text-primary underline underline-offset-4"
-            >
-              Connect store API
-            </Link>
-          </p>
+          <div className="mt-4 space-y-2">
+            {copyDraft !== null ? (
+              <>
+                <Textarea
+                  value={copyDraft}
+                  onChange={(e) => setCopyDraft(e.target.value)}
+                  rows={4}
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={copyToClipboard}>
+                    Copy reply
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDraftToCopy}
+                    disabled={draftReply.isPending}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDraftToCopy}
+                disabled={draftReply.isPending}
+              >
+                {draftReply.isPending ? "Drafting..." : "Draft a reply with AI"}
+              </Button>
+            )}
+            <p className="text-xs text-muted-foreground">
+              <KeyRound className="mr-1 inline h-3 w-3" />
+              Sending from here needs a store API integration - copy the reply
+              into the console for now, or{" "}
+              <Link
+                href={storeType ? `/onboarding?type=${storeType}` : "/onboarding"}
+                className="text-primary underline underline-offset-4"
+              >
+                connect the store API
+              </Link>
+              .
+            </p>
+          </div>
         )}
 
         {canReply && !review.replyText && !isReplying && (
@@ -281,7 +342,8 @@ export default function ReviewsManager() {
   const syncReviews = useSyncReviews(appId);
 
   return (
-    <div className="mx-auto w-full max-w-6xl p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-4 p-6">
+      <AiUnlockCard compact />
       {stats.isLoading && (
         <div className="mb-6 grid gap-4 md:grid-cols-2">
           <Skeleton className="h-40 rounded-xl" />

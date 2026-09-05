@@ -1,6 +1,6 @@
 "use client";
 
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 import type {
@@ -57,4 +57,16 @@ export function useGeneratePurchaseField() {
     mutationFn: (data: GeneratePurchaseFieldRequest) =>
       api.ai.generatePurchaseField(data),
   });
+}
+
+/**
+ * Whether AI can run at all for this workspace. Screens use it to show what a
+ * key unlocks up front instead of letting a button fail on click.
+ */
+export function useAiStatus() {
+	return useQuery({
+		queryFn: () => api.ai.status(),
+		queryKey: ["ai", "status"],
+		staleTime: 60_000,
+	});
 }
