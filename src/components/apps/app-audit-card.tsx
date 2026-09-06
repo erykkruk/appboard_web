@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useAiStatus } from "@/hooks/use-ai";
 import { useAudit, useRecheckAudit, useSuggestions } from "@/hooks/use-audit";
 import { useVersions } from "@/hooks/use-publishing";
 import { api } from "@/lib/api";
@@ -67,7 +68,17 @@ function resolveAction(
   app: App,
   report: { country: string; language: string },
   versions: AppVersion[] | undefined,
+  aiReady: boolean,
 ): IssueAction | undefined {
+  // Without a working AI key the "rewrite" buttons would land on a card
+  // that only explains what a key buys. The description is still editable
+  // by hand, so send people there instead.
+  if (
+    !aiReady &&
+    (issue.id === "description-opening" || issue.id === "description-short")
+  ) {
+    return { kind: "route", label: "Edit the description", path: "text" };
+  }
   if (issue.id === "no-local-listing") {
     const locale = storeLocaleFor(report.language, report.country, app.platform);
     return {
@@ -164,6 +175,8 @@ export function AppAuditCard({ app }: { app: App }) {
   const recheck = useRecheckAudit(app.id);
   // Only API-connected apps have versions to set a category on.
   const versions = useVersions(app.id, app.store?.connectionMode === "api");
+  const aiStatus = useAiStatus();
+  const aiReady = !!aiStatus.data?.configured && !aiStatus.data.lastError;
   const suggestions = useSuggestions(app.id);
   const proposalCount = suggestions.data?.suggestions.length ?? 0;
   const [tracking, setTracking] = useState(false);
@@ -251,7 +264,7 @@ export function AppAuditCard({ app }: { app: App }) {
   const gaps = keywords.filter((k) => isGap(k, recommendable));
 
   const openFix = (issue: AuditIssue) => {
-    const action = resolveAction(issue, app, report, versions.data);
+    const action = resolveAction(issue, app, report, versions.data, aiReady);
     if (!action || action.kind === "external") return;
     if (action.kind === "route") {
       router.push(`/apps/${app.id}/${action.path}`);
@@ -361,7 +374,7 @@ export function AppAuditCard({ app }: { app: App }) {
           </CardHeader>
           <CardContent className="space-y-2">
             {actionable.map((issue, index) => {
-              const action = resolveAction(issue, app, report, versions.data);
+              const action = resolveAction(issue, app, report, versions.data, aiReady);
               return (
                 <div
                   key={issue.id}
