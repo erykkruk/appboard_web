@@ -1,2 +1,7 @@
 [test]
 preload = ["./src/test/setup.ts"]
+# bun 1.3 runs test files in parallel workers by default; the suite mocks
+# fetch, modules and happy-dom globals per file, which is only safe serially
+# (parallel runs: 14-19 random failures, serial: 0-1). `bun run test` also
+# passes --parallel=1 explicitly, which is what makes the run clean.
+parallel = false
