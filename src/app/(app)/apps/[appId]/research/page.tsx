@@ -1,8 +1,10 @@
 "use client";
 
 import { useParams, useSearchParams } from "next/navigation";
+import { useState } from "react";
 
 import { useApp } from "@/hooks/use-apps";
+import { isLocalApp } from "@/lib/apps";
 
 import { AppResearchRunTab } from "@/components/tracking/app-research-run-tab";
 import { AppleImpressionsCard } from "@/components/research/apple-impressions-card";
@@ -11,6 +13,8 @@ import { KeywordScoresSection } from "@/components/research/keyword-scores-secti
 import { AutomationTab } from "@/components/tracking/automation-tab";
 import { KeywordsRankingsTab } from "@/components/tracking/keywords-rankings-tab";
 import { ResearchHistoryTab } from "@/components/tracking/research-history-tab";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Tabs,
   TabsContent,
@@ -27,10 +31,39 @@ const RESEARCH_TABS = [
 ] as const;
 type ResearchTab = (typeof RESEARCH_TABS)[number];
 
+/**
+ * Research reads the store page, so an app that is in no store yet has
+ * nothing to scrape. Keyword scoring only needs the search results, so that
+ * is the useful place to send someone building a listing from scratch.
+ */
+function NotInStoreCard({ onScoreKeywords }: { onScoreKeywords: () => void }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base">Research starts on the store page</CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-wrap items-center justify-between gap-3 text-sm">
+        <p className="max-w-xl text-muted-foreground">
+          This app is not in a store yet, so there are no reviews or metadata
+          to read. What works today: score the keywords you are considering
+          for the title and subtitle, and track them so positions appear the
+          day the app goes live.
+        </p>
+        <Button size="sm" onClick={onScoreKeywords}>
+          Score keywords
+        </Button>
+      </CardContent>
+    </Card>
+  );
+}
+
 function AppKeywordScoresTab({ appId }: { appId: string }) {
   const app = useApp(appId);
+  // A local app's id is not a store id: score without a "your rank" column.
   const appstoreId =
-    app.data?.platform === "ios" ? app.data.externalId : undefined;
+    app.data?.platform === "ios" && !isLocalApp(app.data)
+      ? app.data.externalId
+      : undefined;
   return (
     <div className="space-y-10">
       <KeywordScoresSection appstoreId={appstoreId} />
@@ -49,6 +82,9 @@ export default function AppResearchPage() {
   )
     ? (tabParam as ResearchTab)
     : "run";
+  const [tab, setTab] = useState<ResearchTab>(initialTab);
+  const app = useApp(appId);
+  const notInStore = isLocalApp(app.data);
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
@@ -59,7 +95,7 @@ export default function AppResearchPage() {
         </p>
       </div>
 
-      <Tabs defaultValue={initialTab}>
+      <Tabs value={tab} onValueChange={(v) => setTab(v as ResearchTab)}>
         <TabsList>
           <TabsTrigger value="run">Research</TabsTrigger>
           <TabsTrigger value="keywords">Keywords &amp; Rankings</TabsTrigger>
@@ -69,7 +105,11 @@ export default function AppResearchPage() {
         </TabsList>
 
         <TabsContent value="run" className="mt-6">
-          <AppResearchRunTab appId={appId} />
+          {notInStore ? (
+            <NotInStoreCard onScoreKeywords={() => setTab("scores")} />
+          ) : (
+            <AppResearchRunTab appId={appId} />
+          )}
         </TabsContent>
         <TabsContent value="keywords" className="mt-6">
           <KeywordsRankingsTab appId={appId} />

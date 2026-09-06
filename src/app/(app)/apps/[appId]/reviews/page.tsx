@@ -451,19 +451,22 @@ export default function ReviewsManager() {
 
         <div className="flex-1" />
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => syncReviews.mutate()}
-          disabled={syncReviews.isPending}
-        >
-          {syncReviews.isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 h-4 w-4" />
-          )}
-          Sync
-        </Button>
+        {/* Nothing to pull for an app that is in no store yet. */}
+        {!isLocalApp(app.data) && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncReviews.mutate()}
+            disabled={syncReviews.isPending}
+          >
+            {syncReviews.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Sync
+          </Button>
+        )}
       </div>
 
       {reviews.isLoading && (
