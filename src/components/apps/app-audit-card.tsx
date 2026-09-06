@@ -285,10 +285,19 @@ export function AppAuditCard({ app }: { app: App }) {
       .filter((k) => k.country.toLowerCase() === report.country.toLowerCase())
       .map((k) => k.keyword.trim().toLowerCase()),
   );
-  const untracked = keywords.filter(
+  // Terms from another category are shown for context, not to be chased -
+  // tracking them would burn the 20 slots a market has. Offer only the terms
+  // the audit is willing to recommend, plus anything you already rank for.
+  const worthTracking = keywords.filter(
+    (k) =>
+      recommendable.size === 0 ||
+      recommendable.has(k.keyword.trim().toLowerCase()) ||
+      !!k.appRank,
+  );
+  const untracked = worthTracking.filter(
     (k) => !trackedHere.has(k.keyword.trim().toLowerCase()),
   );
-  const allTracked = keywords.length > 0 && untracked.length === 0;
+  const allTracked = worthTracking.length > 0 && untracked.length === 0;
 
   const trackAll = async () => {
     setTracking(true);
@@ -454,7 +463,7 @@ export function AppAuditCard({ app }: { app: App }) {
               variant="outline"
               size="sm"
               onClick={trackAll}
-              disabled={tracking || keywords.length === 0}
+              disabled={tracking || untracked.length === 0}
             >
               {tracking && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
               {trackedHere.size > 0

@@ -39,6 +39,7 @@ import {
   useRunRankCheck,
   useTracking,
 } from "@/hooks/use-tracking";
+import { useApp } from "@/hooks/use-apps";
 import { formatKeywordPosition, RESEARCH_COUNTRIES } from "@/lib/research";
 import { MAX_TRACKED_KEYWORDS_PER_LANGUAGE } from "@/lib/types";
 
@@ -48,9 +49,12 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
   const removeKeyword = useRemoveKeyword(appId);
   const rankCheck = useRunRankCheck(appId);
 
-  const [country, setCountry] = useState("us");
+  const app = useApp(appId);
+  const [pickedCountry, setPickedCountry] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [chartCountry, setChartCountry] = useState("us");
+  const [pickedChartCountry, setPickedChartCountry] = useState<string | null>(
+    null,
+  );
 
   const keywords = useMemo(
     () => tracking.data?.keywords ?? [],
@@ -63,11 +67,20 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
     [keywords],
   );
 
+  // The market you imported from is where your keywords live; opening on
+  // "US" with "0/20" made an app tracked in PL look untracked.
+  const homeCountry =
+    app.data?.rawData?.publicCountry?.toLowerCase() ?? countriesUsed[0] ?? "us";
+  const country = pickedCountry ?? homeCountry;
+
   // Effective chart filter: keep the user's choice if it still has keywords,
-  // otherwise fall back to the first available market (derived, not stateful).
-  const effectiveChartCountry = countriesUsed.includes(chartCountry)
-    ? chartCountry
-    : (countriesUsed[0] ?? "us");
+  // otherwise the home market, otherwise the first market with keywords.
+  const effectiveChartCountry =
+    pickedChartCountry && countriesUsed.includes(pickedChartCountry)
+      ? pickedChartCountry
+      : countriesUsed.includes(homeCountry)
+        ? homeCountry
+        : (countriesUsed[0] ?? "us");
 
   const history = useRankHistory(appId, { country: effectiveChartCountry });
 
@@ -109,7 +122,7 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
           <div className="flex flex-wrap items-end gap-3">
             <div className="space-y-1">
               <Label>Market</Label>
-              <Select value={country} onValueChange={setCountry}>
+              <Select value={country} onValueChange={setPickedCountry}>
                 <SelectTrigger className="w-28">
                   <SelectValue />
                 </SelectTrigger>
@@ -251,7 +264,7 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
             </CardDescription>
           </div>
           {countriesUsed.length > 1 && (
-            <Select value={effectiveChartCountry} onValueChange={setChartCountry}>
+            <Select value={effectiveChartCountry} onValueChange={setPickedChartCountry}>
               <SelectTrigger className="w-28">
                 <SelectValue />
               </SelectTrigger>
