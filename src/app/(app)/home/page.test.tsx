@@ -127,7 +127,7 @@ describe("HomePage", () => {
     expect(screen.getByText("Public link")).toBeInTheDocument();
     expect(screen.getByText("API")).toBeInTheDocument();
     expect(screen.getByText("-> 84")).toBeInTheDocument();
-    expect(screen.getByText(/4\.0 from 5/)).toBeInTheDocument();
+    expect(screen.getByText(/4\.0 stars/)).toBeInTheDocument();
     expect(screen.getByText("(1.2k)")).toBeInTheDocument();
     expect(screen.getByText("#12")).toBeInTheDocument();
     expect(screen.getAllByText("never")).toHaveLength(2);
