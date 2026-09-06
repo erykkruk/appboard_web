@@ -43,8 +43,22 @@ export async function consumeQuota(
 			headers: { "Content-Type": "application/json" },
 			method: "POST",
 		});
-		const body = (await res.json()) as ConsumeResult;
-		return body;
+		// Only "used up" (429) may say no. Any other non-OK answer - a backend
+		// that predates the quota route answers 404 with a JSON body - has no
+		// verdict in it, and the free tool must not stop on an undefined.
+		if (!res.ok && res.status !== 429) {
+			return { allowed: true, limit: 0, remaining: 0, used: 0 };
+		}
+		const body = (await res.json()) as Partial<ConsumeResult>;
+		if (typeof body.allowed !== "boolean") {
+			return { allowed: true, limit: 0, remaining: 0, used: 0 };
+		}
+		return {
+			allowed: body.allowed,
+			limit: body.limit ?? 0,
+			remaining: body.remaining ?? 0,
+			used: body.used ?? 0,
+		};
 	} catch {
 		return { allowed: true, limit: 0, remaining: 0, used: 0 };
 	}
