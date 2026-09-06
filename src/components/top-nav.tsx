@@ -24,6 +24,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { FreeToolsMenu } from "@/components/free-tools-menu";
 import { HelpMenu } from "@/components/help-menu";
 import { VersionDialog } from "@/components/version-dialog";
 import { useApps } from "@/hooks/use-apps";
@@ -207,6 +208,7 @@ export function TopNav() {
             </Link>
           </Button>
         )}
+        <FreeToolsMenu />
         <Button variant="ghost" size="sm" asChild>
           <Link href="/onboarding">
             <Store className="mr-1.5 h-3.5 w-3.5" />
