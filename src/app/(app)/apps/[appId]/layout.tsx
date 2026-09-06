@@ -26,14 +26,10 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
 import { useApp } from "@/hooks/use-apps";
 import { useFeatureFilter } from "@/hooks/use-features";
 import { useCreateVersion, useVersions } from "@/hooks/use-publishing";
+import { isLocalApp } from "@/lib/apps";
 import { api } from "@/lib/api";
 import { APP_NAV, VERSION_NAV } from "@/lib/nav";
 import { cn } from "@/lib/utils";
@@ -92,7 +88,12 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const app = useApp(appId);
   const isFeatureAllowed = useFeatureFilter();
-  const versions = useVersions(appId);
+  const isIos = app.data?.platform === "ios";
+  const isPublicApp = app.data?.store?.connectionMode === "public";
+  // Versions are an App Store Connect concept: an app read from the public
+  // store page (or one that is in no store yet) has nothing to list or create.
+  const hasVersions = !!app.data && isIos && !isPublicApp;
+  const versions = useVersions(appId, hasVersions);
 
   const createVersion = useCreateVersion(appId);
   const [newVersion, setNewVersion] = useState("");
@@ -104,9 +105,8 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
   const basePath = `/apps/${appId}`;
   const versionList = versions.data ?? [];
   const draftVersion = versionList.find((v) => v.isEditable);
-  const isIos = app.data?.platform === "ios";
   const isGpDraftApp = !isIos && app.data?.status === "draft";
-  const isPublicApp = app.data?.store?.connectionMode === "public";
+  const isLocal = isLocalApp(app.data);
 
   const versionMatch = currentPath.match(/\/versions\/([^/]+)/);
   const urlVersionId = versionMatch?.[1] ?? null;
@@ -184,9 +184,11 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
   }, [appId, isIos, isPublicApp, queryClient]);
 
   const lastSyncedAt = app.data?.lastSyncedAt;
-  const sectionItems = APP_NAV.filter(
-    (item) => !item.iosOnly || isIos,
-  ).filter((item) => isFeatureAllowed(item.featureKey));
+  const sectionItems = APP_NAV.filter((item) => !item.iosOnly || isIos)
+    .filter((item) => isFeatureAllowed(item.featureKey))
+    // Purchases are managed through the store API; without one the section
+    // is an empty list with a 403 behind every button.
+    .filter((item) => !(isPublicApp && item.label === "Purchases"));
   const versionItems = VERSION_NAV.filter(
     (item) => !item.iosOnly || isIos,
   ).filter((item) => isFeatureAllowed(item.featureKey));
@@ -208,7 +210,7 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
             );
           })}
 
-          {isIos && (
+          {hasVersions && (
             <>
               <span className="mx-1 h-5 w-px shrink-0 bg-border" />
               <DropdownMenu>
@@ -316,31 +318,20 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
             </Link>
           )}
 
+          {/* An app without a store API has no push and, when it is in no
+              store at all, nothing to sync either. The Publish section holds
+              the copy-and-paste path, so the bar only says what is missing. */}
           {isPublicApp && (
             <Link
-              href="/onboarding"
+              href={isLocal ? `${basePath}/publish` : "/onboarding"}
               className="flex shrink-0 items-center gap-1.5 rounded-md border border-amber-500/30 bg-amber-500/5 px-2 py-1 text-[11px] text-amber-500"
             >
               <KeyRound className="h-3.5 w-3.5" />
-              Public data only - connect the store API
+              {isLocal ? "Not in a store yet" : "Public data only"}
             </Link>
           )}
 
-          {isPublicApp ? (
-            <Tooltip delayDuration={0}>
-              <TooltipTrigger asChild>
-                <span className="shrink-0">
-                  <Button variant="outline" size="sm" disabled className="gap-2">
-                    <Upload className="h-3.5 w-3.5" />
-                    {isIos ? "Push to App Store" : "Push as Draft"}
-                  </Button>
-                </span>
-              </TooltipTrigger>
-              <TooltipContent side="bottom" sideOffset={8}>
-                Requires store API integration
-              </TooltipContent>
-            </Tooltip>
-          ) : (
+          {!isPublicApp && (
             <Button
               variant="outline"
               size="sm"
@@ -353,20 +344,22 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
             </Button>
           )}
 
-          <Button
-            variant="outline"
-            size="sm"
-            className="shrink-0 gap-2"
-            onClick={handleSyncAll}
-            disabled={isSyncing}
-          >
-            <RefreshCw className={cn("h-3.5 w-3.5", isSyncing && "animate-spin")} />
-            {isSyncing ? "Syncing..." : "Sync All"}
-          </Button>
-          {lastSyncedAt && (
-            <span className="shrink-0 text-[10px] text-muted-foreground">
-              Synced {new Date(lastSyncedAt).toLocaleDateString()}
-            </span>
+          {!isLocal && (
+            <Button
+              variant="outline"
+              size="sm"
+              className="shrink-0 gap-2"
+              onClick={handleSyncAll}
+              disabled={isSyncing}
+              title={
+                lastSyncedAt
+                  ? `Last synced ${new Date(lastSyncedAt).toLocaleString()}`
+                  : undefined
+              }
+            >
+              <RefreshCw className={cn("h-3.5 w-3.5", isSyncing && "animate-spin")} />
+              {isSyncing ? "Syncing..." : "Sync All"}
+            </Button>
           )}
         </div>
 
