@@ -90,8 +90,10 @@ export default function FixesPage() {
     );
   }
 
+  const notInStore = audit.data?.status === "not-in-store";
   const measuring =
-    audit.data?.status === "measuring" || suggestions.data?.status === "no-audit";
+    !notInStore &&
+    (audit.data?.status === "measuring" || suggestions.data?.status === "no-audit");
 
   return (
     <div className="mx-auto w-full max-w-3xl space-y-4 p-6">
@@ -111,6 +113,21 @@ export default function FixesPage() {
         </Button>
       </div>
 
+      {notInStore && (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6 text-sm">
+            <p className="text-muted-foreground">
+              This app is not in a store yet, so there is nothing to measure.
+              Write your text first; proposals appear after the first audit,
+              the day the app is live.
+            </p>
+            <Button size="sm" onClick={() => router.push(`/apps/${appId}/text`)}>
+              Write the text
+            </Button>
+          </CardContent>
+        </Card>
+      )}
+
       {measuring && (
         <Card>
           <CardContent className="pt-6 text-muted-foreground text-sm">
@@ -120,7 +137,7 @@ export default function FixesPage() {
         </Card>
       )}
 
-      {!measuring && list.length === 0 && (
+      {!measuring && !notInStore && list.length === 0 && (
         <Card>
           <CardContent className="pt-6 text-muted-foreground text-sm">
             Nothing to propose for this language: your title, subtitle and

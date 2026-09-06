@@ -18,6 +18,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { AiUnlockCard } from "@/components/ai-unlock-card";
+import { isLocalApp } from "@/lib/apps";
 import { AiOffHint } from "@/components/write/ai-off-hint";
 import { KeywordChips } from "@/components/write/keyword-chips";
 import { useApp } from "@/hooks/use-apps";
@@ -232,7 +233,7 @@ export default function WriteWithAiPage() {
           <CardDescription>
             {source
               ? "The text the AI starts from. Edit it freely - nothing is saved until you accept a rewrite in step 3."
-              : "No listing text synced yet. Run Sync All or add the app from a store link, then come back."}
+              : (isLocalApp(app.data) ? "No text yet. Write a first description in Text & keywords, then come back - the AI needs something to start from." : "No listing text synced yet. Run Sync All or add the app from a store link, then come back.")}
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">

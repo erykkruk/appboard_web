@@ -40,11 +40,10 @@ export function useUpdateListingTranslationSettings(appId: string) {
 				doNotTranslateFields,
 				translationInstructions,
 			}),
-		onSuccess: (_result, { language }) => {
-			queryClient.invalidateQueries({
-				queryKey: ["listings", appId, language],
-			});
-			queryClient.invalidateQueries({ queryKey: ["listings", appId, "diffs"] });
+		onSuccess: () => {
+			// Prefix match: the per-language row, the whole-app list (a new
+			// language must appear as a tab right away) and the publish diffs.
+			queryClient.invalidateQueries({ queryKey: ["listings", appId] });
 		},
 	});
 }

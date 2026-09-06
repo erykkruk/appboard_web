@@ -27,7 +27,7 @@ const ISSUE_ACTION: Record<string, IssueAction> = {
   "brand-only-ranks": { kind: "keywords", label: "See the keywords" },
   "category-mismatch": {
     kind: "route",
-    label: "Review the category",
+    label: "Set the category",
     path: "information",
   },
   "description-opening": {
@@ -252,6 +252,13 @@ export function AppAuditCard({ app }: { app: App }) {
               {new Date(report.measuredAt).toLocaleString()}
             </p>
           </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => router.push(`/apps/${app.id}/text`)}
+          >
+            Edit text
+          </Button>
           <Button
             variant="outline"
             size="sm"

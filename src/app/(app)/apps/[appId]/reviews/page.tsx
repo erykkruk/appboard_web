@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AiUnlockCard } from "@/components/ai-unlock-card";
+import { isLocalApp } from "@/lib/apps";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -360,16 +361,34 @@ export default function ReviewsManager() {
             <CardContent>
               <div className="flex items-center gap-6">
                 <div className="text-center">
-                  <p className="text-5xl font-bold tabular-nums">
-                    {stats.data.averageRating.toFixed(1)}
-                  </p>
-                  <StarRating
-                    rating={Math.round(stats.data.averageRating)}
-                    size={16}
-                  />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {stats.data.totalReviews} reviews
-                  </p>
+                  {/* The store's own average counts every star rating; the
+                      synced reviews are only the ones with text. Never show
+                      "0.0" for an app that simply has no ratings yet. */}
+                  {stats.data.storeRating != null ? (
+                    <>
+                      <p className="text-5xl font-bold tabular-nums">
+                        {stats.data.storeRating.toFixed(1)}
+                      </p>
+                      <StarRating rating={Math.round(stats.data.storeRating)} size={16} />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {stats.data.storeRatingsCount ?? 0} ratings in the store
+                        <br />
+                        {stats.data.totalReviews} with text
+                      </p>
+                    </>
+                  ) : stats.data.totalReviews === 0 ? (
+                    <p className="text-sm text-muted-foreground">No ratings yet</p>
+                  ) : (
+                    <>
+                      <p className="text-5xl font-bold tabular-nums">
+                        {stats.data.averageRating.toFixed(1)}
+                      </p>
+                      <StarRating rating={Math.round(stats.data.averageRating)} size={16} />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {stats.data.totalReviews} reviews
+                      </p>
+                    </>
+                  )}
                 </div>
                 <div className="flex-1 space-y-1.5">
                   {[5, 4, 3, 2, 1].map((s) => (
@@ -470,7 +489,11 @@ export default function ReviewsManager() {
       {reviews.data && reviews.data.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-2 py-12">
           <Star className="h-10 w-10 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">No reviews found.</p>
+          <p className="text-sm text-muted-foreground">
+            {isLocalApp(app.data)
+              ? "This app is not in a store yet. Reviews show up here the day it is live."
+              : "No reviews synced yet. Use Sync All in the top bar, or wait for the nightly sync."}
+          </p>
         </div>
       )}
 

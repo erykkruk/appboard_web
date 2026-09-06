@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { Check, Loader2, Plus, RotateCcw } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -84,6 +84,17 @@ export default function TextPage() {
   const [picked, setPicked] = useState<string | null>(null);
   const [newLanguage, setNewLanguage] = useState("");
   const language = picked ?? defaultLanguage;
+
+  // A brand-new app has no listing row at all. Asking a person for a language
+  // code before they can type a title is a wall; en-US is the store default
+  // on both platforms and can be renamed later, so create it once, quietly.
+  const seededRef = useRef(false);
+  useEffect(() => {
+    if (seededRef.current || listings.isLoading || !listings.data) return;
+    if (listings.data.length > 0) return;
+    seededRef.current = true;
+    update.mutate({ data: {}, language: "en-US" });
+  }, [listings.data, listings.isLoading, update]);
 
   if (app.isLoading || listings.isLoading) {
     return (
@@ -189,7 +200,7 @@ export default function TextPage() {
       ) : (
         <Card>
           <CardContent className="pt-6 text-muted-foreground text-sm">
-            No language yet. Add one above to start writing.
+            Setting up your first language...
           </CardContent>
         </Card>
       )}

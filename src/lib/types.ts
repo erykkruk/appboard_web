@@ -104,6 +104,8 @@ export interface App {
 	lastSyncedAt: string | null;
 	rawData?: {
 		publicCountry?: string;
+		/** Set by POST /apps: the app exists only in AppBoard, no store listing yet. */
+		notInStore?: boolean;
 		/** What the public store page says: the real rating and the live version. */
 		storeFacts?: {
 			rating?: number;

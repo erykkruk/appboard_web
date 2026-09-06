@@ -16,6 +16,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useApp } from "@/hooks/use-apps";
 import { useAssets } from "@/hooks/use-assets";
 import { useVersions } from "@/hooks/use-publishing";
+import { isLocalApp } from "@/lib/apps";
 import { getDisplayTypeLabel } from "@/lib/screenshot-editor";
 
 /**
@@ -95,7 +96,9 @@ export default function AppScreenshotsPage() {
         <p className="mt-1 text-muted-foreground text-sm">
           {assets.data?.length
             ? `${assets.data.length} screenshots synced from the store. Open the editor to turn them into store-ready graphics.`
-            : "No screenshots synced yet. Run Sync All, or start a scene from your own images."}
+            : isLocalApp(app.data)
+              ? "No store screenshots yet - this app is not published. Start a scene from your own images and export it when you are ready."
+              : "No screenshots synced yet. Run Sync All, or start a scene from your own images."}
         </p>
       </div>
 
