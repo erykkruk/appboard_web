@@ -11,7 +11,7 @@ import { useAiStatus } from "@/hooks/use-ai";
  * AI is off, so a screen can say up front what a key buys instead of letting
  * a button fail on click. Everything NOT on this list works without a key.
  */
-const UNLOCKS = [
+export const AI_UNLOCKS = [
   "Find the keywords your description already targets, scored for difficulty",
   "Rewrite the description around the keywords you pick",
   "Draft replies to reviews",
@@ -69,7 +69,7 @@ export function AiUnlockCard({ compact = false }: { compact?: boolean }) {
             </p>
             {!compact && (
               <ul className="list-disc space-y-0.5 pl-5 text-muted-foreground">
-                {UNLOCKS.map((item) => (
+                {AI_UNLOCKS.map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>

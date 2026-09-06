@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { StoreLogo } from "@/components/store-logo";
@@ -31,6 +32,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { AI_UNLOCKS } from "@/components/ai-unlock-card";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -62,6 +64,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { AppleAdsSettingsCard } from "@/components/apple-ads/apple-ads-settings-card";
 import { VaultSettingsCard } from "@/components/vault/vault-settings-card";
+import { useAiStatus } from "@/hooks/use-ai";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
 import {
@@ -429,6 +432,8 @@ export default function SettingsGeneralPage() {
     }
   }, [settings.data]);
 
+  const aiStatus = useAiStatus();
+  const queryClient = useQueryClient();
   const handleSaveApiKey = async () => {
     if (!apiKey.trim()) {
       toast.error("Please enter an API key");
@@ -438,6 +443,7 @@ export default function SettingsGeneralPage() {
       await updateSettings.mutateAsync({ openrouter_api_key: apiKey });
       setHasExistingKey(true);
       setApiKey("");
+      queryClient.invalidateQueries({ queryKey: ["ai", "status"] });
       toast.success("API key saved");
     } catch {
       toast.error("Failed to save API key");
@@ -993,6 +999,40 @@ export default function SettingsGeneralPage() {
                 <ExternalLink className="h-3 w-3" />
               </a>
             </p>
+            {/* Say what the key changes before anyone pays for one. Every
+                feature not on this list works without it. */}
+            {aiStatus.data && (
+              <div className="mt-3 rounded-md border p-3 text-sm">
+                {aiStatus.data.configured && aiStatus.data.lastError ? (
+                  <p className="text-amber-500">
+                    Your key is saved but OpenRouter rejected the last call:{" "}
+                    {aiStatus.data.lastError}. Paste a new key above; everything
+                    that does not need AI keeps working.
+                  </p>
+                ) : aiStatus.data.configured ? (
+                  <p className="text-muted-foreground">
+                    AI is on
+                    {aiStatus.data.source === "instance"
+                      ? " through this instance's key; add your own to use your models and billing."
+                      : " with your key."}{" "}
+                    It powers: {AI_UNLOCKS.map((u) => u[0].toLowerCase() + u.slice(1)).join("; ")}.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 text-muted-foreground">
+                    <p>
+                      <span className="font-medium text-foreground">AI is off.</span>{" "}
+                      Scores, the audit, text fixes, screenshots, rankings and
+                      reminders all work without it. A key adds:
+                    </p>
+                    <ul className="list-disc space-y-0.5 pl-5">
+                      {AI_UNLOCKS.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <Separator />
