@@ -7,6 +7,34 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.16.0",
+    serverVersion: "0.16.0",
+    date: "2026-09-05",
+    changes: [
+      "New guided flow for every app: paste a link (or start an app that is not published yet) -> review the text we pulled -> audit with a fix queue -> text fixes as accept-or-reject diffs -> screenshots opened in the editor with your own files -> reminders. A step strip shows where you are",
+      "Listing score is now computed by the backend on the live store listing, in the language of the market you imported from, with a second score for your unpublished draft. Rules that AppBoard cannot act on (few ratings, stale update) are shown as context, never as a button",
+      "Keywords the audit checks now include the vocabulary of the apps you actually compete with, filtered to your own category - so a party game is never told to chase 'screen mirroring'",
+      "Imports pull every language the store lists (title, description and screenshots per language, full-size files), reviews from every storefront the app is sold in, and the store's real rating and live version - the dashboard shows '4.0 from 5 ratings, 1 with text' instead of an average of the one review with text",
+      "Top navigation replaces the left sidebar: an app switcher that doubles as a multi-select ('Apply to N apps'), and a horizontal context bar per app. Help, changelog, the privacy questionnaire and the connect-store shortcut are all reachable again",
+      "Screenshots page per app: see the files synced from the store and open any of them in the editor with one click; the editor opens from the fix queue with your first screenshot already in the device",
+      "Rank charts mark releases (solid) and text edits (hollow) so a jump can be attributed; unpublished drafts trigger a reminder email after three days",
+      "Write with AI works further without a key: 'What am I targeting?' now reads keyword candidates from your own title and description (scored the same way) when there is no AI key or the provider rejects it - only the rewrite itself needs the model",
+      "Publish without a store API: copy the diff or export a CSV, paste it into App Store Connect or Play Console, then press 'I pasted it into the store' - the change lands in History, the rank chart gets its marker, and the reminder stops. Audit buttons for a missing language or a wrong category now open the screen (or the store console) where that is actually changed",
+      "Workspace overview at /home (every app: score, rating, reviews, keywords), bulk copy of setup between apps, promo video field for Google Play, and 'Write with AI': infer the keywords your description targets, score them, and generate a description for the ones you pick",
+    ],
+  },
+  {
+    version: "0.15.0",
+    serverVersion: "0.15.0",
+    date: "2026-09-01",
+    changes: [
+      "Add your app with just a store link: paste an App Store or Google Play URL (or search by name) and get a fully synced app - listing, screenshots, ratings and reviews - with research, rank tracking and an ASO check-up. No API credentials needed",
+      "Connecting store API credentials is now an optional add-on, needed only for publishing: pushing listings, uploading screenshots, replying to reviews and managing purchases - each of those surfaces now shows a one-click 'Connect store API' setup",
+      "New ASO Check-up card on every app dashboard: score your live listing in your browser on demand and get the top things to improve, each linking straight to the screen that fixes it",
+      "Apps from public links are marked with a 'Public' badge on their store, and everything read-only keeps working exactly as for API-connected apps",
+    ],
+  },
+  {
     version: "0.14.0",
     serverVersion: "0.14.0",
     date: "2026-08-31",

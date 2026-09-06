@@ -22,7 +22,7 @@ import {
 import { cn } from "@/lib/utils";
 
 export function ResearchHistoryTab({ appId }: { appId: string }) {
-  const runs = useAppResearchRuns(appId);
+  const runs = useAppResearchRuns(appId, { pollWhileEmpty: true });
   const [selected, setSelected] = useState<string | null>(null);
   const selectedRun = useAppResearchRun(appId, selected);
   const deleteRun = useDeleteAppResearchRun(appId);

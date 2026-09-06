@@ -2,14 +2,15 @@
 # Sync the browser-safe ASO scoring engine from the backend repo.
 # The engine is pure math with zero runtime imports (guarded by a backend
 # test), so the copies run 1:1 in the browser for the free /aso-check tool.
-# Re-run after any backend change to keyword-scoring.ts / scoring-types.ts.
+# Re-run after any backend change to keyword-scoring.ts / scoring-types.ts /
+# listing-audit.ts.
 set -euo pipefail
 
 BACKEND="${1:-../appboard_backend}"
 SRC="$BACKEND/src/modules/research"
 DEST="$(dirname "$0")/../src/lib/aso-engine"
 
-for f in scoring-types.ts keyword-scoring.ts; do
+for f in scoring-types.ts keyword-scoring.ts listing-audit.ts listing-suggestions.ts; do
   if [ ! -f "$SRC/$f" ]; then
     echo "error: $SRC/$f not found (pass the backend path as arg 1)" >&2
     exit 1

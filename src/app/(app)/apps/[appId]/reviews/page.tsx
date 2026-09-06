@@ -1,8 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { useParams } from "next/navigation";
 import {
   Bot,
+  KeyRound,
   Loader2,
   MessageSquare,
   RefreshCw,
@@ -14,6 +16,8 @@ import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { AiUnlockCard } from "@/components/ai-unlock-card";
+import { isLocalApp } from "@/lib/apps";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   Select,
@@ -82,10 +86,14 @@ function ReviewCard({
   review,
   appName,
   appId,
+  canReply,
+  storeType,
 }: {
   review: Review;
   appName: string;
   appId: string;
+  canReply: boolean;
+  storeType?: string;
 }) {
   const [replyText, setReplyText] = useState(review.replyText ?? "");
   const [isReplying, setIsReplying] = useState(false);
@@ -106,6 +114,31 @@ function ReviewCard({
           ? err.message
           : "Failed to send reply",
       );
+    }
+  };
+
+  // Without a store integration the reply cannot be SENT from here, but it
+  // can still be written: draft it, copy it, paste it in the console.
+  const [copyDraft, setCopyDraft] = useState<string | null>(null);
+  const handleDraftToCopy = async () => {
+    try {
+      const result = await draftReply.mutateAsync({
+        reviewText: `${review.title ?? ""} ${review.body}`,
+        rating: review.rating,
+        appName,
+      });
+      setCopyDraft(result.result);
+    } catch {
+      toast.error("Failed to generate AI draft");
+    }
+  };
+  const copyToClipboard = async () => {
+    if (!copyDraft) return;
+    try {
+      await navigator.clipboard.writeText(copyDraft);
+      toast.success("Copied - paste it in the store console");
+    } catch {
+      toast.error("Could not copy");
     }
   };
 
@@ -156,21 +189,71 @@ function ReviewCard({
               Your Reply
             </p>
             <p className="text-sm">{review.replyText}</p>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="mt-2"
-              onClick={() => {
-                setReplyText(review.replyText ?? "");
-                setIsReplying(true);
-              }}
-            >
-              Edit
-            </Button>
+            {canReply && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="mt-2"
+                onClick={() => {
+                  setReplyText(review.replyText ?? "");
+                  setIsReplying(true);
+                }}
+              >
+                Edit
+              </Button>
+            )}
           </div>
         )}
 
-        {!review.replyText && !isReplying && (
+        {!canReply && !review.replyText && (
+          <div className="mt-4 space-y-2">
+            {copyDraft !== null ? (
+              <>
+                <Textarea
+                  value={copyDraft}
+                  onChange={(e) => setCopyDraft(e.target.value)}
+                  rows={4}
+                />
+                <div className="flex gap-2">
+                  <Button size="sm" onClick={copyToClipboard}>
+                    Copy reply
+                  </Button>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={handleDraftToCopy}
+                    disabled={draftReply.isPending}
+                  >
+                    Try again
+                  </Button>
+                </div>
+              </>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleDraftToCopy}
+                disabled={draftReply.isPending}
+              >
+                {draftReply.isPending ? "Drafting..." : "Draft a reply with AI"}
+              </Button>
+            )}
+            <p className="text-xs text-muted-foreground">
+              <KeyRound className="mr-1 inline h-3 w-3" />
+              Sending from here needs a store API integration - copy the reply
+              into the console for now, or{" "}
+              <Link
+                href={storeType ? `/onboarding?type=${storeType}` : "/onboarding"}
+                className="text-primary underline underline-offset-4"
+              >
+                connect the store API
+              </Link>
+              .
+            </p>
+          </div>
+        )}
+
+        {canReply && !review.replyText && !isReplying && (
           <div className="mt-4 flex gap-2">
             <Button
               variant="outline"
@@ -260,7 +343,8 @@ export default function ReviewsManager() {
   const syncReviews = useSyncReviews(appId);
 
   return (
-    <div className="mx-auto w-full max-w-6xl p-6">
+    <div className="mx-auto w-full max-w-6xl space-y-4 p-6">
+      <AiUnlockCard compact />
       {stats.isLoading && (
         <div className="mb-6 grid gap-4 md:grid-cols-2">
           <Skeleton className="h-40 rounded-xl" />
@@ -277,16 +361,34 @@ export default function ReviewsManager() {
             <CardContent>
               <div className="flex items-center gap-6">
                 <div className="text-center">
-                  <p className="text-5xl font-bold tabular-nums">
-                    {stats.data.averageRating.toFixed(1)}
-                  </p>
-                  <StarRating
-                    rating={Math.round(stats.data.averageRating)}
-                    size={16}
-                  />
-                  <p className="mt-1 text-xs text-muted-foreground">
-                    {stats.data.totalReviews} reviews
-                  </p>
+                  {/* The store's own average counts every star rating; the
+                      synced reviews are only the ones with text. Never show
+                      "0.0" for an app that simply has no ratings yet. */}
+                  {stats.data.storeRating != null ? (
+                    <>
+                      <p className="text-5xl font-bold tabular-nums">
+                        {stats.data.storeRating.toFixed(1)}
+                      </p>
+                      <StarRating rating={Math.round(stats.data.storeRating)} size={16} />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {stats.data.storeRatingsCount ?? 0} ratings in the store
+                        <br />
+                        {stats.data.totalReviews} with text
+                      </p>
+                    </>
+                  ) : stats.data.totalReviews === 0 ? (
+                    <p className="text-sm text-muted-foreground">No ratings yet</p>
+                  ) : (
+                    <>
+                      <p className="text-5xl font-bold tabular-nums">
+                        {stats.data.averageRating.toFixed(1)}
+                      </p>
+                      <StarRating rating={Math.round(stats.data.averageRating)} size={16} />
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {stats.data.totalReviews} reviews
+                      </p>
+                    </>
+                  )}
                 </div>
                 <div className="flex-1 space-y-1.5">
                   {[5, 4, 3, 2, 1].map((s) => (
@@ -349,19 +451,22 @@ export default function ReviewsManager() {
 
         <div className="flex-1" />
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => syncReviews.mutate()}
-          disabled={syncReviews.isPending}
-        >
-          {syncReviews.isPending ? (
-            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-          ) : (
-            <RefreshCw className="mr-2 h-4 w-4" />
-          )}
-          Sync
-        </Button>
+        {/* Nothing to pull for an app that is in no store yet. */}
+        {!isLocalApp(app.data) && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => syncReviews.mutate()}
+            disabled={syncReviews.isPending}
+          >
+            {syncReviews.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <RefreshCw className="mr-2 h-4 w-4" />
+            )}
+            Sync
+          </Button>
+        )}
       </div>
 
       {reviews.isLoading && (
@@ -387,7 +492,11 @@ export default function ReviewsManager() {
       {reviews.data && reviews.data.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-2 py-12">
           <Star className="h-10 w-10 text-muted-foreground" />
-          <p className="text-sm text-muted-foreground">No reviews found.</p>
+          <p className="text-sm text-muted-foreground">
+            {isLocalApp(app.data)
+              ? "This app is not in a store yet. Reviews show up here the day it is live."
+              : "No reviews synced yet. Use Sync All in the top bar, or wait for the nightly sync."}
+          </p>
         </div>
       )}
 
@@ -399,6 +508,8 @@ export default function ReviewsManager() {
               review={review}
               appName={app.data?.name ?? ""}
               appId={appId}
+              canReply={app.data?.store?.connectionMode !== "public"}
+              storeType={app.data?.store?.type}
             />
           ))}
         </div>

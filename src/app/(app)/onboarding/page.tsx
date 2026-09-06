@@ -1,21 +1,23 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowLeft,
   ArrowRight,
   CheckCircle2,
   ExternalLink,
+  KeyRound,
   Loader2,
   Lock,
   Play,
   ShieldCheck,
   Upload,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
+import { AddAppForm } from "@/components/add-app-dialog";
 import { PageHeader } from "@/components/page-header";
 import { StoreAccessReport } from "@/components/stores/store-access-report";
 import {
@@ -80,6 +82,40 @@ function StepIndicator({
           }`}
         />
       ))}
+    </div>
+  );
+}
+
+function DemoModeCard({
+  onDemo,
+  isDemoLoading,
+}: {
+  onDemo: () => void;
+  isDemoLoading: boolean;
+}) {
+  return (
+    <div className="rounded-lg border border-dashed p-4">
+      <div className="flex items-center justify-between gap-4">
+        <div>
+          <p className="text-sm font-medium">Demo Mode</p>
+          <p className="text-xs text-muted-foreground">
+            Try AppBoard with sample data. No API keys required.
+          </p>
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          onClick={onDemo}
+          disabled={isDemoLoading}
+        >
+          {isDemoLoading ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <Play className="mr-2 h-4 w-4" />
+          )}
+          Try Demo
+        </Button>
+      </div>
     </div>
   );
 }
@@ -172,29 +208,7 @@ function StoreTypeStep({
 
       <Separator />
 
-      <div className="rounded-lg border border-dashed p-4">
-        <div className="flex items-center justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium">Demo Mode</p>
-            <p className="text-xs text-muted-foreground">
-              Try AppBoard with sample data. No API keys required.
-            </p>
-          </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={onDemo}
-            disabled={isDemoLoading}
-          >
-            {isDemoLoading ? (
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-            ) : (
-              <Play className="mr-2 h-4 w-4" />
-            )}
-            Try Demo
-          </Button>
-        </div>
-      </div>
+      <DemoModeCard onDemo={onDemo} isDemoLoading={isDemoLoading} />
     </div>
   );
 }
@@ -463,9 +477,26 @@ function SuccessStep({ syncedApps, warnings }: { syncedApps: number; warnings: s
 }
 
 export default function OnboardingPage() {
+  return (
+    <Suspense>
+      <OnboardingFlow />
+    </Suspense>
+  );
+}
+
+function OnboardingFlow() {
   const router = useRouter();
-  const [step, setStep] = useState(1);
-  const [storeType, setStoreType] = useState<StoreType | null>(null);
+  const searchParams = useSearchParams();
+  const typeParam = searchParams.get("type");
+  // A `?type=` deep link (from the "Connect store API" CTAs) jumps straight
+  // into the credentials wizard with the store type preselected.
+  const initialType =
+    typeParam && typeParam in STORE_TYPE_LABELS ? (typeParam as StoreType) : null;
+  const [mode, setMode] = useState<"start" | "wizard">(
+    initialType ? "wizard" : "start",
+  );
+  const [step, setStep] = useState(initialType ? 2 : 1);
+  const [storeType, setStoreType] = useState<StoreType | null>(initialType);
   const [isDemoLoading, setIsDemoLoading] = useState(false);
   const [connectResult, setConnectResult] = useState<{ syncedApps: number; warnings: string[] } | null>(null);
 
@@ -612,6 +643,56 @@ export default function OnboardingPage() {
           issuerId.trim().length > 0 &&
           privateKey.trim().length > 0);
 
+  if (mode === "start") {
+    return (
+      <div className="flex flex-col">
+        <PageHeader title="Add your app" />
+        <div className="mx-auto w-full max-w-2xl p-6 py-12">
+          <div className="text-center">
+            <h2 className="text-2xl font-semibold tracking-tight">
+              Add your app
+            </h2>
+            <p className="mx-auto mt-2 max-w-lg text-sm text-muted-foreground">
+              Paste an App Store or Google Play link, or search by name. You
+              get the full listing, screenshots, ratings and reviews instantly
+              - plus research, rank tracking and an ASO check-up.
+            </p>
+          </div>
+
+          <div className="mt-8">
+            <AddAppForm autoFocus />
+          </div>
+
+          <div className="mt-10 space-y-3">
+            <Separator className="mb-6" />
+            <div className="rounded-lg border border-dashed p-4">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-sm font-medium">
+                    Connect with API credentials
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Needed only for publishing: push listings, upload
+                    screenshots, reply to reviews.
+                  </p>
+                </div>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setMode("wizard")}
+                >
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Connect store API
+                </Button>
+              </div>
+            </div>
+            <DemoModeCard onDemo={handleDemo} isDemoLoading={isDemoLoading} />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="flex flex-col">
       <PageHeader title="Connect a Store" />
@@ -622,6 +703,15 @@ export default function OnboardingPage() {
 
         {step === 1 && (
           <div>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="mb-4 -ml-2 text-muted-foreground"
+              onClick={() => setMode("start")}
+            >
+              <ArrowLeft className="mr-2 h-4 w-4" />
+              Back to Add your app
+            </Button>
             <h2 className="mb-2 text-xl font-semibold">Choose Store Type</h2>
             <p className="mb-6 text-sm text-muted-foreground">
               Select the platform you want to connect. You&apos;ll need API

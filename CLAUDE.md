@@ -34,7 +34,7 @@ AppBoard admin panel — an ASO (App Store Optimization) tool for managing apps,
 | `bun run build` | Production build |
 | `bun run start` | Start production server |
 | `bun run lint` | ESLint check |
-| `bun test` | Run tests (Bun + happy-dom) |
+| `bun test` | Run tests (Bun + happy-dom). Run it as `bun run test` (= `bun test --parallel=1`; `bunfig.toml` also sets `parallel = false`, but the CLI flag is what reliably gives a clean run): bun 1.3 runs files in parallel workers by default, and this suite mocks `fetch`, modules (`mock.module` is process-global) and happy-dom globals per file - in parallel that gave 14-19 random failures, serial gives 0-3. Files that `mock.module("@/lib/api")` must put the real module back in `afterAll` (see `use-scene-localization.test.ts`) |
 
 ---
 

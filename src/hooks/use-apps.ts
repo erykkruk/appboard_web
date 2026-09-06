@@ -1,6 +1,6 @@
 "use client";
 
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
 
@@ -17,4 +17,19 @@ export function useApp(appId: string) {
     queryFn: () => api.apps.get(appId),
     enabled: !!appId,
   });
+}
+
+/** Create an app that is not published in any store yet. */
+export function useCreateLocalApp() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (body: {
+			bundleId?: string;
+			name: string;
+			platform: "ios" | "android";
+		}) => api.apps.createLocal(body),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: ["apps"] });
+		},
+	});
 }

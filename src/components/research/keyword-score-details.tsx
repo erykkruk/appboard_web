@@ -24,6 +24,13 @@ import type { KeywordRankingTier, KeywordScore } from "@/lib/types";
 
 const DOWNLOAD_POSITIONS_SHOWN = 10;
 
+/** Play artwork via our origin - privacy blockers often block Google's CDN. */
+function storeImage(url: string): string {
+  return url.includes("googleusercontent.com")
+    ? `/api/public/play/image?u=${encodeURIComponent(url)}`
+    : url;
+}
+
 function TierCard({ name, tier }: { name: string; tier: KeywordRankingTier }) {
   const meta = difficultyMeta(tier.label);
   return (
@@ -215,8 +222,9 @@ export function KeywordScoreDetails({ score }: { score: KeywordScore }) {
                       <div className="flex items-center gap-2">
                         {competitor.icon && (
                           <img
-                            src={competitor.icon}
+                            src={storeImage(competitor.icon)}
                             alt=""
+                            referrerPolicy="no-referrer"
                             className="h-7 w-7 rounded-md"
                           />
                         )}

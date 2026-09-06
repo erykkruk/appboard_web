@@ -15,6 +15,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { StoreLogo } from "@/components/store-logo";
@@ -31,6 +32,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import { AI_UNLOCKS } from "@/components/ai-unlock-card";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -62,6 +64,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { AppleAdsSettingsCard } from "@/components/apple-ads/apple-ads-settings-card";
 import { VaultSettingsCard } from "@/components/vault/vault-settings-card";
+import { useAiStatus } from "@/hooks/use-ai";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
 import {
@@ -429,6 +432,8 @@ export default function SettingsGeneralPage() {
     }
   }, [settings.data]);
 
+  const aiStatus = useAiStatus();
+  const queryClient = useQueryClient();
   const handleSaveApiKey = async () => {
     if (!apiKey.trim()) {
       toast.error("Please enter an API key");
@@ -438,6 +443,7 @@ export default function SettingsGeneralPage() {
       await updateSettings.mutateAsync({ openrouter_api_key: apiKey });
       setHasExistingKey(true);
       setApiKey("");
+      queryClient.invalidateQueries({ queryKey: ["ai", "status"] });
       toast.success("API key saved");
     } catch {
       toast.error("Failed to save API key");
@@ -597,7 +603,7 @@ export default function SettingsGeneralPage() {
                 href="/onboarding"
                 className="text-primary underline underline-offset-4"
               >
-                Connect one
+                Add an app by link or connect a store API
               </Link>
               .
             </p>
@@ -618,8 +624,9 @@ export default function SettingsGeneralPage() {
                 return (
                   <div
                     key={store.id}
-                    className="flex items-center justify-between rounded-lg border p-3"
+                    className="space-y-2 rounded-lg border p-3"
                   >
+                    {/* Line 1: identity - the name always keeps its space */}
                     <div className="flex items-center gap-3">
                       <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-muted">
                         <StoreLogo
@@ -627,24 +634,35 @@ export default function SettingsGeneralPage() {
                           className="h-5 w-5 text-foreground"
                         />
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium">{store.name}</p>
-                          <Badge
-                            className={cn("text-xs", statusBadge.className)}
-                          >
-                            {statusBadge.label}
-                          </Badge>
-                        </div>
-                        {store.lastSyncedAt && (
-                          <p className="text-xs text-muted-foreground">
-                            Last synced:{" "}
-                            {new Date(store.lastSyncedAt).toLocaleString()}
-                          </p>
+                      <p className="min-w-0 flex-1 truncate text-sm font-medium">
+                        {store.name}
+                      </p>
+                      <Badge
+                        className={cn(
+                          "shrink-0 text-xs",
+                          statusBadge.className,
                         )}
-                      </div>
+                      >
+                        {statusBadge.label}
+                      </Badge>
+                      {store.connectionMode === "public" && (
+                        <Badge
+                          variant="outline"
+                          className="shrink-0 text-xs text-muted-foreground"
+                        >
+                          Public
+                        </Badge>
+                      )}
                     </div>
-                    <div className="flex gap-1">
+                    {/* Line 2: sync info + actions; icons wrap below in a narrow column */}
+                    <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                      {store.lastSyncedAt && (
+                        <p className="min-w-0 truncate whitespace-nowrap text-xs text-muted-foreground">
+                          Last synced:{" "}
+                          {new Date(store.lastSyncedAt).toLocaleString()}
+                        </p>
+                      )}
+                      <div className="ml-auto flex shrink-0 gap-1">
                       <Button
                         variant="ghost"
                         size="icon"
@@ -731,6 +749,7 @@ export default function SettingsGeneralPage() {
                           <Trash2 className="h-4 w-4" />
                         )}
                       </Button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -980,6 +999,40 @@ export default function SettingsGeneralPage() {
                 <ExternalLink className="h-3 w-3" />
               </a>
             </p>
+            {/* Say what the key changes before anyone pays for one. Every
+                feature not on this list works without it. */}
+            {aiStatus.data && (
+              <div className="mt-3 rounded-md border p-3 text-sm">
+                {aiStatus.data.configured && aiStatus.data.lastError ? (
+                  <p className="text-amber-500">
+                    Your key is saved but OpenRouter rejected the last call:{" "}
+                    {aiStatus.data.lastError}. Paste a new key above; everything
+                    that does not need AI keeps working.
+                  </p>
+                ) : aiStatus.data.configured ? (
+                  <p className="text-muted-foreground">
+                    AI is on
+                    {aiStatus.data.source === "instance"
+                      ? " through this instance's key; add your own to use your models and billing."
+                      : " with your key."}{" "}
+                    It powers: {AI_UNLOCKS.map((u) => u[0].toLowerCase() + u.slice(1)).join("; ")}.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 text-muted-foreground">
+                    <p>
+                      <span className="font-medium text-foreground">AI is off.</span>{" "}
+                      Scores, the audit, text fixes, screenshots, rankings and
+                      reminders all work without it. A key adds:
+                    </p>
+                    <ul className="list-disc space-y-0.5 pl-5">
+                      {AI_UNLOCKS.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
           </div>
 
           <Separator />

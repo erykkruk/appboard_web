@@ -3,7 +3,11 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { api } from "@/lib/api";
-import type { ConnectStoreData, StoreType } from "@/lib/types";
+import type {
+  ConnectStoreData,
+  ImportAppInput,
+  StoreType,
+} from "@/lib/types";
 
 export function useStores() {
   return useQuery({
@@ -19,6 +23,17 @@ export function useConnectStore() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["stores"] });
       queryClient.invalidateQueries({ queryKey: ["apps"] });
+    },
+  });
+}
+
+export function useImportApp() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (data: ImportAppInput) => api.stores.importApp(data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["apps"] });
+      queryClient.invalidateQueries({ queryKey: ["stores"] });
     },
   });
 }

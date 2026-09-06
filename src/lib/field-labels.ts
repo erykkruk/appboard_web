@@ -12,6 +12,7 @@ export const LISTING_FIELD_LABELS: Record<string, string> = {
 	shortDesc: "Short Description",
 	supportUrl: "Support URL",
 	title: "Title",
+	videoUrl: "Promo video (YouTube URL)",
 	whatsNew: "What's New",
 };
 

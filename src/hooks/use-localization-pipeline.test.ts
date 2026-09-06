@@ -1,5 +1,7 @@
-import { afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
+import { afterAll, afterEach, beforeEach, describe, expect, mock, test } from "bun:test";
 import { act, renderHook, waitFor } from "@testing-library/react";
+
+import * as realApiModule from "@/lib/api";
 
 import type { PipelineOptions } from "@/hooks/use-localization-pipeline";
 
@@ -24,6 +26,16 @@ const generateReleaseNotes = mock(async () => ({
   model: "test",
   result: "What's new in this version.",
 }));
+
+// mock.module is process-global in bun: every test file that runs after this
+// one would otherwise import the stub instead of the real client and, with
+// fetch mocked, wait forever for a call that never comes. Keep the real
+// export (captured before the mock below rewires the live binding) and put it
+// back when this file is done.
+const REAL_API = { api: realApiModule.api };
+afterAll(() => {
+  mock.module("@/lib/api", () => REAL_API);
+});
 
 mock.module("@/lib/api", () => ({
   api: {

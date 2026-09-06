@@ -8,11 +8,14 @@ export type StoreType =
 	| "rustore"
 	| "onestore";
 
+export type StoreConnectionMode = "api" | "public";
+
 export interface Store {
 	id: string;
 	type: StoreType;
 	name: string;
 	status: string;
+	connectionMode: StoreConnectionMode;
 	createdAt: string;
 	lastSyncedAt: string | null;
 	capabilities: string[];
@@ -99,11 +102,37 @@ export interface App {
 	createdAt?: string;
 	updatedAt?: string;
 	lastSyncedAt: string | null;
+	rawData?: {
+		publicCountry?: string;
+		/** Set by POST /apps: the app exists only in AppBoard, no store listing yet. */
+		notInStore?: boolean;
+		/** What the public store page says: the real rating and the live version. */
+		storeFacts?: {
+			rating?: number;
+			ratingsCount?: number;
+			releaseNotes?: string;
+			updatedAt?: string;
+			version?: string;
+		};
+	} | null;
 	store?: {
 		id: string;
 		name: string;
 		type: string;
+		connectionMode?: StoreConnectionMode;
 	};
+}
+
+export interface ImportAppInput {
+	url?: string;
+	platform?: Platform;
+	externalId?: string;
+	country?: string;
+}
+
+export interface ImportAppResponse {
+	app: App;
+	created: boolean;
 }
 
 export interface Listing {
@@ -161,6 +190,9 @@ export interface ReviewStats {
 	totalReviews: number;
 	distribution: Record<number, number>;
 	noReplyCount: number;
+	/** The store's own average over every star rating, text or not. */
+	storeRating?: number | null;
+	storeRatingsCount?: number | null;
 }
 
 export interface HistoryEntry {
@@ -1636,6 +1668,10 @@ export interface RankAnnotation {
 	language: string;
 	newValue: string | null;
 	oldValue: string | null;
+	/** Human-readable marker text, e.g. "Version 1.5 created". */
+	label?: string;
+	/** "listing_field" | "version_created" | "version_submitted" | ... */
+	type?: string;
 }
 
 export interface RankHistory {
@@ -1835,4 +1871,148 @@ export interface AppleImpressionRow {
 	highShare: number;
 	rank: number | null;
 	popularityTier: number | null;
+}
+
+// ── App audit ───────────────────────────────────────────────────────
+
+export interface AuditIssue {
+  id: string;
+  severity: "high" | "medium" | "low";
+  title: string;
+  detail: string;
+  scorePenalty: number;
+  appboard?: string;
+  /** False when the issue is context we cannot act on inside the panel. */
+  actionable: boolean;
+}
+
+export interface AuditResult {
+  asoScore: number;
+  issues: AuditIssue[];
+  strengths: string[];
+  themes: string[];
+}
+
+export interface AppAuditReport {
+  appId: string;
+  country: string;
+  language: string;
+  measuredAt: string;
+  store: AuditResult;
+  draft: (AuditResult & { changedFields: string[] }) | null;
+  keywords: KeywordScore[];
+  /** Keywords from this app's own category - the ones worth acting on. */
+  recommendable: string[];
+}
+
+export interface AppAuditResponse {
+  status: "measuring" | "ready" | "failed" | "not-in-store";
+  refreshing: boolean;
+  report: AppAuditReport | null;
+  error?: string;
+}
+
+// ── Audit suggestions (accept-or-reject text proposals) ─────────────
+
+export interface Suggestion {
+  id: string;
+  field: "title" | "shortDesc" | "keywords";
+  language: string;
+  current: string;
+  proposed: string;
+  reason: string;
+  points: number;
+  keyword?: string;
+}
+
+export interface SuggestionsResponse {
+  language: string | null;
+  source: "draft" | "remote" | null;
+  status: "ready" | "no-audit";
+  suggestions: Suggestion[];
+}
+
+// ── Bulk copy (apply one app's setup to many) ─────────────────────────
+
+export type BulkCopyPart =
+  | "about"
+  | "privacy"
+  | "ageRating"
+  | "keywords"
+  | "prompts"
+  | "listings";
+
+export interface BulkCopyRequest {
+  sourceAppId: string;
+  targetAppIds: string[];
+  parts: BulkCopyPart[];
+}
+
+export interface BulkCopyChange {
+  appId: string;
+  appName: string;
+  part: BulkCopyPart;
+  /** Field or item the change touches, e.g. "title" or "habit tracker". */
+  field: string;
+  language?: string;
+  before: string | null;
+  after: string | null;
+}
+
+export interface BulkCopyPreview {
+  changes: BulkCopyChange[];
+  skipped: { appId: string; appName: string; part: BulkCopyPart; reason: string }[];
+}
+
+export interface BulkCopyResult {
+  results: {
+    appId: string;
+    appName: string;
+    part: BulkCopyPart;
+    status: "ok" | "error" | "skipped";
+    message?: string;
+    changed: number;
+  }[];
+}
+
+// ── Workspace overview (every app in one place) ───────────────────────
+
+export interface OverviewAppRow {
+  id: string;
+  name: string;
+  platform: Platform;
+  iconUrl: string | null;
+  /** "local" = created here and in no store yet. */
+  connectionMode: "api" | "public" | "local";
+  storeRating: number | null;
+  storeRatingsCount: number | null;
+  reviewsTotal: number;
+  reviewsUnanswered: number;
+  auditScore: number | null;
+  draftScore: number | null;
+  trackedKeywords: number;
+  avgPosition: number | null;
+  top10Count: number;
+  lastSyncedAt: string | null;
+}
+
+export interface WorkspaceOverview {
+  apps: OverviewAppRow[];
+  totals: {
+    apps: number;
+    reviewsUnanswered: number;
+    trackedKeywords: number;
+    /** No store sales API is wired, so this is always false today. */
+    downloadsAvailable: boolean;
+  };
+}
+
+// ── AI availability ───────────────────────────────────────────────────
+
+export interface AiStatus {
+  configured: boolean;
+  /** "workspace" = own key in Settings, "instance" = the self-hosted env key. */
+  source: "workspace" | "instance" | null;
+  /** Last OpenRouter failure for this workspace, e.g. a rejected key. */
+  lastError: string | null;
 }

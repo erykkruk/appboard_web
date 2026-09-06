@@ -168,6 +168,11 @@ export function AutomationTab({ appId }: { appId: string }) {
             initial={config.notifyEmail ?? ""}
             onSave={(value) => update.mutate({ notifyEmail: value })}
           />
+          <p className="text-xs text-muted-foreground">
+            With an address set, a draft left unpublished for three days also
+            gets one reminder email (at most once a week), so edits do not
+            quietly go stale.
+          </p>
           <div className="pt-2 text-xs text-muted-foreground">
             {config.lastRankCheckAt && (
               <p>

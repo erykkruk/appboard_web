@@ -188,26 +188,45 @@ export function RankChart({
 						out
 					</text>
 
-					{/* Listing-change annotations */}
-					{annos.map((a, i) => (
-						<g key={`${a.anno.field}-${a.anno.language}-${i}`}>
-							<line
-								className="stroke-amber-500"
-								strokeDasharray="3 3"
-								strokeWidth={1}
-								x1={a.x}
-								x2={a.x}
-								y1={PAD.top}
-								y2={PAD.top + PLOT_H}
-							/>
-							<circle className="fill-amber-500" cx={a.x} cy={PAD.top} r={3}>
-								<title>
-									{a.anno.field} · {a.anno.language} ·{" "}
-									{a.anno.date ? fmtDate(new Date(a.anno.date).getTime()) : ""}
-								</title>
-							</circle>
-						</g>
-					))}
+					{/* What we changed, and when. A release and a text edit read
+					    differently on purpose: a version marker is solid, a field
+					    edit is hollow, so a rank jump can be attributed at a glance. */}
+					{annos.map((a, i) => {
+						const isRelease =
+							a.anno.type === "version_created" ||
+							a.anno.type === "version_submitted";
+						const stroke = isRelease ? "stroke-sky-500" : "stroke-amber-500";
+						const fill = isRelease ? "fill-sky-500" : "fill-amber-500";
+						return (
+							<g key={`${a.anno.field}-${a.anno.language}-${i}`}>
+								<line
+									className={stroke}
+									strokeDasharray={isRelease ? undefined : "3 3"}
+									strokeWidth={1}
+									x1={a.x}
+									x2={a.x}
+									y1={PAD.top}
+									y2={PAD.top + PLOT_H}
+								/>
+								<circle
+									className={isRelease ? fill : "fill-background"}
+									cx={a.x}
+									cy={PAD.top}
+									r={isRelease ? 4 : 3}
+									stroke="currentColor"
+									strokeWidth={isRelease ? 0 : 1.5}
+								>
+									<title>
+										{a.anno.label ??
+											`${a.anno.field}${a.anno.language ? ` · ${a.anno.language}` : ""}`}
+										{a.anno.date
+											? ` · ${fmtDate(new Date(a.anno.date).getTime())}`
+											: ""}
+									</title>
+								</circle>
+							</g>
+						);
+					})}
 
 					{/* X labels */}
 					{xLabels.map((l) => (
@@ -280,8 +299,12 @@ export function RankChart({
 					</span>
 				))}
 				<span className="inline-flex items-center gap-1.5 text-muted-foreground">
-					<span className="inline-block h-2.5 w-2.5 rounded-full bg-amber-500" />
-					listing change
+					<span className="inline-block h-2.5 w-2.5 rounded-full border-2 border-amber-500" />
+					text change
+				</span>
+				<span className="inline-flex items-center gap-1.5 text-muted-foreground">
+					<span className="inline-block h-2.5 w-2.5 rounded-full bg-sky-500" />
+					version
 				</span>
 			</div>
 		</div>

@@ -1,4 +1,11 @@
 import type {
+	AiStatus,
+	AppAuditResponse,
+	BulkCopyPreview,
+	BulkCopyRequest,
+	BulkCopyResult,
+	SuggestionsResponse,
+	WorkspaceOverview,
 	AppleAdsStatus,
 	AppleImpressionRow,
 	AppleMover,
@@ -43,6 +50,8 @@ import type {
 	GroupAsoProfileInput,
 	GroupLocalization,
 	HistoryEntry,
+	ImportAppInput,
+	ImportAppResponse,
 	InAppPurchase,
 	Listing,
 	ListingDiff,
@@ -147,6 +156,17 @@ async function fetchApi<T>(path: string, options?: RequestInit): Promise<T> {
 			window.dispatchEvent(new CustomEvent("vault-required"));
 		}
 		const error = await res.json().catch(() => ({ code: "UNKNOWN" }));
+		if (res.status === 403 && error.code === "INTEGRATION_REQUIRED") {
+			// Public (credential-less) stores cannot perform store writes —
+			// degrade to a readable message instead of a generic error.
+			throw new ApiError(
+				403,
+				error.code,
+				error.data ?? {
+					info: "This app was added from a public store link. Connect your store API to perform this action.",
+				},
+			);
+		}
 		throw new ApiError(res.status, error.code, error.data);
 	}
 	return res.json();
@@ -161,7 +181,42 @@ function toQuery(params: Record<string, string | boolean | undefined>): string {
 }
 
 export const api = {
+	bulk: {
+		apply: (body: BulkCopyRequest) =>
+			fetchApi<BulkCopyResult>("/api/apps/bulk-copy", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}),
+		preview: (body: BulkCopyRequest) =>
+			fetchApi<BulkCopyPreview>("/api/apps/bulk-copy/preview", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}),
+	},
+
+	overview: {
+		get: () => fetchApi<WorkspaceOverview>("/api/overview"),
+	},
+
+	audit: {
+		suggestions: (appId: string, language?: string) =>
+			fetchApi<SuggestionsResponse>(
+				`/api/apps/${appId}/audit/suggestions${toQuery({ language })}`,
+			),
+		/**
+		 * Cache-first: returns instantly. A "measuring" status means the real
+		 * measurement is running in the background - poll until "ready".
+		 */
+		get: (appId: string, params?: { country?: string; refresh?: boolean }) =>
+			fetchApi<AppAuditResponse>(
+				`/api/apps/${appId}/audit${toQuery({
+					country: params?.country,
+					refresh: params?.refresh ? "true" : undefined,
+				})}`,
+			),
+	},
 	ai: {
+		status: () => fetchApi<AiStatus>("/api/ai/status"),
 		draftReply: (data: DraftReplyRequest) =>
 			fetchApi<AiResponse>("/api/ai/draft-reply", {
 				body: JSON.stringify(data),
@@ -428,6 +483,16 @@ export const api = {
 			fetchApi<{ capabilities: PlatformCapabilities }>(
 				`/api/apps/${appId}/capabilities`,
 			).then((r) => r.capabilities),
+		/** An app you have not published in any store yet. */
+		createLocal: (body: {
+			bundleId?: string;
+			name: string;
+			platform: "ios" | "android";
+		}) =>
+			fetchApi<{ app: App }>("/api/apps", {
+				body: JSON.stringify(body),
+				method: "POST",
+			}).then((r) => r.app),
 		get: (appId: string) =>
 			fetchApi<{ app: App }>(`/api/apps/${appId}`).then((r) => r.app),
 		list: (params?: { platform?: string; storeId?: string }) =>
@@ -662,6 +727,11 @@ export const api = {
 		list: (appId: string) =>
 			fetchApi<{ listings: Listing[] }>(`/api/apps/${appId}/listings`).then(
 				(r) => r.listings,
+			),
+		markPublished: (appId: string) =>
+			fetchApi<{ published: number }>(
+				`/api/apps/${appId}/listings/mark-published`,
+				{ method: "POST" },
 			),
 		publish: (appId: string) =>
 			fetchApi<{ published: number }>(`/api/apps/${appId}/listings/publish`, {
@@ -1528,6 +1598,11 @@ export const api = {
 			fetchApi<void>(`/api/stores/${id}`, { method: "DELETE" }),
 		getCapabilities: (id: string) =>
 			fetchApi<StoreCapabilities>(`/api/stores/${id}/capabilities`),
+		importApp: (data: ImportAppInput) =>
+			fetchApi<ImportAppResponse>("/api/stores/import", {
+				body: JSON.stringify(data),
+				method: "POST",
+			}),
 		list: () =>
 			fetchApi<{ stores: Store[] }>("/api/stores").then((r) => r.stores),
 		rename: (id: string, name: string) =>

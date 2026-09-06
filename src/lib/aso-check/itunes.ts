@@ -79,6 +79,15 @@ async function itunesGet(url: string): Promise<ItunesPayload> {
 	}
 }
 
+export interface AppSuggestion {
+	appId: string;
+	title: string;
+	developer: string;
+	icon?: string;
+	rating?: number;
+	store: "appstore" | "playstore";
+}
+
 export interface CheckedApp {
 	trackId: string;
 	name: string;
@@ -90,6 +99,7 @@ export interface CheckedApp {
 	genre: string;
 	genres: string[];
 	screenshots: number;
+	screenshotUrls: string[];
 	released?: string;
 	updated?: string;
 	price?: string;
@@ -119,6 +129,7 @@ export async function lookupApp(
 		ratingsCount: app.userRatingCount,
 		released: app.releaseDate,
 		screenshots: app.screenshotUrls?.length ?? 0,
+		screenshotUrls: (app.screenshotUrls ?? []).slice(0, 10),
 		trackId: String(app.trackId),
 		updated: app.currentVersionReleaseDate,
 		url: app.trackViewUrl,
@@ -166,4 +177,24 @@ export async function searchWithRank(
 		competitors: results.slice(0, 25).map(toCompetitor),
 		rank: idx >= 0 ? idx + 1 : null,
 	};
+}
+
+/** App-name typeahead against the App Store (client-side). */
+export async function searchItunesApps(
+	term: string,
+	country: string,
+): Promise<AppSuggestion[]> {
+	const data = await itunesGet(
+		`${SEARCH_URL}?term=${encodeURIComponent(term)}&entity=software&country=${encodeURIComponent(country)}&limit=6`,
+	);
+	return (data.results ?? [])
+		.filter((r) => r.trackId)
+		.map((r) => ({
+			appId: String(r.trackId),
+			developer: r.sellerName ?? "",
+			icon: r.artworkUrl60 ?? r.artworkUrl100,
+			rating: r.averageUserRating,
+			store: "appstore" as const,
+			title: r.trackName ?? "",
+		}));
 }

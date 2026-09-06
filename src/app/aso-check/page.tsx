@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 
+import { PublicSiteHeader } from "@/components/public/site-header";
 import { AsoCheckFlow } from "@/components/aso-check/aso-check-flow";
 
 export const metadata: Metadata = {
@@ -13,8 +14,11 @@ export const metadata: Metadata = {
 // to our public ingest endpoint.
 export default function AsoCheckPage() {
 	return (
-		<div className="min-h-screen px-4">
-			<AsoCheckFlow />
+		<div className="flex min-h-screen flex-col">
+			<PublicSiteHeader />
+			<main className="flex-1 px-4">
+				<AsoCheckFlow />
+			</main>
 		</div>
 	);
 }

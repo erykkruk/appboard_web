@@ -12,7 +12,7 @@ export const COMMUNITY_DISCORD_URL = "https://discord.gg/3VpCwukDE3";
 export const COMMUNITY_REDDIT_URL = "https://www.reddit.com/r/appboard/";
 
 const DISMISSED_STORAGE_KEY = "appboard.community-popup.dismissed";
-/** Delay before the invite slides in — let the page settle first. */
+/** Delay before the invite slides in - let the page settle first. */
 const SHOW_DELAY_MS = 1500;
 
 /**
@@ -28,7 +28,7 @@ export function CommunityPopup({ delayMs = SHOW_DELAY_MS }: { delayMs?: number }
 		try {
 			if (window.localStorage.getItem(DISMISSED_STORAGE_KEY) === "1") return;
 		} catch {
-			// Storage blocked — still show the invite, just without persistence.
+			// Storage blocked - still show the invite, just without persistence.
 		}
 		const timer = window.setTimeout(() => {
 			setVisible(true);
@@ -49,12 +49,15 @@ export function CommunityPopup({ delayMs = SHOW_DELAY_MS }: { delayMs?: number }
 		}
 	};
 
+	// The wrapper spans the full width, so without pointer-events-none its
+	// invisible half swallows clicks on whatever sits underneath - which is
+	// exactly where a centered page puts its primary button.
 	return (
-		<div className="fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
-			<div className="flex w-full max-w-xl items-center gap-3 rounded-lg border border-border bg-background/95 p-3 shadow-lg backdrop-blur">
+		<div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex justify-center px-4">
+			<div className="pointer-events-auto flex w-full max-w-xl items-center gap-3 rounded-lg border border-border bg-background/95 p-3 shadow-lg backdrop-blur">
 				<MessageCircle className="h-5 w-5 shrink-0 text-primary" />
 				<p className="min-w-0 flex-1 text-xs text-muted-foreground sm:text-sm">
-					Enjoying AppBoard? Join our community and help shape the product —
+					Enjoying AppBoard? Join our community and help shape the product:
 					feature requests, feedback and early previews.
 				</p>
 				<div className="flex shrink-0 items-center gap-2">

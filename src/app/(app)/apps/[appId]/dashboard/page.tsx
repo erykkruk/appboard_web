@@ -1,8 +1,10 @@
 "use client";
 
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Apple, Download, MessageSquare, Package, Star, Store } from "lucide-react";
 
+import { AppAuditCard } from "@/components/apps/app-audit-card";
+import { FlowSteps } from "@/components/flow-steps";
 import { KeywordRankingsCard } from "@/components/tracking/keyword-rankings-card";
 import { ReviewSentimentCard } from "@/components/tracking/review-sentiment-card";
 import { Badge } from "@/components/ui/badge";
@@ -42,6 +44,9 @@ function StarRating({ rating }: { rating: number }) {
 export default function AppDashboardPage() {
   const params = useParams<{ appId: string }>();
   const appId = params.appId;
+  // Arriving from "Continue to the audit" keeps the step strip on screen so
+  // the path reads as one flow; a plain visit to the dashboard does not.
+  const inFlow = useSearchParams().get("flow") === "1";
   const app = useApp(appId);
   const overview = usePublishingOverview(appId);
   const reviewStats = useReviewStats(appId);
@@ -76,11 +81,13 @@ export default function AppDashboardPage() {
 
   const data = app.data;
   const isIos = data.platform === "ios";
+  const storeFacts = data.rawData?.storeFacts;
   const version = overview.data?.version;
   const stats = reviewStats.data;
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6 p-6">
+      {inFlow && <FlowSteps current="audit" />}
       {/* App header */}
       <div className="flex items-center gap-4">
         {data.iconUrl ? (
@@ -107,6 +114,9 @@ export default function AppDashboardPage() {
           {isIos ? "App Store" : "Google Play"}
         </Badge>
       </div>
+
+      {/* Listing score + fix queue, computed by the backend audit */}
+      <AppAuditCard app={data} />
 
       {/* Stats + rating */}
       <div className="grid items-start gap-6 lg:grid-cols-2">
@@ -137,6 +147,20 @@ export default function AppDashboardPage() {
                   {VERSION_STATE_LABELS[version.state]?.label ?? version.state}
                 </Badge>
               </div>
+            ) : storeFacts?.version ? (
+              // No API connection, but the store page still says what is live
+              // right now - which is exactly what "current version" means.
+              <div className="space-y-1">
+                <p className="text-2xl font-semibold tracking-tight">
+                  {storeFacts.version}
+                </p>
+                <p className="text-xs text-muted-foreground">
+                  Live in the store
+                  {storeFacts.updatedAt
+                    ? ` since ${new Date(storeFacts.updatedAt).toLocaleDateString()}`
+                    : ""}
+                </p>
+              </div>
             ) : (
               <p className="text-sm text-muted-foreground">No version info</p>
             )}
@@ -158,12 +182,16 @@ export default function AppDashboardPage() {
               <div className="space-y-1">
                 <div className="flex items-center gap-2">
                   <p className="text-2xl font-semibold tracking-tight">
-                    {stats.averageRating.toFixed(1)}
+                    {(stats.storeRating ?? stats.averageRating).toFixed(1)}
                   </p>
-                  <StarRating rating={stats.averageRating} />
+                  <StarRating rating={stats.storeRating ?? stats.averageRating} />
                 </div>
                 <p className="text-xs text-muted-foreground">
-                  {stats.totalReviews} total
+                  {/* Stores publish every star rating but only the reviews
+                      with text, so the two counts are different things. */}
+                  {stats.storeRating != null
+                    ? `${stats.storeRatingsCount ?? 0} ratings in the store · ${stats.totalReviews} with text`
+                    : `${stats.totalReviews} total`}
                   {stats.noReplyCount > 0 && (
                     <span className="text-amber-500">
                       {" "}&middot; {stats.noReplyCount} unanswered

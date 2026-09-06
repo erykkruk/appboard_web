@@ -55,6 +55,8 @@ import {
 	TabsList,
 	TabsTrigger,
 } from "@/components/ui/tabs";
+import { RequiresIntegrationBanner } from "@/components/requires-integration";
+import { useApp } from "@/hooks/use-apps";
 import {
 	useCreateGroup,
 	useCreatePurchase,
@@ -704,6 +706,7 @@ function CreateGroupDialog({
 export default function PurchasesPage() {
 	const routeParams = useParams<{ appId: string }>();
 	const appId = routeParams.appId;
+	const app = useApp(appId);
 	const purchases = usePurchases(appId);
 	const subscriptionGroups = useSubscriptionGroups(appId);
 	const syncPurchases = useSyncPurchases(appId);
@@ -764,6 +767,24 @@ export default function PurchasesPage() {
 		iaps.length === 0 &&
 		(subscriptionGroups.data?.length ?? 0) === 0 &&
 		ungroupedSubscriptions.length === 0;
+
+	// Purchases are store writes - a public (credential-less) app cannot
+	// manage them, so the connect CTA replaces the whole form surface.
+	if (app.data?.store?.connectionMode === "public") {
+		return (
+			<div className="mx-auto w-full max-w-6xl p-6">
+				<div className="mb-6">
+					<h1 className="text-lg font-semibold">
+						Purchases & Subscriptions
+					</h1>
+					<p className="text-sm text-muted-foreground">
+						Manage in-app purchases and subscription groups
+					</p>
+				</div>
+				<RequiresIntegrationBanner storeType={app.data.store.type} />
+			</div>
+		);
+	}
 
 	return (
 		<div className="mx-auto w-full max-w-6xl p-6">

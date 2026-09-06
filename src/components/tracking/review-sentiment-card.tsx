@@ -61,7 +61,7 @@ export function ReviewSentimentCard({
   appBundleId: string;
   appExternalId?: string;
 }) {
-  const runs = useAppResearchRuns(appId);
+  const runs = useAppResearchRuns(appId, { pollWhileEmpty: true });
   // Newest run analyzing THIS app (competitor analyses are attached too).
   // Google Play run ids are package names (= bundleId); iOS uses externalId.
   const ownRun = runs.data?.find(
