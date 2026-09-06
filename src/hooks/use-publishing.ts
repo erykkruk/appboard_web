@@ -74,9 +74,9 @@ export function useCreateVersion(appId: string) {
 	});
 }
 
-export function useVersions(appId: string) {
+export function useVersions(appId: string, enabled = true) {
 	return useQuery({
-		enabled: !!appId,
+		enabled: !!appId && enabled,
 		queryFn: () => api.publishing.versions(appId),
 		queryKey: ["publishing", appId, "versions"],
 	});

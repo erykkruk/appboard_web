@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useSearchParams } from "next/navigation";
 import { Check, Loader2, Plus, RotateCcw } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
@@ -82,7 +82,9 @@ export default function TextPage() {
     null;
 
   const [picked, setPicked] = useState<string | null>(null);
-  const [newLanguage, setNewLanguage] = useState("");
+  // The audit deep-links here with the locale the market is missing.
+  const wanted = useSearchParams().get("add") ?? "";
+  const [newLanguage, setNewLanguage] = useState(wanted);
   const language = picked ?? defaultLanguage;
 
   // A brand-new app has no listing row at all. Asking a person for a language

@@ -11,8 +11,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAudit, useRecheckAudit, useSuggestions } from "@/hooks/use-audit";
+import { useVersions } from "@/hooks/use-publishing";
 import { api } from "@/lib/api";
-import type { App, AuditIssue, KeywordScore } from "@/lib/types";
+import { storeConsoleUrl, storeLocaleFor } from "@/lib/apps";
+import type { App, AppVersion, AuditIssue, KeywordScore } from "@/lib/types";
 
 /**
  * What each audit rule's button does. Keyword rules resolve on this very
@@ -21,15 +23,11 @@ import type { App, AuditIssue, KeywordScore } from "@/lib/types";
  */
 type IssueAction =
   | { label: string; kind: "route"; path: string }
+  | { label: string; kind: "external"; href: string }
   | { label: string; kind: "keywords" };
 
 const ISSUE_ACTION: Record<string, IssueAction> = {
   "brand-only-ranks": { kind: "keywords", label: "See the keywords" },
-  "category-mismatch": {
-    kind: "route",
-    label: "Set the category",
-    path: "information",
-  },
   "description-opening": {
     kind: "route",
     label: "Rewrite with AI",
@@ -41,11 +39,6 @@ const ISSUE_ACTION: Record<string, IssueAction> = {
     path: "write",
   },
   "missing-winnable-terms": { kind: "keywords", label: "See the keywords" },
-  "no-local-listing": {
-    kind: "route",
-    label: "Add the language",
-    path: "information",
-  },
   "no-ranks": { kind: "keywords", label: "See the keywords" },
   "ranks-below-fold": { kind: "keywords", label: "See the keywords" },
   screenshots: {
@@ -61,6 +54,53 @@ const ISSUE_ACTION: Record<string, IssueAction> = {
   },
   "title-upgrade": { kind: "route", label: "See the proposed title", path: "fixes" },
 };
+
+/**
+ * Two rules need the app to know where the fix lives: the language is
+ * added on the Text screen under the store's locale, and the category is a
+ * version field for API-connected apps but a store-console setting for
+ * everyone else. Never send these to the ASO profile - that is a note, not
+ * the listing.
+ */
+function resolveAction(
+  issue: AuditIssue,
+  app: App,
+  report: { country: string; language: string },
+  versions: AppVersion[] | undefined,
+): IssueAction | undefined {
+  if (issue.id === "no-local-listing") {
+    const locale = storeLocaleFor(report.language, report.country, app.platform);
+    return {
+      kind: "route",
+      label: `Add ${locale}`,
+      path: `text?add=${encodeURIComponent(locale)}`,
+    };
+  }
+  if (issue.id === "category-mismatch") {
+    if (app.store?.connectionMode === "api") {
+      const version =
+        versions?.find((v) => v.isEditable) ?? versions?.[0];
+      return version
+        ? {
+            kind: "route",
+            label: "Set the category",
+            path: `versions/${version.id}`,
+          }
+        : { kind: "route", label: "Set the category", path: "dashboard" };
+    }
+    const href = storeConsoleUrl(app);
+    if (!href) return undefined;
+    return {
+      href,
+      kind: "external",
+      label:
+        app.platform === "ios"
+          ? "Change it in App Store Connect"
+          : "Change it in Play Console",
+    };
+  }
+  return ISSUE_ACTION[issue.id];
+}
 
 /** Terms worth chasing: real search volume, winnable, and you are absent. */
 const GAP_MIN_POPULARITY = 35;
@@ -122,6 +162,8 @@ export function AppAuditCard({ app }: { app: App }) {
   const router = useRouter();
   const { data, isLoading } = useAudit(app.id);
   const recheck = useRecheckAudit(app.id);
+  // Only API-connected apps have versions to set a category on.
+  const versions = useVersions(app.id, app.store?.connectionMode === "api");
   const suggestions = useSuggestions(app.id);
   const proposalCount = suggestions.data?.suggestions.length ?? 0;
   const [tracking, setTracking] = useState(false);
@@ -209,8 +251,8 @@ export function AppAuditCard({ app }: { app: App }) {
   const gaps = keywords.filter((k) => isGap(k, recommendable));
 
   const openFix = (issue: AuditIssue) => {
-    const action = ISSUE_ACTION[issue.id];
-    if (!action) return;
+    const action = resolveAction(issue, app, report, versions.data);
+    if (!action || action.kind === "external") return;
     if (action.kind === "route") {
       router.push(`/apps/${app.id}/${action.path}`);
       return;
@@ -319,7 +361,7 @@ export function AppAuditCard({ app }: { app: App }) {
           </CardHeader>
           <CardContent className="space-y-2">
             {actionable.map((issue, index) => {
-              const action = ISSUE_ACTION[issue.id];
+              const action = resolveAction(issue, app, report, versions.data);
               return (
                 <div
                   key={issue.id}
@@ -337,7 +379,14 @@ export function AppAuditCard({ app }: { app: App }) {
                   <span className="shrink-0 font-semibold text-emerald-600 text-sm">
                     +{issue.scorePenalty}
                   </span>
-                  {action && (
+                  {action?.kind === "external" && (
+                    <Button size="sm" variant="outline" asChild>
+                      <a href={action.href} target="_blank" rel="noreferrer">
+                        {action.label}
+                      </a>
+                    </Button>
+                  )}
+                  {action && action.kind !== "external" && (
                     <Button size="sm" onClick={() => openFix(issue)}>
                       {action.label}
                     </Button>
