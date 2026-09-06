@@ -28,6 +28,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApps } from "@/hooks/use-apps";
 import { useBulkApply, useBulkPreview } from "@/hooks/use-bulk-copy";
+import { isLocalApp } from "@/lib/apps";
 import { useAppSelection } from "@/lib/app-selection-context";
 import type {
   BulkCopyPart,
@@ -79,12 +80,18 @@ export default function BulkCopyPage() {
   );
 
   // The remembered source wins as long as it still points at a real app;
-  // otherwise the first ticked app is the natural template.
+  // otherwise the first ticked app that is in a store is the natural
+  // template - a brand-new local app has nothing to copy from, and it is
+  // usually the newest, so it would win the default by accident.
   const sourceAppId = useMemo(() => {
     if (selection.sourceAppId && appsById.has(selection.sourceAppId)) {
       return selection.sourceAppId;
     }
-    return selectedApps[0]?.id ?? null;
+    return (
+      selectedApps.find((app) => !isLocalApp(app))?.id ??
+      selectedApps[0]?.id ??
+      null
+    );
   }, [appsById, selectedApps, selection.sourceAppId]);
 
   const targets = useMemo(
