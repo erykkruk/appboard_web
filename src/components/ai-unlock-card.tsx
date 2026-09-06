@@ -12,7 +12,7 @@ import { useAiStatus } from "@/hooks/use-ai";
  * a button fail on click. Everything NOT on this list works without a key.
  */
 export const AI_UNLOCKS = [
-  "Find the keywords your description already targets, scored for difficulty",
+  "Smarter keyword ideas for your description (the ones taken from your own text work without a key)",
   "Rewrite the description around the keywords you pick",
   "Draft replies to reviews",
   "Translate the whole listing into every language you ship",

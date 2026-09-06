@@ -21,6 +21,7 @@ import { AiUnlockCard } from "@/components/ai-unlock-card";
 import { isLocalApp } from "@/lib/apps";
 import { AiOffHint } from "@/components/write/ai-off-hint";
 import { KeywordChips } from "@/components/write/keyword-chips";
+import { useAiStatus } from "@/hooks/use-ai";
 import { useApp } from "@/hooks/use-apps";
 import { useIsFeatureEnabled } from "@/hooks/use-features";
 import { useKeywordScores } from "@/hooks/use-keyword-research";
@@ -30,6 +31,7 @@ import {
   useSuggestTargetKeywords,
   useWriteDescription,
 } from "@/hooks/use-write-with-ai";
+import { extractKeywordCandidates } from "@/lib/aso-engine/listing-audit";
 import { computeDiff } from "@/lib/diff";
 import type { KeywordScore } from "@/lib/types";
 import {
@@ -83,6 +85,8 @@ export default function WriteWithAiPage() {
   const aiEnabled = useIsFeatureEnabled("AI");
   const researchEnabled = useIsFeatureEnabled("RESEARCH");
   const app = useApp(appId);
+  const aiStatus = useAiStatus();
+  const aiReady = !!aiStatus.data?.configured && !aiStatus.data.lastError;
   const listings = useListingList(appId);
   const suggest = useSuggestTargetKeywords();
   const scoring = useKeywordScores();
@@ -102,6 +106,8 @@ export default function WriteWithAiPage() {
   const brief = description.trim();
 
   const [keywords, setKeywords] = useState<string[]>([]);
+  // Where the current chips came from: the model, or the text itself.
+  const [targetsFrom, setTargetsFrom] = useState<"ai" | "text" | null>(null);
   const [scores, setScores] = useState<Record<string, KeywordScore>>({});
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   // Once you have toggled a chip, late scores must not redo your picks.
@@ -154,11 +160,34 @@ export default function WriteWithAiPage() {
     );
   };
 
+  // No key, or a key the provider rejects: the audit's own candidate
+  // extraction reads the same title and description, so the chips (and
+  // their scores) still appear. Only the rewrite in step 3 needs the model.
+  const fallbackTargets = () => {
+    if (!app.data) return;
+    const found = extractKeywordCandidates({
+      country: publicCountry ?? DEFAULT_COUNTRY,
+      description: brief,
+      genre: appPrimaryCategory(app.data) ?? "",
+      name: app.data.name,
+      screenshots: 0,
+      subtitle: source?.shortDesc ?? undefined,
+    });
+    setKeywords(found);
+    setSelected(new Set(found));
+    setTargetsFrom("text");
+    if (found.length > 0 && canScore) scoreKeywords(found);
+  };
   const findTargets = () => {
     if (!app.data) return;
     setGenerated(null);
     setScores({});
+    setTargetsFrom(null);
     touchedRef.current = false;
+    if (!aiReady) {
+      fallbackTargets();
+      return;
+    }
     suggest.mutate(
       {
         appName: app.data.name,
@@ -167,9 +196,13 @@ export default function WriteWithAiPage() {
         description: brief || undefined,
       },
       {
+        onError: (err) => {
+          if (isAiUnavailableError(err)) fallbackTargets();
+        },
         onSuccess: (found) => {
           setKeywords(found);
           setSelected(new Set(found));
+          setTargetsFrom("ai");
           if (found.length > 0 && canScore) scoreKeywords(found);
         },
       },
@@ -277,9 +310,9 @@ export default function WriteWithAiPage() {
             What am I targeting?
           </Button>
 
-          <AiError error={suggest.error} />
+          <AiError error={targetsFrom === "text" ? null : suggest.error} />
 
-          {suggest.isSuccess && keywords.length === 0 && (
+          {(suggest.isSuccess || targetsFrom === "text") && keywords.length === 0 && (
             <p className="text-muted-foreground text-sm">
               No usable keywords came back. Add a few sentences about what the
               app does and try again.
@@ -296,6 +329,8 @@ export default function WriteWithAiPage() {
                 selected={selected}
               />
               <p className="text-muted-foreground text-xs">
+                {targetsFrom === "text" &&
+                  "Taken from your title and description, no AI key needed. "}
                 {!isIos
                   ? "Difficulty is not available for Google Play."
                   : !researchEnabled
