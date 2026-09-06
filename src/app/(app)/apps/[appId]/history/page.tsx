@@ -18,6 +18,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@/components/ui/select";
+import { useApp } from "@/hooks/use-apps";
 import { useHistory, useRollback } from "@/hooks/use-history";
 import { getListingFieldLabel } from "@/lib/field-labels";
 
@@ -32,6 +33,8 @@ export default function HistoryPage() {
 	);
 	const [fieldFilter, setFieldFilter] = useState<string | undefined>(undefined);
 
+	const app = useApp(appId);
+	const isPublicApp = app.data?.store?.connectionMode === "public";
 	const history = useHistory(appId, {
 		language: languageFilter,
 		field: fieldFilter,
@@ -127,6 +130,11 @@ export default function HistoryPage() {
 				<CardContent className="min-h-0 flex-1 p-0">
 					<HistoryTimeline
 						entries={allEntries}
+						emptyHint={
+							isPublicApp
+								? "An entry is written when you press 'I pasted it into the store' on Publish, so every text change stays attributable on the rank chart."
+								: "An entry is written every time a draft is published to the store."
+						}
 						isLoading={history.isLoading}
 						onRollback={handleRollback}
 						rollbackPendingId={rollbackPendingId}

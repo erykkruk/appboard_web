@@ -16,6 +16,8 @@ const PREVIEW_MAX_LENGTH = 60;
 
 interface HistoryTimelineProps {
 	entries: HistoryEntry[];
+	/** One sentence under "No changes yet" saying what creates an entry. */
+	emptyHint?: string;
 	isLoading?: boolean;
 	onRollback?: (entryId: string) => void;
 	rollbackPendingId?: string | null;
@@ -93,6 +95,7 @@ function groupEntries(entries: HistoryEntry[]): HistoryGroup[] {
 
 export function HistoryTimeline({
 	entries,
+	emptyHint,
 	isLoading,
 	onRollback,
 	rollbackPendingId,
@@ -143,6 +146,9 @@ export function HistoryTimeline({
 			>
 				<Clock className="h-8 w-8 opacity-50" />
 				<p className="text-sm">No changes yet</p>
+				{emptyHint && (
+					<p className="max-w-sm text-center text-xs">{emptyHint}</p>
+				)}
 			</div>
 		);
 	}
