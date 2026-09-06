@@ -728,6 +728,11 @@ export const api = {
 			fetchApi<{ listings: Listing[] }>(`/api/apps/${appId}/listings`).then(
 				(r) => r.listings,
 			),
+		markPublished: (appId: string) =>
+			fetchApi<{ published: number }>(
+				`/api/apps/${appId}/listings/mark-published`,
+				{ method: "POST" },
+			),
 		publish: (appId: string) =>
 			fetchApi<{ published: number }>(`/api/apps/${appId}/listings/publish`, {
 				method: "POST",

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Copy, Download, KeyRound } from "lucide-react";
+import { Check, Copy, Download, KeyRound } from "lucide-react";
 import { useMemo } from "react";
 import { toast } from "sonner";
 
@@ -12,6 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useListingDiffs } from "@/hooks/use-listing-diffs";
+import { useMarkPublished } from "@/hooks/use-listings";
 import { computeDiff } from "@/lib/diff";
 import { getListingFieldLabel } from "@/lib/field-labels";
 import { listingFieldsFor } from "@/lib/listing-limits";
@@ -90,6 +91,7 @@ export function PublicPublishView({
   storeType?: string;
 }) {
   const diffs = useListingDiffs(appId);
+  const markPublished = useMarkPublished(appId);
   const list = useMemo(() => diffs.data ?? [], [diffs.data]);
   const changed = list.reduce((n, d) => n + d.fields.length, 0);
   const consoleName =
@@ -181,6 +183,41 @@ export function PublicPublishView({
           </CardContent>
         </Card>
       ))}
+
+      {changed > 0 && (
+        <Card>
+          <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6 text-sm">
+            <div>
+              <p className="font-medium">Pasted everything into {consoleName}?</p>
+              <p className="mt-0.5 text-muted-foreground">
+                Mark it done: the change lands in History, the rank chart gets
+                a marker on today, and the draft reminder stops.
+              </p>
+            </div>
+            <Button
+              size="sm"
+              disabled={markPublished.isPending}
+              onClick={() =>
+                markPublished.mutate(undefined, {
+                  onError: (err) =>
+                    toast.error(
+                      err instanceof Error && err.message
+                        ? err.message
+                        : "Could not mark the draft as published",
+                    ),
+                  onSuccess: (r) =>
+                    toast.success(
+                      `Marked ${r.published} language${r.published === 1 ? "" : "s"} as live in the store`,
+                    ),
+                })
+              }
+            >
+              <Check className="mr-1.5 h-3.5 w-3.5" />
+              I pasted it into the store
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card className="border-dashed">
         <CardContent className="flex flex-wrap items-center justify-between gap-3 pt-6 text-sm">

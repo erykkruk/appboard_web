@@ -58,11 +58,32 @@ export function useUpdateListing(appId: string) {
 			language: string;
 			data: UpdateListingData;
 		}) => api.listings.update(appId, language, data),
-		onSuccess: (_result, { language }) => {
-			queryClient.invalidateQueries({
-				queryKey: ["listings", appId, language],
-			});
-			queryClient.invalidateQueries({ queryKey: ["listings", appId, "diffs"] });
+		onSuccess: () => {
+			// Prefix match: the language list, every per-language read and the
+			// Publish diff all change when one draft is written. A brand-new
+			// app depends on the list refetch to show its first language at all.
+			queryClient.invalidateQueries({ queryKey: ["listings", appId] });
+			queryClient.invalidateQueries({ queryKey: ["listing-diffs", appId] });
+		},
+	});
+}
+
+/**
+ * The way out for an app without a store API: after the text is pasted into
+ * the store by hand, this closes the drafts and records the change, so the
+ * diff empties, History fills, the rank chart gets its marker and the draft
+ * reminder stops.
+ */
+export function useMarkPublished(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: () => api.listings.markPublished(appId),
+		onSuccess: () => {
+			for (const key of ["listings", "listing-diffs", "history"]) {
+				queryClient.invalidateQueries({ queryKey: [key, appId] });
+			}
+			// Rank chart annotations live under the tracking prefix.
+			queryClient.invalidateQueries({ queryKey: ["apps", appId, "tracking"] });
 		},
 	});
 }
