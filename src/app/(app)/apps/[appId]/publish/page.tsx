@@ -40,6 +40,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { PublishReport } from "@/components/publishing/publish-report";
+import { FlowSteps } from "@/components/flow-steps";
 import { PublicPublishView } from "@/components/publish/public-publish";
 import { useApp } from "@/hooks/use-apps";
 import {
@@ -201,6 +202,7 @@ export default function PublishPage() {
 
   return (
     <div className="mx-auto w-full max-w-6xl p-6">
+      <FlowSteps current="publish" />
       <div className="grid items-start gap-6 lg:grid-cols-2">
         <div className="space-y-6">
       {/* Managed Publishing — Google Play only */}

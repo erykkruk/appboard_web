@@ -13,6 +13,7 @@ const STEPS = [
   { id: "add", label: "Add the app" },
   { id: "text", label: "Your text" },
   { id: "audit", label: "Audit and fixes" },
+  { id: "publish", label: "Publish or copy" },
 ] as const;
 
 export type FlowStepId = (typeof STEPS)[number]["id"];

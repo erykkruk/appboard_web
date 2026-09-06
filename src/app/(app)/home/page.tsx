@@ -129,6 +129,15 @@ export default function HomePage() {
           )}
         </CardContent>
       </Card>
+      {rows.length === 1 && (
+        <p className="text-muted-foreground text-sm">
+          One app so far. This screen earns its keep with two or more:{" "}
+          <Link href="/start" className="text-primary underline underline-offset-4">
+            add another app
+          </Link>{" "}
+          to compare scores, ratings and positions side by side.
+        </p>
+      )}
     </div>
   );
 }

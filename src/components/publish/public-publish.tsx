@@ -6,6 +6,7 @@ import { useMemo } from "react";
 import { toast } from "sonner";
 
 import { InlineDiff } from "@/components/diff/inline-diff";
+import { FlowSteps } from "@/components/flow-steps";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -106,6 +107,7 @@ export function PublicPublishView({
 
   return (
     <div className="mx-auto w-full max-w-4xl space-y-4 p-6">
+      <FlowSteps current="publish" />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h1 className="font-bold text-xl tracking-tight">Publish</h1>

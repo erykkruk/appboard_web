@@ -238,9 +238,9 @@ export default function FixesPage() {
               </Button>
               <Button
                 size="sm"
-                onClick={() => router.push(`/apps/${appId}/dashboard?flow=1`)}
+                onClick={() => router.push(`/apps/${appId}/publish`)}
               >
-                Back to the audit
+                Next: publish or copy
               </Button>
             </div>
           </CardContent>
