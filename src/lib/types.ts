@@ -1982,7 +1982,8 @@ export interface OverviewAppRow {
   name: string;
   platform: Platform;
   iconUrl: string | null;
-  connectionMode: "api" | "public";
+  /** "local" = created here and in no store yet. */
+  connectionMode: "api" | "public" | "local";
   storeRating: number | null;
   storeRatingsCount: number | null;
   reviewsTotal: number;

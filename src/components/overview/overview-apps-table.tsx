@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { Link2, type LucideIcon, PlugZap } from "lucide-react";
+import { Link2, PencilLine, PlugZap, type LucideIcon } from "lucide-react";
 
 import { StoreLogo } from "@/components/store-logo";
 import { Badge } from "@/components/ui/badge";
@@ -28,6 +28,7 @@ const CONNECTION_META: Record<
   { icon: LucideIcon; label: string }
 > = {
   api: { icon: PlugZap, label: "API" },
+  local: { icon: PencilLine, label: "Not in a store" },
   public: { icon: Link2, label: "Public link" },
 };
 

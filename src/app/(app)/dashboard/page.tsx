@@ -1,19 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import {
-  Apple,
-  ArrowRight,
-  KeyRound,
-  Link2,
-  type LucideIcon,
-  PlugZap,
-  Plus,
-  Search,
-  Smartphone,
-  Store,
-  Wand2,
-} from "lucide-react";
+import { Apple, ArrowRight, KeyRound, Link2, PencilLine, PlugZap, Plus, Search, Smartphone, Store, type LucideIcon, Wand2 } from "lucide-react";
 import { useState } from "react";
 
 import { AddAppDialog } from "@/components/add-app-dialog";
@@ -29,6 +17,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useApps } from "@/hooks/use-apps";
 import { useStores } from "@/hooks/use-stores";
+import { isLocalApp } from "@/lib/apps";
 import type { App, StoreConnectionMode } from "@/lib/types";
 
 const PLATFORM_LABELS: Record<string, { label: string; icon: typeof Apple }> = {
@@ -45,6 +34,9 @@ const CONNECTION_MODE_LABELS: Record<
   api: { icon: PlugZap, label: "Connected" },
   public: { icon: Link2, label: "From link" },
 };
+
+/** An app created here that is not published anywhere yet. */
+const LOCAL_SOURCE = { icon: PencilLine, label: "Not in a store yet" };
 
 const MINUTE_MS = 60_000;
 const HOUR_MS = 60 * MINUTE_MS;
@@ -125,7 +117,10 @@ function FirstRunTile({
 function AppCard({ app }: { app: App }) {
   const platform = PLATFORM_LABELS[app.platform];
   const connectionMode = app.store?.connectionMode;
-  const source = connectionMode ? CONNECTION_MODE_LABELS[connectionMode] : null;
+  const local = isLocalApp(app);
+  const source = local
+    ? LOCAL_SOURCE
+    : connectionMode ? CONNECTION_MODE_LABELS[connectionMode] : null;
 
   return (
     <Link href={`/apps/${app.id}/dashboard`}>
@@ -153,7 +148,7 @@ function AppCard({ app }: { app: App }) {
               )}
             </div>
             <p className="mt-0.5 truncate text-xs text-muted-foreground">
-              {app.bundleId}
+              {local ? "Draft listing, nothing published" : app.bundleId}
             </p>
             <div className="mt-1.5 flex flex-wrap items-center gap-2">
               {source && (
@@ -165,11 +160,13 @@ function AppCard({ app }: { app: App }) {
                   {source.label}
                 </Badge>
               )}
-              <span className="truncate text-xs text-muted-foreground">
-                {[app.store?.name, formatSyncedAt(app.lastSyncedAt)]
-                  .filter(Boolean)
-                  .join(" · ")}
-              </span>
+              {!local && (
+                <span className="truncate text-xs text-muted-foreground">
+                  {[app.store?.name, formatSyncedAt(app.lastSyncedAt)]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </span>
+              )}
             </div>
           </div>
         </CardContent>
