@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, ArrowRight, Loader2, RefreshCw } from "lucide-react";
 import { useState } from "react";
@@ -12,8 +13,8 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAiStatus } from "@/hooks/use-ai";
 import { useAudit, useRecheckAudit, useSuggestions } from "@/hooks/use-audit";
+import { useAddKeywords, useTracking } from "@/hooks/use-tracking";
 import { useVersions } from "@/hooks/use-publishing";
-import { api } from "@/lib/api";
 import { storeConsoleUrl, storeLocaleFor } from "@/lib/apps";
 import type { App, AppVersion, AuditIssue, KeywordScore } from "@/lib/types";
 
@@ -177,6 +178,8 @@ export function AppAuditCard({ app }: { app: App }) {
   const versions = useVersions(app.id, app.store?.connectionMode === "api");
   const aiStatus = useAiStatus();
   const aiReady = !!aiStatus.data?.configured && !aiStatus.data.lastError;
+  const trackingData = useTracking(app.id);
+  const addKeywords = useAddKeywords(app.id);
   const suggestions = useSuggestions(app.id);
   const proposalCount = suggestions.data?.suggestions.length ?? 0;
   const [tracking, setTracking] = useState(false);
@@ -275,22 +278,30 @@ export function AppAuditCard({ app }: { app: App }) {
       ?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
+  // The first audit already tracks the best terms on its own; the button
+  // must say so instead of offering to track what is tracked.
+  const trackedHere = new Set(
+    (trackingData.data?.keywords ?? [])
+      .filter((k) => k.country.toLowerCase() === report.country.toLowerCase())
+      .map((k) => k.keyword.trim().toLowerCase()),
+  );
+  const untracked = keywords.filter(
+    (k) => !trackedHere.has(k.keyword.trim().toLowerCase()),
+  );
+  const allTracked = keywords.length > 0 && untracked.length === 0;
+
   const trackAll = async () => {
     setTracking(true);
     try {
-      const added = await api.tracking.addKeywords(app.id, {
+      const added = await addKeywords.mutateAsync({
         country: report.country.toUpperCase(),
-        keywords: keywords.map((k) => k.keyword),
+        keywords: untracked.map((k) => k.keyword),
       });
       toast.success(
         `Tracking ${added.length} keyword${added.length === 1 ? "" : "s"} - positions refresh nightly.`,
       );
-    } catch (err) {
-      toast.error(
-        err instanceof Error && err.message
-          ? err.message
-          : "Could not start tracking",
-      );
+    } catch {
+      // useAddKeywords already toasts the failure.
     } finally {
       setTracking(false);
     }
@@ -431,15 +442,26 @@ export function AppAuditCard({ app }: { app: App }) {
               )}
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={trackAll}
-            disabled={tracking || keywords.length === 0}
-          >
-            {tracking && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-            Track these nightly
-          </Button>
+          {allTracked ? (
+            <Button variant="ghost" size="sm" asChild>
+              <Link href={`/apps/${app.id}/research?tab=keywords`}>
+                Tracked nightly - see positions
+                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+              </Link>
+            </Button>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={trackAll}
+              disabled={tracking || keywords.length === 0}
+            >
+              {tracking && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+              {trackedHere.size > 0
+                ? `Track ${untracked.length} more nightly`
+                : "Track these nightly"}
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
