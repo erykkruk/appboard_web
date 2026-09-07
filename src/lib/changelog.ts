@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.16.2",
+    serverVersion: "0.16.2",
+    date: "2026-09-07",
+    changes: [
+      "A listing audit that cannot run (the store does not know the app, or it is not published in that market) now says so, with the store's reason and a Try again button, instead of showing 'Measuring your listing' forever",
+    ],
+  },
+  {
     version: "0.16.1",
     serverVersion: "0.16.1",
     date: "2026-09-07",
