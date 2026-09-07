@@ -6,6 +6,7 @@ import { AlertCircle, ArrowRight, Loader2, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
+import { AuditAiReview } from "@/components/apps/audit-ai-review";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -324,8 +325,15 @@ export function AppAuditCard({ app }: { app: App }) {
             <CardTitle className="text-base">Listing score</CardTitle>
             <p className="mt-1 text-muted-foreground text-xs">
               {report.country.toUpperCase()} · {report.language} · measured{" "}
-              {new Date(report.measuredAt).toLocaleString()}
+              {new Date(report.measuredAt).toLocaleString()} · re-measured every
+              Monday, or when you press Re-check
             </p>
+            {report.keywordsSupported === false && (
+              <p className="mt-1 text-muted-foreground text-xs">
+                Google Play has no keyword difficulty data, so this score covers
+                the text and screenshots. Keyword scoring runs for App Store apps.
+              </p>
+            )}
           </div>
           <Button
             variant="outline"
@@ -431,83 +439,87 @@ export function AppAuditCard({ app }: { app: App }) {
         </Card>
       )}
 
-      <Card id="audit-keywords" className="scroll-mt-24">
-        <CardHeader className="flex flex-row items-start justify-between gap-4">
-          <div>
-            <CardTitle className="text-base">
-              Keywords we checked for you
-            </CardTitle>
-            <p className="mt-1 text-muted-foreground text-xs">
-              Taken from your own listing and from the titles of the apps you
-              compete with, then scored against live {report.country.toUpperCase()}{" "}
-              search results.
-              {gaps.length > 0 && (
-                <>
-                  {" "}
-                  <span className="text-emerald-500">
-                    {gaps.length} of them are open opportunities.
-                  </span>
-                </>
-              )}
+      {report.ai && <AuditAiReview ai={report.ai} appId={app.id} />}
+
+      {report.keywordsSupported !== false && (
+        <Card id="audit-keywords" className="scroll-mt-24">
+          <CardHeader className="flex flex-row items-start justify-between gap-4">
+            <div>
+              <CardTitle className="text-base">
+                Keywords we checked for you
+              </CardTitle>
+              <p className="mt-1 text-muted-foreground text-xs">
+                Taken from your own listing and from the titles of the apps you
+                compete with, then scored against live {report.country.toUpperCase()}{" "}
+                search results.
+                {gaps.length > 0 && (
+                  <>
+                    {" "}
+                    <span className="text-emerald-500">
+                      {gaps.length} of them are open opportunities.
+                    </span>
+                  </>
+                )}
+              </p>
+            </div>
+            {allTracked ? (
+              <Button variant="ghost" size="sm" asChild>
+                <Link href={`/apps/${app.id}/research?tab=keywords`}>
+                  Tracked nightly - see positions
+                  <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
+                </Link>
+              </Button>
+            ) : (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={trackAll}
+                disabled={tracking || untracked.length === 0}
+              >
+                {tracking && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                {trackedHere.size > 0
+                  ? `Track ${untracked.length} more nightly`
+                  : "Track these nightly"}
+              </Button>
+            )}
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b text-left text-muted-foreground text-xs">
+                    <th className="py-2 pr-3 font-medium">Keyword</th>
+                    <th className="py-2 pr-3 font-medium">Popularity</th>
+                    <th className="py-2 pr-3 font-medium">Difficulty</th>
+                    <th className="py-2 pr-3 font-medium">Your position</th>
+                    <th className="py-2 font-medium">What it means</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {keywords.map((score) => {
+                    const v = verdict(score, recommendable);
+                    return (
+                      <tr key={score.keyword} className="border-b last:border-0">
+                        <td className="py-2 pr-3 font-medium">{score.keyword}</td>
+                        <td className="py-2 pr-3">{score.popularity ?? "--"}</td>
+                        <td className="py-2 pr-3">{score.difficulty}</td>
+                        <td className="py-2 pr-3">
+                          {score.appRank ? `#${score.appRank}` : "not in top 200"}
+                        </td>
+                        <td className={`py-2 ${v.tone}`}>{v.label}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <p className="mt-3 text-muted-foreground text-xs">
+              Popularity and difficulty are 1-100 estimates from live App Store
+              results, not Apple&apos;s own numbers. Difficulty is App Store only.
             </p>
-          </div>
-          {allTracked ? (
-            <Button variant="ghost" size="sm" asChild>
-              <Link href={`/apps/${app.id}/research?tab=keywords`}>
-                Tracked nightly - see positions
-                <ArrowRight className="ml-1.5 h-3.5 w-3.5" />
-              </Link>
-            </Button>
-          ) : (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={trackAll}
-              disabled={tracking || untracked.length === 0}
-            >
-              {tracking && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
-              {trackedHere.size > 0
-                ? `Track ${untracked.length} more nightly`
-                : "Track these nightly"}
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b text-left text-muted-foreground text-xs">
-                  <th className="py-2 pr-3 font-medium">Keyword</th>
-                  <th className="py-2 pr-3 font-medium">Popularity</th>
-                  <th className="py-2 pr-3 font-medium">Difficulty</th>
-                  <th className="py-2 pr-3 font-medium">Your position</th>
-                  <th className="py-2 font-medium">What it means</th>
-                </tr>
-              </thead>
-              <tbody>
-                {keywords.map((score) => {
-                  const v = verdict(score, recommendable);
-                  return (
-                    <tr key={score.keyword} className="border-b last:border-0">
-                      <td className="py-2 pr-3 font-medium">{score.keyword}</td>
-                      <td className="py-2 pr-3">{score.popularity ?? "--"}</td>
-                      <td className="py-2 pr-3">{score.difficulty}</td>
-                      <td className="py-2 pr-3">
-                        {score.appRank ? `#${score.appRank}` : "not in top 200"}
-                      </td>
-                      <td className={`py-2 ${v.tone}`}>{v.label}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-3 text-muted-foreground text-xs">
-            Popularity and difficulty are 1-100 estimates from live App Store
-            results, not Apple&apos;s own numbers. Difficulty is App Store only.
-          </p>
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
 
       {context.length > 0 && (
         <Card>

@@ -1903,6 +1903,42 @@ export interface AppAuditReport {
   keywords: KeywordScore[];
   /** Keywords from this app's own category - the ones worth acting on. */
   recommendable: string[];
+  /** False on Google Play: no difficulty data, so text and screenshot rules only. */
+  keywordsSupported: boolean;
+  /** The model's reading of the audit, when the workspace has a working key. */
+  ai?: AuditAiInsights | null;
+}
+
+export interface AuditAiPriority {
+  title: string;
+  why: string;
+  how: string;
+}
+
+export interface AuditAiRewrites {
+  title: string | null;
+  subtitle: string | null;
+  keywords: string | null;
+  opening: string | null;
+}
+
+export interface AuditAiInsights {
+  generatedAt: string;
+  language: string;
+  model: string;
+  summary: string;
+  priorities: AuditAiPriority[];
+  rewrites: AuditAiRewrites;
+}
+
+/** One entry of OpenRouter's model catalog as the backend serves it. */
+export interface AiModel {
+  id: string;
+  name: string;
+  provider: string;
+  contextLength: number | null;
+  /** USD per token. */
+  pricing: { prompt: number; completion: number };
 }
 
 export interface AppAuditResponse {

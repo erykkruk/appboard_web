@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.16.1",
+    serverVersion: "0.16.1",
+    date: "2026-09-07",
+    changes: [
+      "The listing audit is measured once and kept: opening the app no longer re-measures it. Every stored audit is refreshed on Monday at 03:00, and Re-check still measures on demand",
+      "Google Play apps get an audit too: the text and screenshot rules on the live listing, with an honest note that keyword difficulty is App Store only",
+      "AI review of the audit: with an OpenRouter key, the model you picked for research reads the numbers and returns what to fix first plus rewrites for the title, subtitle, keyword field and description opening, within store limits and using only keywords from your category",
+      "Model picker in Settings searches OpenRouter's live catalog (400+ text models with prices per million tokens) instead of a fixed list; any model id can still be typed",
+      "Free tools menu in the top bar; the free ASO check-up puts things you can act on ahead of context like 'few ratings'",
+    ],
+  },
+  {
     version: "0.16.0",
     serverVersion: "0.16.0",
     date: "2026-09-05",

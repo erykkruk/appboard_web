@@ -70,3 +70,12 @@ export function useAiStatus() {
 		staleTime: 60_000,
 	});
 }
+
+/** OpenRouter's live text-model catalog; cached, the picker searches it. */
+export function useAiModels() {
+	return useQuery({
+		queryFn: () => api.ai.models(),
+		queryKey: ["ai", "models"],
+		staleTime: 60 * 60 * 1000,
+	});
+}
