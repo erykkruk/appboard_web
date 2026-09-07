@@ -9,15 +9,25 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import type { AuditAiInsights } from "@/lib/types";
 
-const REWRITE_LABELS: Array<{
-  key: keyof AuditAiInsights["rewrites"];
-  label: string;
-}> = [
-  { key: "title", label: "Title" },
-  { key: "subtitle", label: "Subtitle" },
-  { key: "keywords", label: "Keyword field" },
-  { key: "opening", label: "Description opening" },
-];
+type AuditStore = "appstore" | "play";
+
+/** Google Play has no subtitle or keyword field: its second slot is the short description. */
+function rewriteLabels(
+  store: AuditStore,
+): Array<{ key: keyof AuditAiInsights["rewrites"]; label: string }> {
+  return store === "play"
+    ? [
+        { key: "title", label: "Title" },
+        { key: "subtitle", label: "Short description" },
+        { key: "opening", label: "Description opening" },
+      ]
+    : [
+        { key: "title", label: "Title" },
+        { key: "subtitle", label: "Subtitle" },
+        { key: "keywords", label: "Keyword field" },
+        { key: "opening", label: "Description opening" },
+      ];
+}
 
 function CopyButton({ text, label }: { text: string; label: string }) {
   const [done, setDone] = useState(false);
@@ -54,11 +64,13 @@ function CopyButton({ text, label }: { text: string; label: string }) {
 export function AuditAiReview({
   ai,
   appId,
+  store = "appstore",
 }: {
   ai: AuditAiInsights;
   appId: string;
+  store?: AuditStore;
 }) {
-  const rewrites = REWRITE_LABELS.filter((r) => ai.rewrites[r.key]);
+  const rewrites = rewriteLabels(store).filter((r) => ai.rewrites[r.key]);
   return (
     <Card>
       <CardHeader className="flex flex-row items-start justify-between gap-4">

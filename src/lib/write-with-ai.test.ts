@@ -42,6 +42,25 @@ describe("parseSuggestedKeywords", () => {
 		).toEqual(["focus timer", "procrastination"]);
 	});
 
+	test("never turns rival names into chips, whatever shape they arrive in", () => {
+		expect(
+			parseSuggestedKeywords({
+				clusters: {
+					competitors: ["Todoist", "Things 3"],
+					feature: ["focus timer"],
+				},
+				model: "m",
+				trackingOnly: ["Todoist", "Things 3"],
+			}),
+		).toEqual(["focus timer"]);
+		expect(
+			parseSuggestedKeywords({
+				result:
+					'{"feature": ["focus timer"], "competitors": ["Todoist"], "alternative": ["forest alternative"]}',
+			}),
+		).toEqual(["focus timer"]);
+	});
+
 	test("reads a JSON array inside result", () => {
 		expect(
 			parseSuggestedKeywords({ result: '["focus timer", "pomodoro"]' }),

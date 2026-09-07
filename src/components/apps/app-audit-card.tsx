@@ -469,7 +469,13 @@ export function AppAuditCard({ app }: { app: App }) {
         </Card>
       )}
 
-      {report.ai && <AuditAiReview ai={report.ai} appId={app.id} />}
+      {report.ai && (
+        <AuditAiReview
+          ai={report.ai}
+          appId={app.id}
+          store={report.keywordsSupported === false ? "play" : "appstore"}
+        />
+      )}
 
       {report.keywordsSupported !== false && (
         <Card id="audit-keywords" className="scroll-mt-24">

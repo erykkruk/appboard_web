@@ -69,6 +69,18 @@ function splitKeywordText(text: string): string[] {
 	return trimmed.split(/\r?\n|,|;/).map(cleanKeyword).filter(looksLikeKeyword);
 }
 
+/**
+ * Clusters the backend returns for rank tracking only: rival app names are
+ * never allowed in a listing field, so they must never become chips.
+ */
+const TRACKING_ONLY_KEYS = new Set(["alternative", "competitors", "trackingOnly"]);
+
+function listingValues(record: Record<string, unknown>): unknown[] {
+	return Object.entries(record)
+		.filter(([key]) => !TRACKING_ONLY_KEYS.has(key))
+		.map(([, value]) => value);
+}
+
 function collectKeywordStrings(raw: unknown): string[] {
 	if (raw === null || raw === undefined) return [];
 	if (typeof raw === "string") return splitKeywordText(raw);
@@ -82,12 +94,14 @@ function collectKeywordStrings(raw: unknown): string[] {
 		return collectKeywordStrings(record.keywords);
 	}
 	if (record.clusters && typeof record.clusters === "object") {
-		return collectKeywordStrings(Object.values(record.clusters));
+		return collectKeywordStrings(
+			listingValues(record.clusters as Record<string, unknown>),
+		);
 	}
 	if (typeof record.result === "string") {
 		return collectKeywordStrings(record.result);
 	}
-	return Object.values(record)
+	return listingValues(record)
 		.filter((value) => Array.isArray(value))
 		.flatMap(collectKeywordStrings);
 }
