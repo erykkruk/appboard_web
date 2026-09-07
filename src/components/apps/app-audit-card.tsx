@@ -227,6 +227,36 @@ export function AppAuditCard({ app }: { app: App }) {
     );
   }
 
+  // The run failed before producing anything: say so and offer another go.
+  // Spinning "measuring" over a failure was the old behaviour, and it lied.
+  if (data?.status === "failed" && !data.report) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Could not measure this listing</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-muted-foreground text-sm">
+            {data.error ?? "The store did not answer the last time we asked."}{" "}
+            The audit needs the app to be live in the store it was added from;
+            demo and unpublished apps have nothing to measure.
+          </p>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => recheck.mutate()}
+            disabled={recheck.isPending}
+          >
+            <RefreshCw
+              className={`mr-2 h-3.5 w-3.5 ${recheck.isPending ? "animate-spin" : ""}`}
+            />
+            Try again
+          </Button>
+        </CardContent>
+      </Card>
+    );
+  }
+
   // A first measurement takes about a minute of live store calls. Showing a
   // progress state is honest; showing 0/100 would not be.
   if (!data || data.status === "measuring" || !data.report) {
