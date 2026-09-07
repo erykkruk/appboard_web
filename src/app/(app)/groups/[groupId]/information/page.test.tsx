@@ -25,6 +25,13 @@ mock.module("@/hooks/use-app-groups", () => ({
 	useCreateAppGroup: () => ({ mutateAsync: mock(() => Promise.resolve({})), isPending: false }),
 	useUpdateAppGroup: () => ({ mutateAsync: mock(() => Promise.resolve({})), isPending: false }),
 	useDeleteAppGroup: () => ({ mutateAsync: mock(() => Promise.resolve({})), isPending: false }),
+	// The page imports this too; a mock that omits it makes the whole file
+	// fail to load ("export not found") instead of any test failing.
+	useGenerateGroupListings: () => ({
+		isPending: false,
+		mutate: mock(() => {}),
+		mutateAsync: mock(() => Promise.resolve({})),
+	}),
 }));
 
 mock.module("@/hooks/use-group-aso-profile", () => ({
