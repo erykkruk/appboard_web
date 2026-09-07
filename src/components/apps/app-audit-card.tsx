@@ -49,13 +49,21 @@ const ISSUE_ACTION: Record<string, IssueAction> = {
     label: "Open the editor",
     path: "screenshots?open=1",
   },
-  "title-keywords": { kind: "route", label: "See the proposed title", path: "fixes" },
+  "title-keywords": {
+    kind: "route",
+    label: "See the proposed title",
+    path: "fixes",
+  },
   "title-unwinnable": {
     kind: "route",
     label: "See the proposed title",
     path: "fixes",
   },
-  "title-upgrade": { kind: "route", label: "See the proposed title", path: "fixes" },
+  "title-upgrade": {
+    kind: "route",
+    label: "See the proposed title",
+    path: "fixes",
+  },
 };
 
 /**
@@ -82,7 +90,11 @@ function resolveAction(
     return { kind: "route", label: "Edit the description", path: "text" };
   }
   if (issue.id === "no-local-listing") {
-    const locale = storeLocaleFor(report.language, report.country, app.platform);
+    const locale = storeLocaleFor(
+      report.language,
+      report.country,
+      app.platform,
+    );
     return {
       kind: "route",
       label: `Add ${locale}`,
@@ -91,8 +103,7 @@ function resolveAction(
   }
   if (issue.id === "category-mismatch") {
     if (app.store?.connectionMode === "api") {
-      const version =
-        versions?.find((v) => v.isEditable) ?? versions?.[0];
+      const version = versions?.find((v) => v.isEditable) ?? versions?.[0];
       return version
         ? {
             kind: "route",
@@ -143,7 +154,8 @@ function verdict(
   if (score.appRank && score.appRank <= 10) {
     return { label: "you are visible", tone: "text-emerald-500" };
   }
-  if (score.appRank) return { label: "ranked, below the fold", tone: "text-amber-500" };
+  if (score.appRank)
+    return { label: "ranked, below the fold", tone: "text-amber-500" };
   if (score.difficulty > GAP_MAX_DIFFICULTY) {
     return { label: "too hard for now", tone: "text-muted-foreground" };
   }
@@ -163,7 +175,9 @@ function ScoreBlock({
     <div className="min-w-[140px]">
       <div className="font-bold text-4xl leading-none tracking-tight">
         {score ?? "--"}
-        <span className="ml-1 font-medium text-lg text-muted-foreground">/100</span>
+        <span className="ml-1 font-medium text-lg text-muted-foreground">
+          /100
+        </span>
       </div>
       <div className="mt-1 text-muted-foreground text-xs">{label}</div>
       <div className="text-muted-foreground text-xs">{hint}</div>
@@ -204,7 +218,10 @@ export function AppAuditCard({ app }: { app: App }) {
             score plus keyword tracking switch on the day you go live.
           </p>
           <div className="flex flex-wrap gap-2">
-            <Button size="sm" onClick={() => router.push(`/apps/${app.id}/start`)}>
+            <Button
+              size="sm"
+              onClick={() => router.push(`/apps/${app.id}/start`)}
+            >
               Write the listing
             </Button>
             <Button
@@ -233,7 +250,9 @@ export function AppAuditCard({ app }: { app: App }) {
     return (
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Could not measure this listing</CardTitle>
+          <CardTitle className="text-base">
+            Could not measure this listing
+          </CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <p className="text-muted-foreground text-sm">
@@ -281,7 +300,9 @@ export function AppAuditCard({ app }: { app: App }) {
   const draftScore = report.draft?.asoScore ?? null;
   const actionable = report.store.issues.filter((i) => i.actionable);
   const context = report.store.issues.filter((i) => !i.actionable);
-  const topTwo = actionable.slice(0, 2).reduce((sum, i) => sum + i.scorePenalty, 0);
+  const topTwo = actionable
+    .slice(0, 2)
+    .reduce((sum, i) => sum + i.scorePenalty, 0);
 
   const recommendable = new Set(
     (report.recommendable ?? []).map((k) => k.trim().toLowerCase()),
@@ -361,7 +382,8 @@ export function AppAuditCard({ app }: { app: App }) {
             {report.keywordsSupported === false && (
               <p className="mt-1 text-muted-foreground text-xs">
                 Google Play has no keyword difficulty data, so this score covers
-                the text and screenshots. Keyword scoring runs for App Store apps.
+                the text and screenshots. Keyword scoring runs for App Store
+                apps.
               </p>
             )}
           </div>
@@ -405,14 +427,17 @@ export function AppAuditCard({ app }: { app: App }) {
             />
           </div>
           {proposalCount > 0 && (
-            <Button size="sm" onClick={() => router.push(`/apps/${app.id}/fixes`)}>
+            <Button
+              size="sm"
+              onClick={() => router.push(`/apps/${app.id}/fixes`)}
+            >
               Review {proposalCount} text fix{proposalCount === 1 ? "" : "es"}
             </Button>
           )}
           <p className="text-sm">
             <span className="font-semibold">
-              {actionable.length} thing{actionable.length === 1 ? "" : "s"} to fix
-              here.
+              {actionable.length} thing{actionable.length === 1 ? "" : "s"} to
+              fix here.
             </span>{" "}
             {actionable.length > 0 && (
               <span className="text-muted-foreground">
@@ -432,7 +457,13 @@ export function AppAuditCard({ app }: { app: App }) {
           </CardHeader>
           <CardContent className="space-y-2">
             {actionable.map((issue, index) => {
-              const action = resolveAction(issue, app, report, versions.data, aiReady);
+              const action = resolveAction(
+                issue,
+                app,
+                report,
+                versions.data,
+                aiReady,
+              );
               return (
                 <div
                   key={issue.id}
@@ -469,7 +500,13 @@ export function AppAuditCard({ app }: { app: App }) {
         </Card>
       )}
 
-      {report.ai && <AuditAiReview ai={report.ai} appId={app.id} />}
+      {report.ai && (
+        <AuditAiReview
+          ai={report.ai}
+          appId={app.id}
+          store={report.keywordsSupported === false ? "play" : "appstore"}
+        />
+      )}
 
       {report.keywordsSupported !== false && (
         <Card id="audit-keywords" className="scroll-mt-24">
@@ -480,8 +517,8 @@ export function AppAuditCard({ app }: { app: App }) {
               </CardTitle>
               <p className="mt-1 text-muted-foreground text-xs">
                 Taken from your own listing and from the titles of the apps you
-                compete with, then scored against live {report.country.toUpperCase()}{" "}
-                search results.
+                compete with, then scored against live{" "}
+                {report.country.toUpperCase()} search results.
                 {gaps.length > 0 && (
                   <>
                     {" "}
@@ -506,7 +543,9 @@ export function AppAuditCard({ app }: { app: App }) {
                 onClick={trackAll}
                 disabled={tracking || untracked.length === 0}
               >
-                {tracking && <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />}
+                {tracking && (
+                  <Loader2 className="mr-2 h-3.5 w-3.5 animate-spin" />
+                )}
                 {trackedHere.size > 0
                   ? `Track ${untracked.length} more nightly`
                   : "Track these nightly"}
@@ -529,12 +568,21 @@ export function AppAuditCard({ app }: { app: App }) {
                   {keywords.map((score) => {
                     const v = verdict(score, recommendable);
                     return (
-                      <tr key={score.keyword} className="border-b last:border-0">
-                        <td className="py-2 pr-3 font-medium">{score.keyword}</td>
-                        <td className="py-2 pr-3">{score.popularity ?? "--"}</td>
+                      <tr
+                        key={score.keyword}
+                        className="border-b last:border-0"
+                      >
+                        <td className="py-2 pr-3 font-medium">
+                          {score.keyword}
+                        </td>
+                        <td className="py-2 pr-3">
+                          {score.popularity ?? "--"}
+                        </td>
                         <td className="py-2 pr-3">{score.difficulty}</td>
                         <td className="py-2 pr-3">
-                          {score.appRank ? `#${score.appRank}` : "not in top 200"}
+                          {score.appRank
+                            ? `#${score.appRank}`
+                            : "not in top 200"}
                         </td>
                         <td className={`py-2 ${v.tone}`}>{v.label}</td>
                       </tr>
@@ -545,7 +593,8 @@ export function AppAuditCard({ app }: { app: App }) {
             </div>
             <p className="mt-3 text-muted-foreground text-xs">
               Popularity and difficulty are 1-100 estimates from live App Store
-              results, not Apple&apos;s own numbers. Difficulty is App Store only.
+              results, not Apple&apos;s own numbers. Difficulty is App Store
+              only.
             </p>
           </CardContent>
         </Card>
@@ -566,7 +615,9 @@ export function AppAuditCard({ app }: { app: App }) {
                 className="flex items-start justify-between gap-4 border-dashed border-b pb-2 text-sm last:border-0 last:pb-0"
               >
                 <div className="text-muted-foreground">
-                  <div className="font-medium text-foreground/70">{issue.title}</div>
+                  <div className="font-medium text-foreground/70">
+                    {issue.title}
+                  </div>
                   <div className="text-xs">{issue.detail}</div>
                 </div>
                 <span className="shrink-0 text-muted-foreground text-sm">
@@ -575,8 +626,8 @@ export function AppAuditCard({ app }: { app: App }) {
               </div>
             ))}
             <p className="pt-1 text-muted-foreground text-xs">
-              These lower the score but AppBoard cannot fix them for you, so they
-              get no button.
+              These lower the score but AppBoard cannot fix them for you, so
+              they get no button.
             </p>
           </CardContent>
         </Card>

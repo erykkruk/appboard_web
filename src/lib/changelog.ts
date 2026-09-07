@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.16.3",
+    serverVersion: "0.16.3",
+    date: "2026-09-07",
+    changes: [
+      "Write with AI reads your current title, subtitle and keyword field before it writes, so a word already in the title is not spent again in the keyword field; the prompts now know Google Play's 500-character release-note limit and the Play category list",
+      "Keyword suggestions keep rival app names out of the chips: the stores reject them in listing text, so they are returned separately for rank tracking only",
+      "AI review of a Google Play audit proposes the 80-character short description instead of an App Store subtitle and never a keyword field; its summary is in English while rewrites stay in the listing language",
+      "Review replies may invite a customer to update their review after a fix (never for a reward) and no longer invent a support address; translations keep store limits and policies even when custom instructions ask otherwise",
+    ],
+  },
+  {
     version: "0.16.2",
     serverVersion: "0.16.2",
     date: "2026-09-07",
@@ -207,7 +218,7 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: "2026-07-16",
     changes: [
       "Screenshot editor got a major upgrade: new device mockups — iPad, Android tablet, Apple Watch (with band and digital crown) and a laptop — next to the existing iPhone and Android phone frames",
-      "True 3D devices: iPhone 15 Pro Max and Galaxy S25 Ultra as real WebGL models that rotate in X/Y/Z, plus photographic Apple bezels (iPhone 17 family, iPad Pro 13\", Apple Watch S11) with your screenshot composited into the real screen cutout",
+      'True 3D devices: iPhone 15 Pro Max and Galaxy S25 Ultra as real WebGL models that rotate in X/Y/Z, plus photographic Apple bezels (iPhone 17 family, iPad Pro 13", Apple Watch S11) with your screenshot composited into the real screen cutout',
       "3D device rotation: tilt any mockup in X/Y/Z with one-click pose presets (Hero, Tilt left/right, Lean back) — the export matches the preview pixel-for-pixel",
       "Clay device style: render the frame in any color you pick, ButterKit-style, next to the realistic titanium look",
       "Social-proof elements: review cards (quote, stars, author), award laurels, 5-star rows, hearts, checkmarks and emoji stickers",
