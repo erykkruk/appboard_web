@@ -71,26 +71,30 @@ export function buildNextSteps(
 		});
 	}
 
-	const gem = best.find((s) => s.classification === "hidden-gem" && !s.appRank);
-	if (gem) {
+	// The best term you are absent from, whatever its label: a sweet spot is
+	// as much a gap as a hidden gem, and "gem" alone missed most of them.
+	const gap = best.find((s) => !s.appRank);
+	if (gap) {
 		steps.push({
 			cta: { href: SIGNUP_URL, label: "Get AI keyword ideas" },
-			detail: `"${gem.keyword}" has real searches and weak competition, and you don't rank for it yet. Work it into your subtitle or keyword field.`,
-			title: `Claim the hidden gem: "${gem.keyword}"`,
+			detail: `"${gap.keyword}" is searched (popularity ${gap.popularity ?? "n/a"}) at a difficulty you can win (${gap.difficulty}), and you don't rank for it yet. Work it into your subtitle or keyword field.`,
+			title: `Claim the open keyword: "${gap.keyword}"`,
 		});
 	}
 
-	if (steps.length < 3) {
-		const issue = audit.issues.find(
-			(i) => !["title-keywords", "no-ranks"].includes(i.id),
-		);
-		if (issue) {
-			steps.push({
-				cta: { href: SIGNUP_URL, label: "Fix it with AppBoard" },
-				detail: issue.detail,
-				title: issue.title,
-			});
-		}
+	// Things you can act on come before context you cannot (ratings, age):
+	// "add a review prompt" is honest advice, but never the first thing to do.
+	const covered = new Set(["title-keywords", "no-ranks", "missing-winnable-terms"]);
+	const remaining = audit.issues
+		.filter((i) => !covered.has(i.id))
+		.sort((a, b) => Number(b.actionable) - Number(a.actionable));
+	for (const issue of remaining) {
+		if (steps.length >= 3) break;
+		steps.push({
+			cta: { href: SIGNUP_URL, label: "Fix it with AppBoard" },
+			detail: issue.detail,
+			title: issue.title,
+		});
 	}
 	if (steps.length < 3) {
 		steps.push({

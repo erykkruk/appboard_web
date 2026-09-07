@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import {
+  ChevronsUpDown,
   DownloadCloud,
-  PackagePlus,
   ExternalLink,
   Eye,
   EyeOff,
   Loader2,
+  PackagePlus,
   Pencil,
   RefreshCw,
   ShieldCheck,
@@ -32,6 +33,12 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { Badge } from "@/components/ui/badge";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import { AI_UNLOCKS } from "@/components/ai-unlock-card";
 import { Button } from "@/components/ui/button";
 import {
@@ -64,7 +71,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Slider } from "@/components/ui/slider";
 import { AppleAdsSettingsCard } from "@/components/apple-ads/apple-ads-settings-card";
 import { VaultSettingsCard } from "@/components/vault/vault-settings-card";
-import { useAiStatus } from "@/hooks/use-ai";
+import { useAiModels, useAiStatus } from "@/hooks/use-ai";
 import { useAutoSave } from "@/hooks/use-auto-save";
 import { useSettings, useUpdateSettings } from "@/hooks/use-settings";
 import {
@@ -88,7 +95,6 @@ import type {
 } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-const OTHER_VALUE = "__other__";
 
 const STORE_STATUS_BADGES: Record<
   string,
@@ -125,30 +131,39 @@ const PRIMARY_TERRITORIES = [
   { code: "NO", currency: "NOK", label: "Norway" },
 ] as const;
 
-// Values are OpenRouter model IDs — verified against the live catalog.
-const FLAGSHIP_MODELS = [
+// A shortlist worth showing first. Ids are OpenRouter's; the live catalog
+// decides whether each one still exists, so a retired model never appears.
+const RECOMMENDED_MODELS = [
+  { label: "Claude Sonnet 5", value: "anthropic/claude-sonnet-5" },
+  { label: "Claude Opus 5", value: "anthropic/claude-opus-5" },
+  { label: "Claude Haiku 4.5", value: "anthropic/claude-haiku-4.5" },
+  { label: "GPT-5.4", value: "openai/gpt-5.4" },
+  { label: "GPT-5.4 Mini", value: "openai/gpt-5.4-mini" },
+  { label: "GPT-5.2", value: "openai/gpt-5.2" },
+  { label: "Gemini 3.8 Flash", value: "google/gemini-3.8-flash" },
+  { label: "Gemini 3.1 Pro", value: "google/gemini-3.1-pro-preview" },
+  { label: "Gemini 3 Flash (default)", value: "google/gemini-3-flash-preview" },
+  { label: "DeepSeek V4 Pro", value: "deepseek/deepseek-v4-pro" },
+  { label: "DeepSeek V4 Flash", value: "deepseek/deepseek-v4-flash" },
+  { label: "GLM 5.3", value: "z-ai/glm-5.3" },
   { label: "GLM 5.2", value: "z-ai/glm-5.2" },
-  { label: "GLM 4.7", value: "z-ai/glm-4.7" },
-  { label: "GLM 4.6", value: "z-ai/glm-4.6" },
-  { label: "Gemini 3 Flash", value: "google/gemini-3-flash-preview" },
-  { label: "Gemini 2.5 Pro", value: "google/gemini-2.5-pro" },
-  { label: "Gemini 2.5 Flash", value: "google/gemini-2.5-flash" },
-  { label: "Gemini 2.5 Flash Lite", value: "google/gemini-2.5-flash-lite" },
-  { label: "Claude Sonnet 4.5", value: "anthropic/claude-sonnet-4.5" },
-  { label: "Claude Sonnet 4", value: "anthropic/claude-sonnet-4" },
-  { label: "Claude Opus 4.1", value: "anthropic/claude-opus-4.1" },
-  { label: "Claude Opus 4", value: "anthropic/claude-opus-4" },
-  { label: "GPT-4o", value: "openai/gpt-4o" },
-  { label: "GPT-4.1", value: "openai/gpt-4.1" },
-  { label: "GPT-4.1 Mini", value: "openai/gpt-4.1-mini" },
-  { label: "DeepSeek V3.1", value: "deepseek/deepseek-chat-v3.1" },
-  { label: "DeepSeek V3", value: "deepseek/deepseek-chat-v3-0324" },
-  { label: "Grok 4.3", value: "x-ai/grok-4.3" },
-  { label: "Qwen3 235B", value: "qwen/qwen3-235b-a22b" },
+  { label: "Kimi K3", value: "moonshotai/kimi-k3" },
+  { label: "MiniMax M3", value: "minimax/minimax-m3" },
+  { label: "Grok 4.6", value: "x-ai/grok-4.6" },
+  { label: "Qwen 3.8 Max", value: "qwen/qwen3.8-max-0902" },
   { label: "Llama 4 Maverick", value: "meta-llama/llama-4-maverick" },
+  { label: "Mistral Large", value: "mistralai/mistral-large-2512" },
 ] as const;
 
-const KNOWN_MODEL_VALUES = new Set<string>(FLAGSHIP_MODELS.map((m) => m.value));
+const DEFAULT_MODEL_LABEL = "Default (Gemini 3 Flash)";
+const MAX_SEARCH_RESULTS = 60;
+const PER_MILLION = 1_000_000;
+
+function pricePerMillion(perToken: number): string {
+  const usd = perToken * PER_MILLION;
+  if (!Number.isFinite(usd) || usd <= 0) return "free";
+  return usd < 0.1 ? `$${usd.toFixed(3)}` : `$${usd.toFixed(2)}`;
+}
 
 interface ModelSelectorProps {
   id: string;
@@ -158,6 +173,12 @@ interface ModelSelectorProps {
   onChange: (value: string) => void;
 }
 
+/**
+ * Picks an OpenRouter model id. Searches the live catalog (every text model
+ * OpenRouter serves today, with prices) and keeps a shortlist on top, so the
+ * list is never a snapshot somebody typed a year ago. Any id can still be
+ * entered by hand for models the catalog does not carry.
+ */
 function ModelSelector({
   id,
   label,
@@ -165,32 +186,61 @@ function ModelSelector({
   value,
   onChange,
 }: ModelSelectorProps) {
-  const isCustom = value !== "" && !KNOWN_MODEL_VALUES.has(value);
-  const [showCustomInput, setShowCustomInput] = useState(isCustom);
-  const [customValue, setCustomValue] = useState(isCustom ? value : "");
+  const catalog = useAiModels();
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const models = useMemo(() => catalog.data ?? [], [catalog.data]);
+  const byId = useMemo(() => new Map(models.map((m) => [m.id, m])), [models]);
+  const recommended = RECOMMENDED_MODELS.filter(
+    (m) => models.length === 0 || byId.has(m.value),
+  );
+  const q = query.trim().toLowerCase();
+  const results = q
+    ? models
+        .filter(
+          (m) => m.id.toLowerCase().includes(q) || m.name.toLowerCase().includes(q),
+        )
+        .slice(0, MAX_SEARCH_RESULTS)
+    : [];
+  const currentLabel = value
+    ? (byId.get(value)?.name ??
+      RECOMMENDED_MODELS.find((m) => m.value === value)?.label ??
+      value)
+    : DEFAULT_MODEL_LABEL;
 
-  const handleSelectChange = (selected: string) => {
-    if (selected === OTHER_VALUE) {
-      setShowCustomInput(true);
-      setCustomValue("");
-      onChange("");
-    } else {
-      setShowCustomInput(false);
-      setCustomValue("");
-      onChange(selected);
-    }
+  const pick = (next: string) => {
+    onChange(next);
+    setQuery("");
+    setOpen(false);
   };
 
-  const handleCustomChange = (val: string) => {
-    setCustomValue(val);
-    onChange(val);
+  const row = (modelId: string, name: string) => {
+    const live = byId.get(modelId);
+    return (
+      <button
+        key={modelId}
+        type="button"
+        className={`flex w-full items-start justify-between gap-3 rounded-md px-2 py-1.5 text-left hover:bg-muted ${
+          value === modelId ? "bg-muted" : ""
+        }`}
+        onClick={() => pick(modelId)}
+      >
+        <span className="min-w-0">
+          <span className="block truncate text-sm">{name}</span>
+          <span className="block truncate text-muted-foreground text-xs">
+            {modelId}
+          </span>
+        </span>
+        {live && (
+          <span className="shrink-0 text-right text-muted-foreground text-xs">
+            {pricePerMillion(live.pricing.prompt)} /{" "}
+            {pricePerMillion(live.pricing.completion)}
+            <span className="block">per 1M tokens</span>
+          </span>
+        )}
+      </button>
+    );
   };
-
-  const selectValue = showCustomInput
-    ? OTHER_VALUE
-    : KNOWN_MODEL_VALUES.has(value)
-      ? value
-      : "";
 
   return (
     <div className="space-y-2">
@@ -200,26 +250,82 @@ function ModelSelector({
         </Label>
         <p className="text-xs text-muted-foreground">{description}</p>
       </div>
-      <Select value={selectValue} onValueChange={handleSelectChange}>
-        <SelectTrigger id={id}>
-          <SelectValue placeholder="Default (Gemini 3 Flash)" />
-        </SelectTrigger>
-        <SelectContent>
-          {FLAGSHIP_MODELS.map((m) => (
-            <SelectItem key={m.value} value={m.value}>
-              {m.label}
-            </SelectItem>
-          ))}
-          <SelectItem value={OTHER_VALUE}>Other (custom model)</SelectItem>
-        </SelectContent>
-      </Select>
-      {showCustomInput && (
-        <Input
-          placeholder="e.g. mistralai/mistral-large-latest"
-          value={customValue}
-          onChange={(e) => handleCustomChange(e.target.value)}
-        />
-      )}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button
+            id={id}
+            variant="outline"
+            role="combobox"
+            aria-expanded={open}
+            className="w-full justify-between font-normal"
+          >
+            <span className="truncate">{currentLabel}</span>
+            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="w-[440px] p-0" align="start">
+          <div className="border-b p-2">
+            <Input
+              autoFocus
+              placeholder={
+                models.length
+                  ? `Search ${models.length} models or paste an id`
+                  : "Paste an OpenRouter model id"
+              }
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && q && results.length === 0) pick(query.trim());
+              }}
+            />
+          </div>
+          <ScrollArea className="h-72">
+            <div className="p-2">
+              {!q && (
+                <>
+                  <p className="px-2 pb-1 text-muted-foreground text-xs uppercase tracking-wide">
+                    Recommended
+                  </p>
+                  {recommended.map((m) => row(m.value, m.label))}
+                  {catalog.isError && (
+                    <p className="px-2 pt-2 text-muted-foreground text-xs">
+                      The live catalog is unavailable right now; the shortlist
+                      above may be out of date. Any OpenRouter id still works.
+                    </p>
+                  )}
+                  {catalog.isLoading && (
+                    <p className="px-2 pt-2 text-muted-foreground text-xs">
+                      Loading the full catalog...
+                    </p>
+                  )}
+                </>
+              )}
+              {q && results.map((m) => row(m.id, m.name))}
+              {q && results.length === 0 && (
+                <button
+                  type="button"
+                  className="w-full rounded-md px-2 py-2 text-left text-sm hover:bg-muted"
+                  onClick={() => pick(query.trim())}
+                >
+                  No catalog match. Use{" "}
+                  <span className="font-mono">{query.trim()}</span> as a custom
+                  id
+                </button>
+              )}
+            </div>
+          </ScrollArea>
+          <div className="flex items-center justify-between gap-2 border-t p-2">
+            <Button variant="ghost" size="sm" onClick={() => pick("")}>
+              Use default
+            </Button>
+            {value && (
+              <span className="truncate font-mono text-muted-foreground text-xs">
+                {value}
+              </span>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
     </div>
   );
 }
