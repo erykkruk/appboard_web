@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.17.0",
+    serverVersion: "0.17.0",
+    date: "2026-09-07",
+    changes: [
+      "Free ASO check-up covers every market: paste a store link and the listing is read and scored in each of the 30 storefronts we know (App Store and Google Play), with a per-market overview (score, ranking keywords, first-page keywords, best opportunity) and a full report per market. A single market is still one click away, and a long run can be stopped early",
+      "Every finished check-up gets a link to share: the address bar turns into /aso-check/r/<id>, Copy link puts it on the clipboard, and anyone can open the report without an account. Snapshots are kept for a year",
+    ],
+  },
+  {
     version: "0.16.3",
     serverVersion: "0.16.3",
     date: "2026-09-07",
