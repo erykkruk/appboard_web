@@ -5,8 +5,8 @@ import { AsoCheckFlow } from "@/components/aso-check/aso-check-flow";
 
 export const metadata: Metadata = {
 	description:
-		"Paste your App Store link and get a free ASO check-up: keyword scores, your rankings, competition analysis and concrete fixes. No account, computed in your browser.",
-	title: "Free ASO Check-up - AppBoard",
+		"Paste your App Store or Google Play link and get a free ASO check-up in every market: keyword scores, your rankings, competition analysis, concrete fixes and a link to share. No account, computed in your browser.",
+	title: "Free ASO Check-up in Every Market - AppBoard",
 };
 
 // Free no-account ASO check-up (like /editor): all App Store calls and all

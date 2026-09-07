@@ -20,7 +20,7 @@ import {
  */
 export const FREE_TOOLS = [
   {
-    description: "Listing score, keyword ranks and next steps for any App Store link",
+    description: "Score, keyword ranks and next steps for any store link, in every market, with a link to share",
     href: "/aso-check",
     icon: Search,
     label: "ASO check-up",

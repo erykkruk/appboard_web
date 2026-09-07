@@ -12,7 +12,7 @@ import { cn } from "@/lib/utils";
 /** Free tools live in the panel; everything else points at the site. */
 const TOOLS = [
   {
-    description: "Score your keywords, rankings and what to fix - no account.",
+    description: "Score, rankings and what to fix in every market - no account, shareable link.",
     href: "/aso-check",
     label: "ASO check-up",
   },
