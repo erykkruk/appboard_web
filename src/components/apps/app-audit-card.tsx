@@ -7,6 +7,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { AuditAiReview } from "@/components/apps/audit-ai-review";
+import { AuditScoreHistory } from "@/components/apps/audit-score-history";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -425,6 +426,8 @@ export function AppAuditCard({ app }: { app: App }) {
         </CardContent>
       </Card>
 
+      <AuditScoreHistory appId={app.id} country={report.country} />
+
       {actionable.length > 0 && (
         <Card>
           <CardHeader>
@@ -528,6 +531,7 @@ export function AppAuditCard({ app }: { app: App }) {
                     <th className="py-2 pr-3 font-medium">Popularity</th>
                     <th className="py-2 pr-3 font-medium">Difficulty</th>
                     <th className="py-2 pr-3 font-medium">Your position</th>
+                    <th className="py-2 pr-3 font-medium">Who leads it</th>
                     <th className="py-2 font-medium">What it means</th>
                   </tr>
                 </thead>
@@ -541,6 +545,15 @@ export function AppAuditCard({ app }: { app: App }) {
                         <td className="py-2 pr-3">{score.difficulty}</td>
                         <td className="py-2 pr-3">
                           {score.appRank ? `#${score.appRank}` : "not in top 200"}
+                        </td>
+                        <td className="max-w-48 truncate py-2 pr-3 text-muted-foreground text-xs">
+                          {score.competitors?.[0]
+                            ? `${score.competitors[0].title}${
+                                score.competitors[0].ratingsCount
+                                  ? ` (${score.competitors[0].ratingsCount.toLocaleString()})`
+                                  : ""
+                              }`
+                            : "--"}
                         </td>
                         <td className={`py-2 ${v.tone}`}>{v.label}</td>
                       </tr>
