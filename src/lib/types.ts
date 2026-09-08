@@ -1702,6 +1702,143 @@ export interface TrackingSummary {
 	stats: TrackingSummaryStats;
 }
 
+// ============ Tracker board ============
+
+export type MetadataField = "title" | "subtitle" | "keywords";
+
+export interface BoardLeader {
+	title: string;
+	developer: string;
+	ratingsCount: number | null;
+	rating: number | null;
+}
+
+export interface BoardRankPoint {
+	day: string;
+	/** NULL means measured but outside the scanned depth, not position zero. */
+	position: number | null;
+}
+
+export interface BoardScorePoint {
+	day: string;
+	difficulty: number;
+	popularity: number | null;
+}
+
+export interface BoardKeyword {
+	keyword: string;
+	country: string;
+	platform: ResearchStoreKind;
+	position: number | null;
+	previousPosition: number | null;
+	/** Positive = moved up. */
+	delta: number | null;
+	bestPosition: number | null;
+	measuredAt: string | null;
+	difficulty: number | null;
+	difficultyLabel: string | null;
+	/** Negative = the term got easier. */
+	difficultyDelta: number | null;
+	popularity: number | null;
+	opportunity: number | null;
+	classification: KeywordClassification | null;
+	scoredAt: string | null;
+	rankTrend: BoardRankPoint[];
+	scoreTrend: BoardScorePoint[];
+	leader: BoardLeader | null;
+	metadataFields: MetadataField[];
+	pick: boolean;
+}
+
+export type BoardMoveKind = "entered" | "dropped" | "moved" | "new";
+
+export interface BoardMove {
+	keyword: string;
+	country: string;
+	kind: BoardMoveKind;
+	from: number | null;
+	to: number | null;
+	difficultyDelta: number | null;
+}
+
+export interface BoardRun {
+	day: string;
+	measured: number;
+	ranked: number;
+	top10: number;
+	avgDifficulty: number | null;
+}
+
+export interface BoardChange {
+	date: string;
+	field: string;
+	language: string;
+	label: string;
+	newValue: string | null;
+	oldValue: string | null;
+	type: string;
+}
+
+export interface BoardGap {
+	keyword: string;
+	fields: MetadataField[];
+	difficulty: number | null;
+	popularity: number | null;
+}
+
+export interface BoardStats {
+	tracked: number;
+	ranked: number;
+	top10: number;
+	picks: number;
+	avgPosition: number | null;
+	bestPosition: number | null;
+	improved: number;
+	declined: number;
+	lastCheckedAt: string | null;
+	lastScoredAt: string | null;
+	runs: number;
+}
+
+export interface TrackingBoard {
+	country: string;
+	countries: string[];
+	language: string;
+	stats: BoardStats;
+	keywords: BoardKeyword[];
+	movement: BoardMove[];
+	runs: BoardRun[];
+	changes: BoardChange[];
+	metadataGap: BoardGap[];
+	/** Metadata terms with no tracking at all - candidates, not gaps. */
+	metadataUntracked: string[];
+}
+
+// ============ Audit history ============
+
+export interface AuditHistoryPoint {
+	country: string;
+	date: string;
+	storeScore: number;
+	draftScore: number | null;
+	issues: number | null;
+}
+
+export interface AuditHistoryChange {
+	date: string;
+	field: string;
+	language: string;
+	newValue: string | null;
+	oldValue: string | null;
+}
+
+export interface AuditHistory {
+	points: AuditHistoryPoint[];
+	changes: AuditHistoryChange[];
+	/** The measurement `changes` is counted from; NULL on a first audit. */
+	since: string | null;
+}
+
 // ============ Keyword scoring (research) ============
 
 export type KeywordClassification =

@@ -32,6 +32,19 @@ export function useTrackingSummary(appId: string) {
 	});
 }
 
+/**
+ * Everything the tracker view shows for one market. One call on purpose: the
+ * position, the score and our own metadata have to line up per keyword, and
+ * three responses cannot be joined on the client without guessing.
+ */
+export function useTrackingBoard(appId: string, country?: string) {
+	return useQuery({
+		enabled: !!appId,
+		queryFn: () => api.tracking.board(appId, { country }),
+		queryKey: [...trackingKey(appId), "board", country ?? ""],
+	});
+}
+
 export function useRankHistory(
 	appId: string,
 	filters?: { country?: string; keyword?: string },

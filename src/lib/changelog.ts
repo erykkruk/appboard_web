@@ -7,6 +7,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.18.0",
+    serverVersion: "0.18.0",
+    date: "2026-09-08",
+    changes: [
+      "Keywords & Rankings is now a tracker: one table per market with your position and its change, your best position ever, difficulty with its trend, popularity, targeting, which of your listing fields already use the term, and the app that owns the first result. Search, sort, and a filter for winnable targets only",
+      "Positions over time draws one small chart per keyword instead of twenty lines in one frame, with #1 at the top, a break in the line where the store did not show you (that is a missing measurement, not position 50) and a dashed marker on every day you changed the listing",
+      "Movement lists what happened since the previous check: entering and falling out of the scanned results are written out as events, never as a made-up jump in position",
+      "Metadata vs ranking: the terms your title, subtitle or keyword field target while the store does not rank you for them, and the keyword-field terms nothing measures yet - each with a button to start tracking it",
+      "Your changes and Measurements tabs: the before-and-after of every published listing edit, and every measurement run with how many keywords were measured, how many rank and the average difficulty",
+      "Listing audit gained a score over time, with what you changed since the previous measurement listed underneath - so a move can be read as yours or as the market's. The keyword table also names who leads each term",
+    ],
+  },
+  {
     version: "0.17.0",
     serverVersion: "0.17.0",
     date: "2026-09-07",

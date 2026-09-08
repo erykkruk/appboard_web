@@ -4,7 +4,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
 import { api } from "@/lib/api";
-import type { AppAuditResponse, SuggestionsResponse } from "@/lib/types";
+import type {
+  AppAuditResponse,
+  AuditHistory,
+  SuggestionsResponse,
+} from "@/lib/types";
 
 /** How often to re-ask while a measurement is running in the background. */
 const MEASURING_POLL_MS = 3000;
@@ -77,6 +81,19 @@ export function useRecheckAudit(appId: string, country?: string) {
       queryClient.setQueryData(auditKey(appId, country), data);
       queryClient.invalidateQueries({ queryKey: auditKey(appId, country) });
     },
+  });
+}
+
+/**
+ * The listing score over time. The series starts at the first measurement
+ * recorded for this app - there is no backfill, so a fresh app shows one point
+ * and says so rather than drawing an invented curve.
+ */
+export function useAuditHistory(appId: string, country?: string) {
+  return useQuery<AuditHistory>({
+    enabled: !!appId,
+    queryFn: () => api.audit.history(appId, country),
+    queryKey: ["app-audit", appId, "history", country ?? "default"],
   });
 }
 

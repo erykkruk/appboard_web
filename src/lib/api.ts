@@ -9,6 +9,7 @@ import type {
 	App,
 	AppAiPrompt,
 	AppAuditResponse,
+	AuditHistory,
 	AppGroup,
 	AppGroupMember,
 	AppleAdsStatus,
@@ -101,6 +102,7 @@ import type {
 	SuggestKeywordsRequest,
 	SyncVersionsResult,
 	TrackedKeyword,
+	TrackingBoard,
 	TrackingOverview,
 	TrackingSummary,
 	TranslateLocalizationRequest,
@@ -214,6 +216,10 @@ export const api = {
 					country: params?.country,
 					refresh: params?.refresh ? "true" : undefined,
 				})}`,
+			),
+		history: (appId: string, country?: string) =>
+			fetchApi<AuditHistory>(
+				`/api/apps/${appId}/audit/history${toQuery({ country })}`,
 			),
 	},
 	ai: {
@@ -1295,6 +1301,10 @@ export const api = {
 				`/api/apps/${appId}/tracking/keywords`,
 				{ body: JSON.stringify(body), method: "POST" },
 			).then((r) => r.keywords),
+		board: (appId: string, params?: { country?: string }) =>
+			fetchApi<TrackingBoard>(
+				`/api/apps/${appId}/tracking/board${toQuery({ ...params })}`,
+			),
 		check: (appId: string) =>
 			fetchApi<{ result: { checked: number; snapshots: number } }>(
 				`/api/apps/${appId}/tracking/check`,

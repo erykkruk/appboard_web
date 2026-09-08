@@ -3,8 +3,13 @@
 import { Loader2, Plus, RefreshCw, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
-import { DeltaBadge } from "@/components/tracking/delta-badge";
-import { RankChart } from "@/components/tracking/rank-chart";
+import { BoardChanges } from "@/components/tracking/board-changes";
+import { BoardKpis } from "@/components/tracking/board-kpis";
+import { BoardMetadata } from "@/components/tracking/board-metadata";
+import { BoardMovement } from "@/components/tracking/board-movement";
+import { BoardRuns } from "@/components/tracking/board-runs";
+import { KeywordBoardTable } from "@/components/tracking/keyword-board-table";
+import { KeywordTimeline } from "@/components/tracking/keyword-timeline";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -24,23 +29,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useApp } from "@/hooks/use-apps";
 import {
   useAddKeywords,
-  useRankHistory,
   useRemoveKeyword,
   useRunRankCheck,
   useTracking,
+  useTrackingBoard,
 } from "@/hooks/use-tracking";
-import { useApp } from "@/hooks/use-apps";
-import { formatKeywordPosition, RESEARCH_COUNTRIES } from "@/lib/research";
+import { RESEARCH_COUNTRIES } from "@/lib/research";
 import { MAX_TRACKED_KEYWORDS_PER_LANGUAGE } from "@/lib/types";
 
 export function KeywordsRankingsTab({ appId }: { appId: string }) {
@@ -52,7 +50,7 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
   const app = useApp(appId);
   const [pickedCountry, setPickedCountry] = useState<string | null>(null);
   const [input, setInput] = useState("");
-  const [pickedChartCountry, setPickedChartCountry] = useState<string | null>(
+  const [pickedBoardCountry, setPickedBoardCountry] = useState<string | null>(
     null,
   );
 
@@ -60,7 +58,6 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
     () => tracking.data?.keywords ?? [],
     [tracking.data?.keywords],
   );
-  const positions = tracking.data?.positions ?? [];
 
   const countriesUsed = useMemo(
     () => [...new Set(keywords.map((k) => k.country))].sort(),
@@ -73,16 +70,16 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
     app.data?.rawData?.publicCountry?.toLowerCase() ?? countriesUsed[0] ?? "us";
   const country = pickedCountry ?? homeCountry;
 
-  // Effective chart filter: keep the user's choice if it still has keywords,
+  // Effective board filter: keep the user's choice if it still has keywords,
   // otherwise the home market, otherwise the first market with keywords.
-  const effectiveChartCountry =
-    pickedChartCountry && countriesUsed.includes(pickedChartCountry)
-      ? pickedChartCountry
+  const boardCountry =
+    pickedBoardCountry && countriesUsed.includes(pickedBoardCountry)
+      ? pickedBoardCountry
       : countriesUsed.includes(homeCountry)
         ? homeCountry
         : (countriesUsed[0] ?? "us");
 
-  const history = useRankHistory(appId, { country: effectiveChartCountry });
+  const board = useTrackingBoard(appId, boardCountry);
 
   const perCountryCount = keywords.filter((k) => k.country === country).length;
 
@@ -198,94 +195,106 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
         </CardContent>
       </Card>
 
-      {/* Current positions */}
+      {/* The tracker itself */}
       <Card>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div>
-            <CardTitle>Current positions</CardTitle>
+            <CardTitle>Tracker</CardTitle>
             <CardDescription>
               {tracking.data?.config.lastRankCheckAt
                 ? `Last checked ${new Date(tracking.data.config.lastRankCheckAt).toLocaleString()}`
                 : "Not checked yet"}
+              {board.data?.stats.lastScoredAt
+                ? ` · scores from ${board.data.stats.lastScoredAt}`
+                : ""}
             </CardDescription>
           </div>
-          <Button
-            variant="secondary"
-            onClick={() => rankCheck.mutate()}
-            disabled={rankCheck.isPending || !keywords.length}
-          >
-            {rankCheck.isPending ? (
-              <Loader2 className="h-4 w-4 animate-spin" />
-            ) : (
-              <RefreshCw className="h-4 w-4" />
+          <div className="flex items-center gap-2">
+            {countriesUsed.length > 1 && (
+              <Select
+                value={boardCountry}
+                onValueChange={setPickedBoardCountry}
+              >
+                <SelectTrigger className="w-28">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {countriesUsed.map((c) => (
+                    <SelectItem key={c} value={c}>
+                      {c.toUpperCase()}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             )}
-            Check now
-          </Button>
-        </CardHeader>
-        <CardContent>
-          {positions.length ? (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Keyword</TableHead>
-                  <TableHead>Market</TableHead>
-                  <TableHead>Position</TableHead>
-                  <TableHead>Change</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {positions.map((p) => (
-                  <TableRow key={`${p.country}-${p.keyword}`}>
-                    <TableCell className="font-medium">{p.keyword}</TableCell>
-                    <TableCell>{p.country.toUpperCase()}</TableCell>
-                    <TableCell>{formatKeywordPosition(p.position).label}</TableCell>
-                    <TableCell>
-                      <DeltaBadge delta={p.delta} />
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          ) : (
-            <p className="text-sm text-muted-foreground">
-              Run a check to record positions for your tracked keywords.
-            </p>
-          )}
-        </CardContent>
-      </Card>
-
-      {/* History chart */}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <div>
-            <CardTitle>Ranking history</CardTitle>
-            <CardDescription>
-              Position over time. Amber markers show when you changed a listing.
-            </CardDescription>
+            <Button
+              variant="secondary"
+              onClick={() => rankCheck.mutate()}
+              disabled={rankCheck.isPending || !keywords.length}
+            >
+              {rankCheck.isPending ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              Check now
+            </Button>
           </div>
-          {countriesUsed.length > 1 && (
-            <Select value={effectiveChartCountry} onValueChange={setPickedChartCountry}>
-              <SelectTrigger className="w-28">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                {countriesUsed.map((c) => (
-                  <SelectItem key={c} value={c}>
-                    {c.toUpperCase()}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
         </CardHeader>
-        <CardContent>
-          {history.isLoading ? (
+        <CardContent className="space-y-6">
+          {board.isLoading || !board.data ? (
             <Skeleton className="h-64 w-full" />
           ) : (
-            <RankChart
-              annotations={history.data?.annotations ?? []}
-              snapshots={history.data?.snapshots ?? []}
-            />
+            <>
+              <BoardKpis stats={board.data.stats} />
+              <Tabs defaultValue="keywords">
+                <TabsList>
+                  <TabsTrigger value="keywords">Keywords</TabsTrigger>
+                  <TabsTrigger value="timeline">Positions over time</TabsTrigger>
+                  <TabsTrigger value="movement">
+                    Movement
+                    {board.data.movement.length
+                      ? ` (${board.data.movement.length})`
+                      : ""}
+                  </TabsTrigger>
+                  <TabsTrigger value="metadata">Metadata vs ranking</TabsTrigger>
+                  <TabsTrigger value="changes">Your changes</TabsTrigger>
+                  <TabsTrigger value="runs">Measurements</TabsTrigger>
+                </TabsList>
+
+                <TabsContent className="pt-4" value="keywords">
+                  <KeywordBoardTable keywords={board.data.keywords} />
+                </TabsContent>
+                <TabsContent className="pt-4" value="timeline">
+                  <KeywordTimeline
+                    changes={board.data.changes}
+                    keywords={board.data.keywords}
+                  />
+                </TabsContent>
+                <TabsContent className="pt-4" value="movement">
+                  <BoardMovement movement={board.data.movement} />
+                </TabsContent>
+                <TabsContent className="pt-4" value="metadata">
+                  <BoardMetadata
+                    gap={board.data.metadataGap}
+                    onTrack={(keyword) =>
+                      addKeywords.mutate({
+                        country: boardCountry,
+                        keywords: [keyword],
+                      })
+                    }
+                    tracking={addKeywords.isPending}
+                    untracked={board.data.metadataUntracked}
+                  />
+                </TabsContent>
+                <TabsContent className="pt-4" value="changes">
+                  <BoardChanges changes={board.data.changes} />
+                </TabsContent>
+                <TabsContent className="pt-4" value="runs">
+                  <BoardRuns runs={board.data.runs} />
+                </TabsContent>
+              </Tabs>
+            </>
           )}
         </CardContent>
       </Card>
