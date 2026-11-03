@@ -9,6 +9,7 @@ import { AppResearchRunTab } from "@/components/tracking/app-research-run-tab";
 import { AppleImpressionsCard } from "@/components/research/apple-impressions-card";
 import { CountryOpportunitySection } from "@/components/research/country-opportunity-section";
 import { KeywordScoresSection } from "@/components/research/keyword-scores-section";
+import { MarketKeywordsCard } from "@/components/research/market-keywords-card";
 import { AutomationTab } from "@/components/tracking/automation-tab";
 import { KeywordsRankingsTab } from "@/components/tracking/keywords-rankings-tab";
 import { ResearchHistoryTab } from "@/components/tracking/research-history-tab";
@@ -65,6 +66,11 @@ function AppKeywordScoresTab({ appId }: { appId: string }) {
       : undefined;
   return (
     <div className="space-y-10">
+      <MarketKeywordsCard
+        appId={appId}
+        appstoreId={appstoreId}
+        homeCountry={app.data?.rawData?.publicCountry ?? null}
+      />
       <KeywordScoresSection appstoreId={appstoreId} />
       <CountryOpportunitySection appstoreId={appstoreId} />
       <AppleImpressionsCard appId={appId} />
