@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.19.2",
+    serverVersion: "0.19.2",
+    date: "2026-11-03",
+    changes: [
+      "App Store audit reads the subtitle and keyword field synced from App Store Connect, so it no longer reports an empty subtitle that is not empty",
+      "Keywords we checked starts with the keywords you track in that market and the terms of your keyword field, before words taken from the description",
+      "A proposed keyword field is built on your current one: it keeps your terms and only swaps the ones that repeat the title or subtitle or that you cannot win, and the AI review can no longer replace the whole field with a single word",
+      "One winnable rule everywhere: a keyword marked too hard in the table is never called winnable in the AI review",
+    ],
+  },
+  {
     version: "0.19.0",
     serverVersion: "0.19.0",
     date: "2026-11-03",
