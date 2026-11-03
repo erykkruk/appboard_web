@@ -1604,7 +1604,7 @@ export type ResearchRunKind = "manual" | "scheduled";
 
 export type AutoResearchFrequency = "daily" | "monthly" | "weekly";
 
-export const MAX_TRACKED_KEYWORDS_PER_LANGUAGE = 20;
+export const MAX_TRACKED_KEYWORDS_PER_LANGUAGE = 40;
 
 export interface ResearchRunReport {
 	analysis?: ResearchAnalysis;
