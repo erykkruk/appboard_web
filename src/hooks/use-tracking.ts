@@ -49,6 +49,15 @@ export function useTrackingBoard(
 	});
 }
 
+/** Keyword ideas for one market; read from stored scores, never scored here. */
+export function useKeywordSuggestions(appId: string, country: string | null) {
+	return useQuery({
+		enabled: !!appId && !!country,
+		queryFn: () => api.tracking.suggestions(appId, country ?? ""),
+		queryKey: [...trackingKey(appId), "suggestions", country ?? ""],
+	});
+}
+
 export function useRankHistory(
 	appId: string,
 	filters?: { country?: string; keyword?: string },

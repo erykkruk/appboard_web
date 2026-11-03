@@ -21,7 +21,24 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useTracking, useUpdateTrackingConfig } from "@/hooks/use-tracking";
-import type { AutoResearchFrequency } from "@/lib/types";
+import type { AutoResearchFrequency, TrackingSchedule } from "@/lib/types";
+
+const DEFAULT_AUTO_RESEARCH_HOUR = 6;
+const DEFAULT_TIMEZONE = "Europe/Warsaw";
+
+function formatHour(hour: number): string {
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+
+/** "Next run: ..." for the auto-research card; exported for tests. */
+export function nextRunLabel(
+  enabled: boolean,
+  schedule: TrackingSchedule | undefined,
+): string {
+  if (!enabled) return "Auto-research is off.";
+  if (!schedule?.nextAutoResearchAt) return "Next run: not scheduled yet.";
+  return `Next run: ${new Date(schedule.nextAutoResearchAt).toLocaleString()}`;
+}
 
 function Row({
   children,
@@ -75,6 +92,7 @@ export function AutomationTab({ appId }: { appId: string }) {
   const tracking = useTracking(appId);
   const update = useUpdateTrackingConfig(appId);
   const config = tracking.data?.config;
+  const schedule = tracking.data?.schedule;
 
   if (tracking.isLoading || !config) {
     return <Skeleton className="h-64 w-full" />;
@@ -118,8 +136,12 @@ export function AutomationTab({ appId }: { appId: string }) {
         <CardHeader>
           <CardTitle>Auto-research</CardTitle>
           <CardDescription>
-            Periodically re-run research on this app and email a report (reviews
-            analysis, top complaints, keyword positions).
+            Runs at {formatHour(schedule?.autoResearchHour ?? DEFAULT_AUTO_RESEARCH_HOUR)}{" "}
+            ({schedule?.timezone ?? DEFAULT_TIMEZONE}). Each run fully researches
+            your home market (reviews, AI analysis, keyword positions) and
+            emails a report, then scores new keyword ideas in your other tracked
+            markets. A daily run spreads the markets over the week, so every
+            market is covered at least once a week.
           </CardDescription>
         </CardHeader>
         <CardContent className="divide-y">
@@ -153,6 +175,9 @@ export function AutomationTab({ appId }: { appId: string }) {
               </SelectContent>
             </Select>
           </Row>
+          <p className="pt-3 text-xs text-muted-foreground">
+            {nextRunLabel(config.autoResearchEnabled, schedule)}
+          </p>
         </CardContent>
       </Card>
 
