@@ -2,11 +2,16 @@ import { describe, expect, test } from "bun:test";
 import { Microscope } from "lucide-react";
 
 import {
+  activeAppNavSection,
   APP_NAV,
+  APP_NAV_SECTIONS,
+  appNavItemHref,
   GLOBAL_NAV,
+  isAppNavItemActive,
   isSectionActive,
   type NavItem,
   SETTINGS_NAV,
+  supportsRankTracking,
   VERSION_NAV,
 } from "@/lib/nav";
 import type { FeatureKey } from "@/lib/types";
@@ -23,24 +28,53 @@ function allowedByFeatures(
 }
 
 describe("nav model", () => {
-  test("app nav keeps the workspace order", () => {
-    // Order is the flow: audit, fixes, writing, then the store page, then
-    // growth, then housekeeping. Reminders is the last step of the flow.
-    expect(labels(APP_NAV)).toEqual([
-      "Dashboard",
-      "Fixes",
-      "Text & keywords",
-      "Write with AI",
-      "About this app",
-      "Screenshots",
-      "Research",
-      "Publish",
-      "Purchases",
-      "Reviews",
-      "History",
-      "Reminders",
-      "Settings",
+  test("app nav is grouped into sections, daily marketing work first", () => {
+    expect(
+      APP_NAV_SECTIONS.map((section) => [section.label, labels(section.items)]),
+    ).toEqual([
+      ["Marketing & ASO", ["Dashboard", "Keyword rankings", "Research", "Fixes"]],
+      [
+        "Store",
+        [
+          "Text & keywords",
+          "Screenshots",
+          "About this app",
+          "In-app products",
+          "History",
+          "Publish",
+        ],
+      ],
+      ["Reviews", ["Reviews"]],
+      ["Sales", ["Sales"]],
+      ["Automations", ["Reminders"]],
+      ["Tools", ["Write with AI"]],
+      ["Settings", ["Settings"]],
     ]);
+  });
+
+  test("the flat app nav is every section's pages in order", () => {
+    expect(APP_NAV).toEqual(APP_NAV_SECTIONS.flatMap((section) => section.items));
+  });
+
+  test("every existing app route is still in the nav", () => {
+    const suffixes = new Set(APP_NAV.map((item) => item.suffix));
+    for (const suffix of [
+      "/dashboard",
+      "/fixes",
+      "/text",
+      "/write",
+      "/information",
+      "/screenshots",
+      "/research",
+      "/publish",
+      "/purchases",
+      "/reviews",
+      "/history",
+      "/reminders",
+      "/settings",
+    ]) {
+      expect(suffixes.has(suffix)).toBe(true);
+    }
   });
 
   test("settings and global nav use absolute hrefs", () => {
@@ -114,5 +148,66 @@ describe("isSectionActive", () => {
 
   test("ignores a base path of another app", () => {
     expect(isSectionActive("/apps/a2/research", APP_NAV, "/apps/a1")).toBe(false);
+  });
+});
+
+describe("app nav tabs", () => {
+  const base = "/apps/a1";
+  const rankings = APP_NAV.find((item) => item.label === "Keyword rankings") as NavItem;
+  const research = APP_NAV.find((item) => item.label === "Research") as NavItem;
+
+  test("keyword rankings links straight to the research tab", () => {
+    expect(appNavItemHref(rankings, base)).toBe("/apps/a1/research?tab=keywords");
+    expect(appNavItemHref(research, base)).toBe("/apps/a1/research");
+  });
+
+  test("only the rankings pill is active on the keywords tab", () => {
+    const path = "/apps/a1/research";
+    expect(isAppNavItemActive(rankings, APP_NAV, base, path, "keywords")).toBe(true);
+    expect(isAppNavItemActive(research, APP_NAV, base, path, "keywords")).toBe(false);
+  });
+
+  test("research stays active on its other tabs", () => {
+    const path = "/apps/a1/research";
+    expect(isAppNavItemActive(research, APP_NAV, base, path, null)).toBe(true);
+    expect(isAppNavItemActive(research, APP_NAV, base, path, "history")).toBe(true);
+    expect(isAppNavItemActive(rankings, APP_NAV, base, path, "history")).toBe(false);
+  });
+});
+
+describe("activeAppNavSection", () => {
+  const base = "/apps/a1";
+  const section = (path: string, tab: string | null = null) =>
+    activeAppNavSection(APP_NAV_SECTIONS, base, path, tab)?.id;
+
+  test("a page opens the section it belongs to", () => {
+    expect(section("/apps/a1/dashboard")).toBe("marketing");
+    expect(section("/apps/a1/research", "keywords")).toBe("marketing");
+    expect(section("/apps/a1/text")).toBe("store");
+    expect(section("/apps/a1/purchases/p1")).toBe("store");
+    expect(section("/apps/a1/sales")).toBe("sales");
+    expect(section("/apps/a1/reminders")).toBe("automations");
+    expect(section("/apps/a1/write")).toBe("tools");
+  });
+
+  test("version pages belong to the store listing", () => {
+    expect(section("/apps/a1/versions/v1/screenshots")).toBe("store");
+  });
+
+  test("a page outside every section falls back to the first one", () => {
+    expect(section("/apps/a1/setup")).toBe("marketing");
+  });
+});
+
+describe("supportsRankTracking", () => {
+  test("an Apple TV only app has no rankings", () => {
+    expect(supportsRankTracking({ devices: ["tv"], platform: "ios" })).toBe(false);
+  });
+
+  test("iPhone apps, iPhone + TV apps and Android TV apps are tracked", () => {
+    expect(supportsRankTracking({ devices: ["phone"], platform: "ios" })).toBe(true);
+    expect(supportsRankTracking({ devices: ["phone", "tv"], platform: "ios" })).toBe(true);
+    expect(supportsRankTracking({ devices: ["tv"], platform: "android" })).toBe(true);
+    expect(supportsRankTracking({ devices: [], platform: "ios" })).toBe(true);
   });
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { Loader2, Plus, RefreshCw, X } from "lucide-react";
+import { Loader2, Plus, RefreshCw } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 
 import { BoardChanges } from "@/components/tracking/board-changes";
@@ -12,8 +12,8 @@ import { KeywordBoardTable } from "@/components/tracking/keyword-board-table";
 import { KeywordTimeline } from "@/components/tracking/keyword-timeline";
 import { MarketsOverview } from "@/components/tracking/markets-overview";
 import { RankCheckStatus } from "@/components/tracking/rank-check-status";
+import { TrackedKeywordGroups } from "@/components/tracking/tracked-keyword-groups";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -46,7 +46,14 @@ import {
 import { marketLabel, marketOptions } from "@/lib/markets";
 import { MAX_TRACKED_KEYWORDS_PER_LANGUAGE } from "@/lib/types";
 
-export function KeywordsRankingsTab({ appId }: { appId: string }) {
+export function KeywordsRankingsTab({
+  appId,
+  initialCountry = null,
+}: {
+  appId: string;
+  /** Market to open on, e.g. from the dashboard's "Open full tracker". */
+  initialCountry?: string | null;
+}) {
   const tracking = useTracking(appId);
   const addKeywords = useAddKeywords(appId);
   const removeKeyword = useRemoveKeyword(appId);
@@ -56,11 +63,15 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
   const trackerRef = useRef<HTMLDivElement>(null);
 
   const app = useApp(appId);
-  const [pickedCountry, setPickedCountry] = useState<string | null>(null);
+  const linkedCountry = initialCountry?.toLowerCase() ?? null;
+  const [pickedCountry, setPickedCountry] = useState<string | null>(
+    linkedCountry,
+  );
   const [input, setInput] = useState("");
   const [pickedBoardCountry, setPickedBoardCountry] = useState<string | null>(
-    null,
+    linkedCountry,
   );
+
 
   const keywords = useMemo(
     () => tracking.data?.keywords ?? [],
@@ -98,6 +109,7 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
 
   function openMarket(market: string) {
     setPickedBoardCountry(market);
+    setPickedCountry(market);
     trackerRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
   }
 
@@ -123,97 +135,82 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
     return <Skeleton className="h-64 w-full" />;
   }
 
+  const keywordsCard = (
+    <Card>
+      <CardHeader>
+        <CardTitle>Tracked keywords</CardTitle>
+        <CardDescription>
+          Track up to {MAX_TRACKED_KEYWORDS_PER_LANGUAGE} keywords per market.
+          Positions are measured daily at 00:00 and 12:00 (and whenever you hit
+          &quot;Check now&quot;).
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="space-y-1">
+            <Label>Market</Label>
+            <Select value={country} onValueChange={setPickedCountry}>
+              <SelectTrigger aria-label="Market" className="w-48">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {addOptions.map((c) => (
+                  <SelectItem key={c} value={c}>
+                    {marketLabel(c)} ({c.toUpperCase()})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <div className="flex-1 space-y-1" style={{ minWidth: 240 }}>
+            <Label>
+              Keywords ({perCountryCount}/{MAX_TRACKED_KEYWORDS_PER_LANGUAGE})
+            </Label>
+            <Input
+              placeholder="habit tracker, todo list, planner"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") submitKeywords();
+              }}
+            />
+          </div>
+          <Button
+            onClick={submitKeywords}
+            disabled={addKeywords.isPending || !input.trim()}
+          >
+            {addKeywords.isPending ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <Plus className="h-4 w-4" />
+            )}
+            Add
+          </Button>
+        </div>
+
+        <TrackedKeywordGroups
+          countries={countriesUsed}
+          keywords={keywords}
+          markets={markets.data?.markets ?? []}
+          maxPerMarket={MAX_TRACKED_KEYWORDS_PER_LANGUAGE}
+          onRemove={(id) => removeKeyword.mutate(id)}
+          selectedCountry={country}
+        />
+        {!keywords.length && (
+          <p className="text-sm text-muted-foreground">
+            No tracked keywords yet. Add some above or use &quot;Add&quot; from
+            a research report.
+          </p>
+        )}
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="space-y-6">
-      {/* Add keywords */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Tracked keywords</CardTitle>
-          <CardDescription>
-            Track up to {MAX_TRACKED_KEYWORDS_PER_LANGUAGE} keywords per market.
-            Positions are measured daily at 00:00 and 12:00 (and whenever you hit
-            “Check now”).
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="flex flex-wrap items-end gap-3">
-            <div className="space-y-1">
-              <Label>Market</Label>
-              <Select value={country} onValueChange={setPickedCountry}>
-                <SelectTrigger aria-label="Market" className="w-48">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {addOptions.map((c) => (
-                    <SelectItem key={c} value={c}>
-                      {marketLabel(c)} ({c.toUpperCase()})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="flex-1 space-y-1" style={{ minWidth: 240 }}>
-              <Label>
-                Keywords ({perCountryCount}/{MAX_TRACKED_KEYWORDS_PER_LANGUAGE})
-              </Label>
-              <Input
-                placeholder="habit tracker, todo list, planner"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") submitKeywords();
-                }}
-              />
-            </div>
-            <Button
-              onClick={submitKeywords}
-              disabled={addKeywords.isPending || !input.trim()}
-            >
-              {addKeywords.isPending ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <Plus className="h-4 w-4" />
-              )}
-              Add
-            </Button>
-          </div>
-
-          {countriesUsed.map((c) => (
-            <div key={c} className="space-y-2">
-              <p className="text-sm font-medium text-muted-foreground">
-                {marketLabel(c)} ({c.toUpperCase()})
-              </p>
-              <div className="flex flex-wrap gap-2">
-                {keywords
-                  .filter((k) => k.country === c)
-                  .map((k) => (
-                    <Badge
-                      key={k.id}
-                      variant="secondary"
-                      className="gap-1 pr-1"
-                    >
-                      {k.keyword}
-                      <button
-                        type="button"
-                        className="rounded-full p-0.5 hover:bg-muted-foreground/20"
-                        onClick={() => removeKeyword.mutate(k.id)}
-                        aria-label={`Remove ${k.keyword}`}
-                      >
-                        <X className="h-3 w-3" />
-                      </button>
-                    </Badge>
-                  ))}
-              </div>
-            </div>
-          ))}
-          {!keywords.length && (
-            <p className="text-sm text-muted-foreground">
-              No tracked keywords yet — add some above or use “Add” from a research
-              report.
-            </p>
-          )}
-        </CardContent>
-      </Card>
+      {/* A new app starts by adding keywords; once tracked, the overview
+          and the tracker come first and the list is managed below. */}
+      {keywords.length === 0 && keywordsCard}
 
       {/* Every market at a glance; a row opens its board below */}
       <Card>
@@ -361,6 +358,7 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
           )}
         </CardContent>
       </Card>
+      {keywords.length > 0 && keywordsCard}
     </div>
   );
 }

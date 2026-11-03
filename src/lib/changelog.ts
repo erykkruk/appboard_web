@@ -7,6 +7,20 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.19.3",
+    serverVersion: "0.19.1",
+    date: "2026-11-03",
+    changes: [
+      "The app dashboard opens with Keyword positions: your markets ordered by how many keywords reach the top 10, and for the chosen market a chart of positions over time (#1 at the top, a gap where the store did not show you) next to each keyword's position, change and best. Tick up to 8 keywords to draw",
+      "The app menu is grouped into sections: Marketing & ASO (Dashboard, Keyword rankings, Research, Fixes), Store (Text & keywords, Screenshots, About this app, In-app products, History, Publish and the version picker), Reviews, Sales, Automations, Tools and Settings. Every old link still works",
+      "Keyword rankings has its own menu entry, and the Research tabs live in the address bar, so a link or the back button lands on the same tab. Switching apps keeps the tab too",
+      "Tracked keywords is a compact list: one row per market with its slots used and how many keywords rank, the selected market open, a filter for keywords and markets, and Expand all / Collapse all",
+      "Sales is a new page that is still in progress: it lists what it will measure and shows no numbers until real sales data is connected",
+      "The app switcher names the TV builds (Android TV, Apple TV), so separate store records of one product are easy to tell apart. An Apple TV only app no longer shows the rankings entry, since Apple publishes no tvOS search",
+      "A keyword that was never measured says when it will be (the next check at 00:00 or 12:00), and empty cells show a plain hyphen",
+    ],
+  },
+  {
     version: "0.19.1",
     serverVersion: "0.19.1",
     date: "2026-11-03",

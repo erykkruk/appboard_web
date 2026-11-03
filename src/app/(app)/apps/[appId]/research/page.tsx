@@ -1,7 +1,6 @@
 "use client";
 
-import { useParams, useSearchParams } from "next/navigation";
-import { useState } from "react";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { useApp } from "@/hooks/use-apps";
 import { isLocalApp } from "@/lib/apps";
@@ -76,13 +75,20 @@ function AppKeywordScoresTab({ appId }: { appId: string }) {
 export default function AppResearchPage() {
   const { appId } = useParams<{ appId: string }>();
   const searchParams = useSearchParams();
+  const pathname = usePathname();
+  const router = useRouter();
   const tabParam = searchParams.get("tab");
-  const initialTab: ResearchTab = RESEARCH_TABS.includes(
-    tabParam as ResearchTab,
-  )
+  // The tab lives in the URL, so the "Keyword rankings" pill, shared links
+  // and the back button all land on the same tab.
+  const tab: ResearchTab = RESEARCH_TABS.includes(tabParam as ResearchTab)
     ? (tabParam as ResearchTab)
     : "run";
-  const [tab, setTab] = useState<ResearchTab>(initialTab);
+
+  function setTab(next: ResearchTab) {
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("tab", next);
+    router.push(`${pathname}?${params.toString()}`, { scroll: false });
+  }
   const app = useApp(appId);
   const notInStore = isLocalApp(app.data);
 
@@ -112,7 +118,10 @@ export default function AppResearchPage() {
           )}
         </TabsContent>
         <TabsContent value="keywords" className="mt-6">
-          <KeywordsRankingsTab appId={appId} />
+          <KeywordsRankingsTab
+            appId={appId}
+            initialCountry={searchParams.get("country")}
+          />
         </TabsContent>
         <TabsContent value="scores" className="mt-6">
           <AppKeywordScoresTab appId={appId} />

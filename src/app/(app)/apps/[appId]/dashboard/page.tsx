@@ -5,6 +5,7 @@ import { Apple, Download, MessageSquare, Package, Star, Store } from "lucide-rea
 
 import { AppAuditCard } from "@/components/apps/app-audit-card";
 import { FlowSteps } from "@/components/flow-steps";
+import { KeywordPositionsCard } from "@/components/tracking/keyword-positions-card";
 import { KeywordRankingsCard } from "@/components/tracking/keyword-rankings-card";
 import { ReviewSentimentCard } from "@/components/tracking/review-sentiment-card";
 import { Badge } from "@/components/ui/badge";
@@ -114,6 +115,12 @@ export default function AppDashboardPage() {
           {isIos ? "App Store" : "Google Play"}
         </Badge>
       </div>
+
+      {/* Where the app ranks per market, and how that moved over time */}
+      <KeywordPositionsCard
+        appId={appId}
+        homeCountry={data.rawData?.publicCountry ?? null}
+      />
 
       {/* Listing score + fix queue, computed by the backend audit */}
       <AppAuditCard app={data} />

@@ -94,7 +94,7 @@ export function ReviewSentimentCard({
       <CardContent className="space-y-4">
         {runs.isLoading || run.isLoading ? (
           <p className="py-2 text-sm text-muted-foreground">
-            Loading review analysis…
+            Loading review analysis...
           </p>
         ) : !analysis || total === 0 ? (
           <p className="py-2 text-sm text-muted-foreground">

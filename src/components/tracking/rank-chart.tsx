@@ -12,7 +12,7 @@ const PLOT_W = W - PAD.left - PAD.right;
 const PLOT_H = H - PAD.top - PAD.bottom;
 
 // Colorblind-friendly categorical palette.
-const SERIES_COLORS = [
+export const SERIES_COLORS = [
 	"#2563eb",
 	"#16a34a",
 	"#d97706",
@@ -45,9 +45,12 @@ function fmtDate(ms: number): string {
 
 export function RankChart({
 	annotations,
+	seriesColors,
 	snapshots,
 }: {
 	annotations: RankAnnotation[];
+	/** Fixed colour per keyword, so a legend elsewhere can match the lines. */
+	seriesColors?: Record<string, string>;
 	snapshots: RankSnapshot[];
 }) {
 	const { annos, series, xLabels, yTicks, offY } = useMemo(() => {
@@ -79,7 +82,8 @@ export function RankChart({
 
 		const built: Series[] = [...byKeyword.entries()].map(
 			([keyword, rows], i) => ({
-				color: SERIES_COLORS[i % SERIES_COLORS.length],
+				color:
+					seriesColors?.[keyword] ?? SERIES_COLORS[i % SERIES_COLORS.length],
 				keyword,
 				points: rows
 					.slice()
@@ -134,12 +138,12 @@ export function RankChart({
 			offY: number;
 			annos: Array<{ anno: RankAnnotation; x: number }>;
 		};
-	}, [snapshots, annotations]);
+	}, [snapshots, annotations, seriesColors]);
 
 	if (!snapshots.length) {
 		return (
 			<div className="flex h-48 items-center justify-center rounded-md border border-dashed text-sm text-muted-foreground">
-				No rank history yet — run a check to start tracking positions.
+				No rank history yet. Run a check to start tracking positions.
 			</div>
 		);
 	}

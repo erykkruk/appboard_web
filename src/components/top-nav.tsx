@@ -38,8 +38,20 @@ const SEARCH_FROM = 5;
 /** Hydration flag store: it never changes, so nothing ever needs notifying. */
 const NO_SUBSCRIBE = () => () => {};
 
-function platformLabel(platform?: string): string {
-  return platform === "ios" ? "App Store" : "Google Play";
+/**
+ * Store plus the TV surface, so separate store records of one product
+ * (phone and TV builds) can be told apart in the list.
+ */
+export function storeLabel(app: {
+  devices?: readonly string[] | null;
+  platform?: string;
+}): string {
+  const isIos = app.platform === "ios";
+  const store = isIos ? "App Store" : "Google Play";
+  if (!app.devices?.includes("tv")) return store;
+  const handheld = app.devices.includes("phone") || app.devices.includes("tablet");
+  if (handheld) return `${store} · phone + TV`;
+  return `${store} · ${isIos ? "Apple TV" : "Android TV"}`;
 }
 
 /**
@@ -127,11 +139,14 @@ export function TopNav() {
                   className="gap-2"
                   onSelect={(e) => {
                     e.preventDefault();
-                    // Switching apps keeps you on the same kind of screen.
+                    // Switching apps keeps you on the same kind of screen,
+                    // including its tab (?tab=keywords), so comparing the
+                    // records of one product stays one click per record.
                     const suffix = activeAppId
                       ? pathname.slice(`/apps/${activeAppId}`.length)
                       : "/dashboard";
-                    router.push(`/apps/${app.id}${suffix || "/dashboard"}`);
+                    const query = activeAppId ? window.location.search : "";
+                    router.push(`/apps/${app.id}${suffix || "/dashboard"}${query}`);
                   }}
                 >
                   <button
@@ -154,7 +169,7 @@ export function TopNav() {
                   </button>
                   <span className="min-w-0 flex-1 truncate">{app.name}</span>
                   <span className="shrink-0 text-muted-foreground text-xs">
-                    {platformLabel(app.platform)}
+                    {storeLabel(app)}
                   </span>
                 </DropdownMenuItem>
               );
