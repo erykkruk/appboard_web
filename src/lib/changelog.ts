@@ -18,6 +18,14 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.19.1",
+    serverVersion: "0.19.1",
+    date: "2026-11-03",
+    changes: [
+      "Track up to 40 keywords per market instead of 20, so a market served in two languages (for example English and Spanish in the United States) fits in one tracker",
+    ],
+  },
+  {
     version: "0.19.0",
     serverVersion: "0.19.0",
     date: "2026-11-03",
