@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.20.1",
+    serverVersion: "0.20.1",
+    date: "2026-11-03",
+    changes: [
+      "The dashboard opens with a table of how strong you are in every market: tracked keywords, how many rank, top 10, top 50, median position, your best keyword and what moved. Counts leave out your app name, so a market where only your own name ranks no longer looks strong. Sort by any column, click a market to chart it",
+      "The dashboard opens on your strongest market instead of the first one where anything ranks",
+      "The chart starts with the 20 most searched keywords of the market. A keyword the store did not show sits on a labelled not ranked line, a keyword no check has reached yet is listed under the chart, and a history of a single day says when the first lines appear instead of showing an empty chart",
+    ],
+  },
+  {
     version: "0.19.3",
     serverVersion: "0.19.2",
     date: "2026-11-03",

@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { DeltaBadge } from "@/components/tracking/delta-badge";
+import { MarketStrengthTable } from "@/components/tracking/market-strength-table";
 import { RankChart, SERIES_COLORS } from "@/components/tracking/rank-chart";
 import { Button } from "@/components/ui/button";
 import {
@@ -28,13 +29,15 @@ import { useTrackingBoard, useTrackingMarkets } from "@/hooks/use-tracking";
 import { marketLabel } from "@/lib/markets";
 import {
   boardToSnapshots,
-  DASHBOARD_MARKETS_PREVIEW,
   defaultChartKeywords,
+  earnedCounts,
   MAX_CHART_KEYWORDS,
+  notRankedNow,
   pickDefaultMarket,
+  singleHistoryDay,
   sortKeywordsForDashboard,
-  sortMarketsForDashboard,
   toggleChartKeyword,
+  unmeasuredKeywords,
 } from "@/lib/rank-dashboard";
 import { formatKeywordPosition } from "@/lib/research";
 import type { BoardChange, RankAnnotation } from "@/lib/types";
@@ -62,10 +65,19 @@ function toAnnotation(change: BoardChange): RankAnnotation {
   };
 }
 
+/** "2026-11-03" as "3 Nov" in the reader's locale. */
+function formatDay(day: string): string {
+  return new Date(`${day}T12:00:00.000Z`).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+  });
+}
+
 /**
- * Dashboard view of keyword positions: the markets ordered by strength, and
- * for the chosen market a positions-over-time chart of up to
- * MAX_CHART_KEYWORDS keywords next to their current position and change.
+ * Dashboard view of keyword positions: how strong the app is in every market
+ * (a sortable table that ignores the app's own name), and for the chosen
+ * market a positions-over-time chart of its most searched keywords (up to
+ * MAX_CHART_KEYWORDS) next to their current position and change.
  * One board request per market keeps the cost at one market's keywords, not
  * every snapshot of every market.
  */
@@ -78,18 +90,24 @@ export function KeywordPositionsCard({
 }) {
   const markets = useTrackingMarkets(appId);
   const [pickedCountry, setPickedCountry] = useState<string | null>(null);
-  const [showAllMarkets, setShowAllMarkets] = useState(false);
   const [showAllKeywords, setShowAllKeywords] = useState(false);
   const [picks, setPicks] = useState<Record<string, string[]>>({});
 
-  const sortedMarkets = useMemo(
-    () => sortMarketsForDashboard(markets.data?.markets ?? []),
+  const marketRows = useMemo(
+    () => markets.data?.markets ?? [],
     [markets.data?.markets],
   );
-  const country =
-    pickedCountry && sortedMarkets.some((m) => m.country === pickedCountry)
-      ? pickedCountry
-      : pickDefaultMarket(sortedMarkets, homeCountry);
+  const country = useMemo(
+    () =>
+      pickedCountry && marketRows.some((m) => m.country === pickedCountry)
+        ? pickedCountry
+        : pickDefaultMarket(marketRows, homeCountry),
+    [homeCountry, marketRows, pickedCountry],
+  );
+  const selectedMarket = useMemo(
+    () => marketRows.find((m) => m.country === country) ?? null,
+    [country, marketRows],
+  );
 
   const board = useTrackingBoard(appId, country ?? undefined, {
     enabled: country !== null,
@@ -116,6 +134,18 @@ export function KeywordPositionsCard({
     () => boardToSnapshots(board.data?.keywords ?? [], selected),
     [board.data?.keywords, selected],
   );
+  const notMeasured = useMemo(
+    () => unmeasuredKeywords(board.data?.keywords ?? [], selected),
+    [board.data?.keywords, selected],
+  );
+  const outOfResults = useMemo(
+    () => notRankedNow(board.data?.keywords ?? [], selected),
+    [board.data?.keywords, selected],
+  );
+  const onlyDay = useMemo(
+    () => singleHistoryDay(board.data?.keywords ?? []),
+    [board.data?.keywords],
+  );
 
   // No tracking, no supported store or a failed read: the summary card
   // further down already explains the empty state.
@@ -123,16 +153,13 @@ export function KeywordPositionsCard({
     return null;
   }
   if (markets.isLoading) return <Skeleton className="h-72 w-full rounded-xl" />;
-  if (!country || !sortedMarkets.length) return null;
+  if (!country || !marketRows.length) return null;
 
-  const visibleMarkets = showAllMarkets
-    ? sortedMarkets
-    : sortedMarkets.slice(0, DASHBOARD_MARKETS_PREVIEW);
   const visibleKeywords = showAllKeywords
     ? keywords
     : keywords.slice(0, KEYWORD_ROWS_PREVIEW);
   const chartFull = selected.length >= MAX_CHART_KEYWORDS;
-  const stats = board.data?.stats;
+  const earned = selectedMarket ? earnedCounts(selectedMarket) : null;
 
   function toggle(keyword: string) {
     if (!country) return;
@@ -152,8 +179,8 @@ export function KeywordPositionsCard({
           </CardTitle>
           <CardDescription>
             {marketLabel(country)}
-            {stats
-              ? `: ${stats.ranked} of ${stats.tracked} keywords ranking, ${stats.top10} in the top 10`
+            {selectedMarket && earned
+              ? `: ${earned.ranked} of ${selectedMarket.tracked} keywords ranking beyond your app name, ${earned.top10} in the top 10`
               : ""}
           </CardDescription>
         </div>
@@ -164,42 +191,29 @@ export function KeywordPositionsCard({
         </Button>
       </CardHeader>
       <CardContent className="space-y-5">
-        <div className="flex flex-wrap items-center gap-2" aria-label="Markets">
-          {visibleMarkets.map((m) => (
-            <Button
-              key={m.country}
-              aria-pressed={m.country === country}
-              className="h-auto gap-1.5 py-1 text-xs"
-              onClick={() => setPickedCountry(m.country)}
-              size="sm"
-              variant={m.country === country ? "default" : "outline"}
-            >
-              <span className="font-semibold">{m.country.toUpperCase()}</span>
-              <span className={cn(m.country !== country && "text-muted-foreground")}>
-                {m.top10} top 10 · {m.ranked} ranked
-              </span>
-            </Button>
-          ))}
-          {sortedMarkets.length > DASHBOARD_MARKETS_PREVIEW && (
-            <Button
-              className="h-auto py-1 text-xs"
-              onClick={() => setShowAllMarkets((v) => !v)}
-              size="sm"
-              variant="ghost"
-            >
-              {showAllMarkets
-                ? "Fewer markets"
-                : `All ${sortedMarkets.length} markets`}
-            </Button>
-          )}
-        </div>
+        <MarketStrengthTable
+          homeCountry={homeCountry}
+          markets={marketRows}
+          onSelect={setPickedCountry}
+          selected={country}
+        />
 
         {board.isLoading || !board.data ? (
           <Skeleton className="h-64 w-full" />
         ) : (
           <div className="space-y-6">
             <div className="space-y-2">
-              {selected.length ? (
+              <h3 className="text-sm font-medium">
+                {marketLabel(country)}: positions over time
+              </h3>
+              {onlyDay ? (
+                <p className="flex h-32 items-center justify-center rounded-md border border-dashed px-4 text-center text-sm text-muted-foreground">
+                  History starts {formatDay(onlyDay)}. Positions are kept per
+                  day, so lines appear once a second day is measured (checks
+                  run at 00:00 and 12:00). Today&apos;s positions are in the
+                  table below.
+                </p>
+              ) : selected.length ? (
                 <RankChart
                   annotations={board.data.changes.map(toAnnotation)}
                   seriesColors={seriesColors}
@@ -210,10 +224,26 @@ export function KeywordPositionsCard({
                   Tick keywords in the table to draw their positions.
                 </p>
               )}
-              <p className="text-xs text-muted-foreground">
-                #1 is at the top. A hollow dot below the chart is a check where
-                the store did not show the app in the scanned results.
-              </p>
+              {!onlyDay && (
+                <p className="text-xs text-muted-foreground">
+                  #1 is at the top. A dot on the &quot;not ranked&quot; line is a
+                  check where the store did not show the app in the scanned
+                  results.
+                </p>
+              )}
+              {outOfResults.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Not in the results at the last check:{" "}
+                  {outOfResults.join(", ")}.
+                </p>
+              )}
+              {notMeasured.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Not measured yet, so not on the chart:{" "}
+                  {notMeasured.join(", ")}. Measured at the next check (00:00 /
+                  12:00).
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -224,6 +254,7 @@ export function KeywordPositionsCard({
                       <span className="sr-only">On the chart</span>
                     </TableHead>
                     <TableHead>Keyword</TableHead>
+                    <TableHead className="text-right">Popularity</TableHead>
                     <TableHead className="text-right">Position</TableHead>
                     <TableHead className="text-right">Change</TableHead>
                     <TableHead className="text-right">Best</TableHead>
@@ -257,6 +288,9 @@ export function KeywordPositionsCard({
                             {k.keyword}
                           </span>
                         </TableCell>
+                        <TableCell className="text-right tabular-nums text-muted-foreground">
+                          {k.popularity ?? "-"}
+                        </TableCell>
                         <TableCell
                           className={cn(
                             "whitespace-nowrap text-right tabular-nums",
@@ -283,7 +317,8 @@ export function KeywordPositionsCard({
               </Table>
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>
-                  Up to {MAX_CHART_KEYWORDS} keywords on the chart at once.
+                  The chart opens on the {MAX_CHART_KEYWORDS} most searched
+                  keywords; tick up to {MAX_CHART_KEYWORDS} of your own.
                 </span>
                 {keywords.length > KEYWORD_ROWS_PREVIEW && (
                   <Button
