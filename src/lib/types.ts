@@ -1788,11 +1788,28 @@ export interface RankTrackingSupport {
 	surface: "iphone-search" | "play-search" | null;
 }
 
+/** The best-placed tracked keyword that is not the app's own name. */
+export interface TrackingMarketBestKeyword {
+	/** Positive = moved up since the previous measurement. */
+	delta: number | null;
+	keyword: string;
+	position: number;
+}
+
 export interface TrackingMarketStats {
 	avgPosition: number | null;
+	/** Absent on servers older than 0.20.1. */
+	bestEarned?: TrackingMarketBestKeyword | null;
 	bestPosition: number | null;
 	declined: number;
 	dropped: number;
+	/**
+	 * Ranked / top 10 / top 50 over keywords that are not the app's own name
+	 * ("#1 for buzzin" proves nothing). Absent on servers older than 0.20.1.
+	 */
+	earnedRanked?: number;
+	earnedTop10?: number;
+	earnedTop50?: number;
 	entered: number;
 	failedLastRun: number;
 	improved: number;

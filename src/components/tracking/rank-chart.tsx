@@ -7,7 +7,7 @@ import type { RankAnnotation, RankSnapshot } from "@/lib/types";
 // Design-space canvas; scales to container width via preserveAspectRatio.
 const W = 820;
 const H = 320;
-const PAD = { bottom: 44, left: 40, right: 16, top: 20 };
+const PAD = { bottom: 44, left: 64, right: 16, top: 20 };
 const PLOT_W = W - PAD.left - PAD.right;
 const PLOT_H = H - PAD.top - PAD.bottom;
 
@@ -21,6 +21,18 @@ export const SERIES_COLORS = [
 	"#0891b2",
 	"#db2777",
 	"#65a30d",
+	"#ea580c",
+	"#4f46e5",
+	"#0d9488",
+	"#c026d3",
+	"#ca8a04",
+	"#0284c7",
+	"#e11d48",
+	"#15803d",
+	"#9333ea",
+	"#b45309",
+	"#475569",
+	"#be123c",
 ];
 
 interface Point {
@@ -181,7 +193,7 @@ export function RankChart({
 						</g>
 					))}
 
-					{/* "Out of top 50" baseline */}
+					{/* Lane for checks where the store did not show the app at all. */}
 					<text
 						className="fill-muted-foreground"
 						fontSize="9"
@@ -189,7 +201,7 @@ export function RankChart({
 						x={PAD.left - 6}
 						y={offY + 3}
 					>
-						out
+						not ranked
 					</text>
 
 					{/* What we changed, and when. A release and a text edit read

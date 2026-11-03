@@ -2,12 +2,19 @@ import { describe, expect, test } from "bun:test";
 
 import {
   boardToSnapshots,
+  DEFAULT_MARKET_SORT,
   defaultChartKeywords,
   MAX_CHART_KEYWORDS,
+  marketStrength,
+  notRankedNow,
+  nextMarketSort,
   pickDefaultMarket,
+  singleHistoryDay,
   sortKeywordsForDashboard,
   sortMarketsForDashboard,
+  sortMarketTable,
   toggleChartKeyword,
+  unmeasuredKeywords,
 } from "@/lib/rank-dashboard";
 import type { BoardKeyword, TrackingMarket } from "@/lib/types";
 
@@ -58,26 +65,118 @@ function keyword(name: string, overrides: Partial<BoardKeyword> = {}): BoardKeyw
   };
 }
 
+describe("marketStrength", () => {
+  test("counts first-page keywords three times over keywords beyond the name", () => {
+    expect(
+      marketStrength(
+        market("pl", { earnedRanked: 6, earnedTop10: 2, earnedTop50: 5, ranked: 7, top10: 3, top50: 6 }),
+      ),
+    ).toBe(2 * 3 + 5);
+  });
+
+  test("a market where only the brand ranks has no strength", () => {
+    expect(
+      marketStrength(
+        market("cn", { earnedRanked: 0, earnedTop10: 0, earnedTop50: 0, ranked: 1, top10: 1, top50: 1 }),
+      ),
+    ).toBe(0);
+  });
+
+  test("falls back to the plain counts on an older server", () => {
+    expect(marketStrength(market("pl", { ranked: 2, top10: 1, top50: 2 }))).toBe(5);
+  });
+});
+
 describe("sortMarketsForDashboard", () => {
-  test("orders by top 10, then ranked, then best position", () => {
+  test("orders by strength beyond the brand, not by the brand's #1", () => {
     const sorted = sortMarketsForDashboard([
-      market("us", { ranked: 3, top10: 1, bestPosition: 1 }),
-      market("pl", { ranked: 8, top10: 5, bestPosition: 1 }),
-      market("cz", { ranked: 10, top10: 5, bestPosition: 1 }),
-      market("de", { ranked: 3, top10: 1, bestPosition: 8 }),
+      market("cn", { earnedRanked: 0, earnedTop10: 0, earnedTop50: 0, ranked: 1, top10: 1, top50: 1 }),
+      market("pl", { earnedRanked: 4, earnedTop10: 1, earnedTop50: 4, ranked: 5, top10: 2, top50: 5 }),
+      market("cz", { earnedRanked: 9, earnedTop10: 5, earnedTop50: 9, ranked: 10, top10: 6, top50: 10 }),
     ]);
-    expect(sorted.map((m) => m.country)).toEqual(["cz", "pl", "us", "de"]);
+    expect(sorted.map((m) => m.country)).toEqual(["cz", "pl", "cn"]);
+  });
+
+  test("breaks a tie with more rankings, then the home market", () => {
+    const sorted = sortMarketsForDashboard(
+      [
+        market("de", { earnedRanked: 1, earnedTop10: 0, earnedTop50: 1 }),
+        market("us", { earnedRanked: 1, earnedTop10: 0, earnedTop50: 1 }),
+        market("fr", { earnedRanked: 3, earnedTop10: 0, earnedTop50: 1 }),
+      ],
+      "us",
+    );
+    expect(sorted.map((m) => m.country)).toEqual(["fr", "us", "de"]);
+  });
+});
+
+describe("sortMarketTable", () => {
+  const rows = [
+    market("pl", { earnedRanked: 4, earnedTop10: 2, earnedTop50: 4, medianPosition: 8, tracked: 20 }),
+    market("cz", { earnedRanked: 6, earnedTop10: 1, earnedTop50: 6, medianPosition: null, tracked: 12 }),
+    market("us", { earnedRanked: 1, earnedTop10: 0, earnedTop50: 1, medianPosition: 30, tracked: 40 }),
+  ];
+
+  test("defaults to strength, strongest first", () => {
+    // pl: 2 x 3 + 4 = 10, cz: 1 x 3 + 6 = 9, us: 1.
+    expect(sortMarketTable(rows, DEFAULT_MARKET_SORT).map((m) => m.country)).toEqual([
+      "pl",
+      "cz",
+      "us",
+    ]);
+  });
+
+  test("sorts a column and keeps markets without a value last", () => {
+    expect(
+      sortMarketTable(rows, { direction: "asc", key: "median" }).map((m) => m.country),
+    ).toEqual(["pl", "us", "cz"]);
+    expect(
+      sortMarketTable(rows, { direction: "desc", key: "median" }).map((m) => m.country),
+    ).toEqual(["us", "pl", "cz"]);
+    expect(
+      sortMarketTable(rows, { direction: "desc", key: "tracked" }).map((m) => m.country),
+    ).toEqual(["us", "pl", "cz"]);
+  });
+
+  test("flips the sorted column and starts a new one in its natural order", () => {
+    expect(nextMarketSort(DEFAULT_MARKET_SORT, "strength")).toEqual({
+      direction: "asc",
+      key: "strength",
+    });
+    expect(nextMarketSort(DEFAULT_MARKET_SORT, "top10")).toEqual({
+      direction: "desc",
+      key: "top10",
+    });
+    expect(nextMarketSort(DEFAULT_MARKET_SORT, "median")).toEqual({
+      direction: "asc",
+      key: "median",
+    });
   });
 });
 
 describe("pickDefaultMarket", () => {
-  test("opens on the strongest market when anything ranks", () => {
+  test("opens on the strongest market beyond the brand", () => {
     expect(
       pickDefaultMarket(
-        [market("us", { ranked: 1, top10: 1 }), market("pl", { ranked: 8, top10: 5 })],
+        [
+          market("cn", { earnedRanked: 0, earnedTop10: 0, earnedTop50: 0, ranked: 1, top10: 1 }),
+          market("pl", { earnedRanked: 3, earnedTop10: 1, earnedTop50: 3, ranked: 4, top10: 2 }),
+        ],
         "us",
       ),
     ).toBe("pl");
+  });
+
+  test("opens on the home market when only the brand ranks anywhere", () => {
+    expect(
+      pickDefaultMarket(
+        [
+          market("cn", { earnedRanked: 0, earnedTop10: 0, earnedTop50: 0, ranked: 1, top10: 1 }),
+          market("us", { earnedRanked: 0, earnedTop10: 0, earnedTop50: 0, ranked: 1, top10: 1 }),
+        ],
+        "us",
+      ),
+    ).toBe("us");
   });
 
   test("falls back to the home market when nothing ranks", () => {
@@ -111,25 +210,85 @@ describe("sortKeywordsForDashboard", () => {
 });
 
 describe("defaultChartKeywords", () => {
-  test("keeps only keywords that ranked at least once, best first", () => {
+  test("opens on the most searched keywords, ranked or not", () => {
     const picked = defaultChartKeywords([
-      keyword("never ranked"),
+      keyword("rare", { popularity: 12, position: 1 }),
+      keyword("popular, not ranked", { popularity: 58 }),
+      keyword("middle", { popularity: 31, position: 20 }),
+      keyword("unscored"),
+    ]);
+    expect(picked).toEqual(["popular, not ranked", "middle", "rare", "unscored"]);
+  });
+
+  test("without scores keeps ranked keywords first, then the tracker order", () => {
+    const picked = defaultChartKeywords([
+      keyword("b never"),
+      keyword("a never"),
       keyword("ranked before", {
         rankTrend: [
           { day: "2026-11-01", position: 30 },
           { day: "2026-11-02", position: null },
         ],
       }),
-      keyword("ranked now", { position: 2 }),
     ]);
-    expect(picked).toEqual(["ranked now", "ranked before"]);
+    expect(picked).toEqual(["ranked before", "b never", "a never"]);
   });
 
-  test("caps the chart at the readable maximum", () => {
+  test("caps the chart at twenty keywords", () => {
+    expect(MAX_CHART_KEYWORDS).toBe(20);
     const many = Array.from({ length: MAX_CHART_KEYWORDS + 4 }, (_, i) =>
-      keyword(`kw-${i}`, { position: i + 1 }),
+      keyword(`kw-${i}`, { popularity: i }),
     );
-    expect(defaultChartKeywords(many)).toHaveLength(MAX_CHART_KEYWORDS);
+    const picked = defaultChartKeywords(many);
+    expect(picked).toHaveLength(MAX_CHART_KEYWORDS);
+    expect(picked[0]).toBe(`kw-${MAX_CHART_KEYWORDS + 3}`);
+  });
+});
+
+describe("unmeasuredKeywords", () => {
+  test("lists chart keywords that no check has reached yet", () => {
+    const keywords = [
+      keyword("measured", { rankTrend: [{ day: "2026-11-03", position: null }] }),
+      keyword("never", { measuredAt: null }),
+    ];
+    expect(unmeasuredKeywords(keywords, ["measured", "never"])).toEqual(["never"]);
+  });
+});
+
+describe("notRankedNow", () => {
+  test("names chart keywords missing from the results at the last check", () => {
+    const keywords = [
+      keyword("out", { position: null, rankTrend: [{ day: "2026-11-03", position: null }] }),
+      keyword("in", { position: 4, rankTrend: [{ day: "2026-11-03", position: 4 }] }),
+      keyword("never", { measuredAt: null }),
+    ];
+    expect(notRankedNow(keywords, ["out", "in", "never"])).toEqual(["out"]);
+  });
+});
+
+describe("singleHistoryDay", () => {
+  test("returns the day when every keyword has one measured day", () => {
+    expect(
+      singleHistoryDay([
+        keyword("a", { rankTrend: [{ day: "2026-11-03", position: 3 }] }),
+        keyword("b", { rankTrend: [{ day: "2026-11-03", position: null }] }),
+        keyword("c"),
+      ]),
+    ).toBe("2026-11-03");
+  });
+
+  test("returns null once a second day exists, or before any check", () => {
+    expect(
+      singleHistoryDay([
+        keyword("a", {
+          rankTrend: [
+            { day: "2026-11-02", position: 4 },
+            { day: "2026-11-03", position: 3 },
+          ],
+        }),
+      ]),
+    ).toBeNull();
+    expect(singleHistoryDay([keyword("a")])).toBeNull();
   });
 });
 

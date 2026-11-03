@@ -91,7 +91,20 @@ function board(country: string, keywords: BoardKeyword[]): TrackingBoard {
 const MARKETS = {
   app: { devices: ["phone"], externalId: "1", id: "app-1", name: "Buzzin", platform: "ios" },
   lastRun: null,
-  markets: [market("us", { ranked: 1, top10: 1 }), market("pl", { ranked: 2, top10: 2 })],
+  markets: [
+    // US ranks only for the app's own name: #1 there is not strength.
+    market("us", { earnedRanked: 0, earnedTop10: 0, earnedTop50: 0, ranked: 1, top10: 1, top50: 1 }),
+    market("pl", {
+      bestEarned: { delta: 2, keyword: "quiz rodzinny", position: 1 },
+      earnedRanked: 2,
+      earnedTop10: 2,
+      earnedTop50: 2,
+      medianPosition: 2.5,
+      ranked: 2,
+      top10: 2,
+      top50: 2,
+    }),
+  ],
   rankTracking: {
     devices: ["phone"],
     note: null,
@@ -123,7 +136,13 @@ const BOARDS: Record<string, TrackingBoard> = {
     }),
     keyword("kalambury", { measuredAt: null }),
   ]),
-  us: board("us", [keyword("buzzin", { country: "us", position: 1 })]),
+  us: board("us", [
+    keyword("buzzin", {
+      country: "us",
+      position: 1,
+      rankTrend: [{ day: "2026-11-03", position: 1 }],
+    }),
+  ]),
 };
 
 let originalFetch: typeof fetch;
@@ -154,7 +173,7 @@ afterEach(() => {
 });
 
 describe("KeywordPositionsCard", () => {
-  test("opens on the strongest market and charts its ranked keywords", async () => {
+  test("opens on the strongest market and charts its keywords by default", async () => {
     render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
 
     expect(await screen.findByRole("checkbox", { name: "Show quiz rodzinny on the chart" })).toBeDefined();
@@ -163,10 +182,12 @@ describe("KeywordPositionsCard", () => {
       (screen.getByRole("checkbox", { name: "Show quiz rodzinny on the chart" }) as HTMLElement)
         .getAttribute("data-state"),
     ).toBe("checked");
+    // Not measured yet: on the chart selection, listed under the chart.
     expect(
       (screen.getByRole("checkbox", { name: "Show kalambury on the chart" }) as HTMLElement)
         .getAttribute("data-state"),
-    ).toBe("unchecked");
+    ).toBe("checked");
+    expect(screen.getByText(/Not measured yet, so not on the chart: kalambury/)).toBeDefined();
     expect(requested.some((u) => u.includes("/tracking/board?country=pl"))).toBe(true);
     expect(
       screen.getByRole("link", { name: "Open full tracker" }).getAttribute("href"),
@@ -179,7 +200,26 @@ describe("KeywordPositionsCard", () => {
     expect(cell.textContent).toBe("Not checked");
   });
 
-  test("switches market from the market strip", async () => {
+  test("shows a strength table that ignores the brand's #1", async () => {
+    render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+    const table = await screen.findByRole("table", { name: "Markets by strength" });
+    const rows = table.querySelectorAll("tbody tr");
+    expect(rows[0]?.textContent).toContain("Poland");
+    expect(rows[0]?.textContent).toContain("quiz rodzinny");
+    expect(rows[1]?.textContent).toContain("United States");
+  });
+
+  test("says when the history has a single day instead of an empty chart", async () => {
+    render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+    await screen.findByRole("checkbox", { name: "Show quiz rodzinny on the chart" });
+
+    fireEvent.click(screen.getByRole("button", { name: /^US/ }));
+
+    expect(await screen.findByText(/History starts/)).toBeDefined();
+    expect(screen.queryByRole("img", { name: "Keyword ranking over time" })).toBeNull();
+  });
+
+  test("switches market from the strength table", async () => {
     render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
     await screen.findByRole("checkbox", { name: "Show quiz rodzinny on the chart" });
 
