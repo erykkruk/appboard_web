@@ -8,7 +8,7 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     version: "0.19.3",
-    serverVersion: "0.19.1",
+    serverVersion: "0.19.2",
     date: "2026-11-03",
     changes: [
       "The app dashboard opens with Keyword positions: your markets ordered by how many keywords reach the top 10, and for the chosen market a chart of positions over time (#1 at the top, a gap where the store did not show you) next to each keyword's position, change and best. Tick up to 8 keywords to draw",
@@ -18,6 +18,17 @@ export const CHANGELOG: ChangelogEntry[] = [
       "Sales is a new page that is still in progress: it lists what it will measure and shows no numbers until real sales data is connected",
       "The app switcher names the TV builds (Android TV, Apple TV), so separate store records of one product are easy to tell apart. An Apple TV only app no longer shows the rankings entry, since Apple publishes no tvOS search",
       "A keyword that was never measured says when it will be (the next check at 00:00 or 12:00), and empty cells show a plain hyphen",
+    ],
+  },
+  {
+    version: "0.19.2",
+    serverVersion: "0.19.2",
+    date: "2026-11-03",
+    changes: [
+      "App Store audit reads the subtitle and keyword field synced from App Store Connect, so it no longer reports an empty subtitle that is not empty",
+      "Keywords we checked starts with the keywords you track in that market and the terms of your keyword field, before words taken from the description",
+      "A proposed keyword field is built on your current one: it keeps your terms and only swaps the ones that repeat the title or subtitle or that you cannot win, and the AI review can no longer replace the whole field with a single word",
+      "One winnable rule everywhere: a keyword marked too hard in the table is never called winnable in the AI review",
     ],
   },
   {
