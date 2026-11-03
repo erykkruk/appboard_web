@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.20.0",
+    serverVersion: "0.20.0",
+    date: "2026-11-03",
+    changes: [
+      "Research > Keyword scores opens with Your keywords: the keywords you track in your strongest market, prefilled, with their position, popularity, difficulty and its trend, followed by up to 20 keyword ideas taken from the apps that rank for them. Track an idea in one click (the header shows how many of the 40 slots are used)",
+      "Everything in Your keywords comes from stored scores. Score missing scores only what was never scored, at most 20 keywords per click",
+      "Auto-research runs at 06:00 (Europe/Warsaw), away from the 00:00 and 12:00 rank checks and the 01:00 score refresh. Each run researches your home market and scores new ideas in your other tracked markets; a daily run spreads the markets over the week so each one is covered at least weekly",
+      "Automations and Research > Automation show when auto-research runs next",
+      "Run research starts on the market you track instead of the United States, lists tracked markets first and says how many tracked keywords it will check",
+    ],
+  },
+  {
     version: "0.19.3",
     serverVersion: "0.19.2",
     date: "2026-11-03",

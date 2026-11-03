@@ -57,6 +57,7 @@ import type {
 	KeywordTrendPoint,
 	Listing,
 	ListingDiff,
+	MarketSuggestions,
 	MonetizationPlan,
 	PlatformCapabilities,
 	PrivacyDeclaration,
@@ -1334,6 +1335,11 @@ export const api = {
 			).then((r) => r.run),
 		markets: (appId: string) =>
 			fetchApi<TrackingMarketsOverview>(`/api/apps/${appId}/tracking/markets`),
+		/** Keyword ideas for one market from stored data (no store calls). */
+		suggestions: (appId: string, country: string) =>
+			fetchApi<MarketSuggestions>(
+				`/api/apps/${appId}/tracking/suggestions${toQuery({ country })}`,
+			),
 		get: (appId: string) =>
 			fetchApi<TrackingOverview>(`/api/apps/${appId}/tracking`),
 		history: (appId: string, params?: { country?: string; keyword?: string }) =>

@@ -1688,10 +1688,42 @@ export interface RankHistory {
 	snapshots: RankSnapshot[];
 }
 
+export interface TrackingSchedule {
+	timezone: string;
+	rankCheckHours: number[];
+	scoreRefreshHour: number;
+	autoResearchHour: number;
+	/** Null when auto-research is off. */
+	nextAutoResearchAt: string | null;
+}
+
 export interface TrackingOverview {
 	config: AppTrackingConfig;
 	keywords: TrackedKeyword[];
 	positions: LatestRankPosition[];
+	/** Absent on servers older than 0.20.0. */
+	schedule?: TrackingSchedule;
+}
+
+/** A keyword idea for one market, with its newest stored score if any. */
+export interface KeywordSuggestion {
+	keyword: string;
+	popularity: number | null;
+	difficulty: number | null;
+	opportunity: number | null;
+	classification: KeywordClassification | null;
+	appRank: number | null;
+	/** Day of the newest score, null when never scored. */
+	scoredAt: string | null;
+	winnable: boolean | null;
+}
+
+export interface MarketSuggestions {
+	country: string;
+	cap: number;
+	trackedCount: number;
+	sourceKeywords: number;
+	suggestions: KeywordSuggestion[];
 }
 
 export interface TrackingSummaryStats {
