@@ -18,6 +18,11 @@ import { useAudit, useRecheckAudit, useSuggestions } from "@/hooks/use-audit";
 import { useAddKeywords, useTracking } from "@/hooks/use-tracking";
 import { useVersions } from "@/hooks/use-publishing";
 import { storeConsoleUrl, storeLocaleFor } from "@/lib/apps";
+import {
+  GAP_MAX_DIFFICULTY,
+  GAP_MIN_POPULARITY,
+  isWinnableScore,
+} from "@/lib/aso-engine/listing-audit";
 import type { App, AppVersion, AuditIssue, KeywordScore } from "@/lib/types";
 
 /**
@@ -116,10 +121,11 @@ function resolveAction(
   return ISSUE_ACTION[issue.id];
 }
 
-/** Terms worth chasing: real search volume, winnable, and you are absent. */
-const GAP_MIN_POPULARITY = 35;
-const GAP_MAX_DIFFICULTY = 45;
-
+/**
+ * Terms worth chasing: real search volume, winnable, and you are absent.
+ * Thresholds and the winnable rule come from the shared engine, so this
+ * table and the AI review never disagree about a term.
+ */
 function isGap(score: KeywordScore, recommendable: Set<string>): boolean {
   return (
     !score.appRank &&
@@ -145,7 +151,7 @@ function verdict(
     return { label: "you are visible", tone: "text-emerald-500" };
   }
   if (score.appRank) return { label: "ranked, below the fold", tone: "text-amber-500" };
-  if (score.difficulty > GAP_MAX_DIFFICULTY) {
+  if (!isWinnableScore(score)) {
     return { label: "too hard for now", tone: "text-muted-foreground" };
   }
   return { label: "not ranking", tone: "text-muted-foreground" };
@@ -318,7 +324,7 @@ export function AppAuditCard({ app }: { app: App }) {
       .map((k) => k.keyword.trim().toLowerCase()),
   );
   // Terms from another category are shown for context, not to be chased -
-  // tracking them would burn the 20 slots a market has. Offer only the terms
+  // tracking them would burn the slots a market has. Offer only the terms
   // the audit is willing to recommend, plus anything you already rank for.
   const worthTracking = keywords.filter(
     (k) =>
