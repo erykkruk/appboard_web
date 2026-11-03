@@ -1,8 +1,10 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 
 import { api } from "@/lib/api";
+import type { AppDevice } from "@/lib/types";
 
 export function useApps(params?: { platform?: string; storeId?: string }) {
   return useQuery({
@@ -30,6 +32,21 @@ export function useCreateLocalApp() {
 		}) => api.apps.createLocal(body),
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: ["apps"] });
+		},
+	});
+}
+
+/** Set the form factors (phone, tablet, tv) an app's store record serves. */
+export function useUpdateAppDevices(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (devices: AppDevice[]) => api.apps.updateDevices(appId, devices),
+		onError: (err) =>
+			toast.error(err instanceof Error ? err.message : "Failed to save devices"),
+		onSuccess: (app) => {
+			queryClient.setQueryData(["apps", appId], app);
+			queryClient.invalidateQueries({ queryKey: ["apps"] });
+			toast.success("Devices saved");
 		},
 	});
 }

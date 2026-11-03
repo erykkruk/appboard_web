@@ -128,6 +128,14 @@ export function KeywordRankingsCard({ appId }: { appId: string }) {
               </Table>
             )}
 
+            {summary.data?.rankCheck?.status === "running" && (
+              <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Measuring positions ({summary.data.rankCheck.checked} of{" "}
+                {summary.data.rankCheck.total})
+              </p>
+            )}
+
             {stats.lastCheckedAt && (
               <p className="text-xs text-muted-foreground">
                 Last checked {new Date(stats.lastCheckedAt).toLocaleString()}

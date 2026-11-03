@@ -90,10 +90,19 @@ export interface CapabilityAccessReport {
 
 export type Platform = "android" | "ios";
 
+/**
+ * Form factors an app's store record serves. Apple TV is a device of the iOS
+ * App Store record; an Android TV build is its own Play package with ["tv"].
+ */
+export type AppDevice = "phone" | "tablet" | "tv";
+export const APP_DEVICES: readonly AppDevice[] = ["phone", "tablet", "tv"];
+
 export interface App {
 	id: string;
 	storeId: string;
 	platform: Platform;
+	/** Missing on responses from servers older than 0.19.0: treat as ["phone"]. */
+	devices?: AppDevice[];
 	name: string;
 	bundleId: string;
 	externalId?: string;
@@ -1699,7 +1708,100 @@ export interface TrackingSummaryStats {
 export interface TrackingSummary {
 	config: AppTrackingConfig;
 	positions: LatestRankPosition[];
+	/** Latest rank check; the first one runs in the background. */
+	rankCheck?: RankCheckRun | null;
 	stats: TrackingSummaryStats;
+}
+
+// ============ Rank check jobs + per-market overview ============
+
+export type RankCheckStatus = "completed" | "failed" | "interrupted" | "running";
+
+export interface RankLookupFailure {
+	attempts: number;
+	country: string;
+	error: string;
+	keyword: string;
+	status: number | null;
+}
+
+export interface RankCheckRun {
+	appId: string;
+	checked: number;
+	error: string | null;
+	failed: number;
+	failures: RankLookupFailure[];
+	finishedAt: string | null;
+	id: string;
+	kind: string;
+	measured: number;
+	/** 0..1 */
+	progress: number;
+	ranked: number;
+	startedAt: string;
+	status: RankCheckStatus;
+	total: number;
+}
+
+export interface RankCheckStart {
+	alreadyRunning: boolean;
+	run: RankCheckRun;
+}
+
+export interface RankTrackingSupport {
+	devices: AppDevice[];
+	note: string | null;
+	store: ResearchStoreKind;
+	supported: boolean;
+	surface: "iphone-search" | "play-search" | null;
+}
+
+export interface TrackingMarketStats {
+	avgPosition: number | null;
+	bestPosition: number | null;
+	declined: number;
+	dropped: number;
+	entered: number;
+	failedLastRun: number;
+	improved: number;
+	lastCheckedAt: string | null;
+	measured: number;
+	medianPosition: number | null;
+	ranked: number;
+	top10: number;
+	top50: number;
+	tracked: number;
+}
+
+export interface TrackingMarket extends TrackingMarketStats {
+	country: string;
+}
+
+export interface TrackingMarketsOverview {
+	app: {
+		devices: AppDevice[];
+		externalId: string;
+		id: string;
+		name: string;
+		platform: string;
+	};
+	lastRun: RankCheckRun | null;
+	markets: TrackingMarket[];
+	rankTracking: RankTrackingSupport;
+	totals: TrackingMarketStats & { markets: number };
+}
+
+export interface BulkAddMarketResult {
+	added: string[];
+	country: string;
+	rejected: string[];
+	skipped: string[];
+}
+
+export interface BulkAddKeywordsResult {
+	keywords: TrackedKeyword[];
+	results: BulkAddMarketResult[];
+	totals: { added: number; rejected: number; skipped: number };
 }
 
 // ============ Tracker board ============
