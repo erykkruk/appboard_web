@@ -7,6 +7,18 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.19.0",
+    serverVersion: "0.19.0",
+    date: "2026-11-03",
+    changes: [
+      "Keywords & Rankings has a new Markets card under the keyword list: every country you track, with how many keywords rank, how many are in the top 10 and top 50, the median and average position, what moved since the previous check and when it was last measured. Pick a market to open its tracker",
+      "Track any App Store storefront: the market picker lists every country by name instead of six, with the markets you already use at the top",
+      "Check now runs in the background and shows its progress, so a check of hundreds of keywords no longer times out. Lookups are paced per store and retried when the store throttles us, and a keyword the store refused to answer is shown as not measured instead of as a lost ranking",
+      "Apple TV and Android TV: mark the devices an app serves in App Settings. An Android TV package added from its Google Play link is tracked in Google Play search; Apple TV has no public search, so an iOS app that also runs on Apple TV is measured in iPhone search and an Apple TV only app is shown as listing and audit only",
+      "MCP server: import an app from a store link, add keywords for many markets in one call, read the per-market overview and boards, start a rank check and follow its status, change tracking settings and run research",
+    ],
+  },
+  {
     version: "0.18.0",
     serverVersion: "0.18.0",
     date: "2026-09-08",

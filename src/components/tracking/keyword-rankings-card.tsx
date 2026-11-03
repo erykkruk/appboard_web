@@ -19,8 +19,9 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useTrackingSummary } from "@/hooks/use-tracking";
+import { useRankCheckStatus, useTrackingSummary } from "@/hooks/use-tracking";
 import { formatKeywordPosition } from "@/lib/research";
+import type { RankCheckRun } from "@/lib/types";
 
 const TOP_KEYWORDS_LIMIT = 6;
 
@@ -30,6 +31,22 @@ const POSITION_TONE_CLASSES: Record<string, string> = {
   muted: "text-muted-foreground",
   strong: "text-emerald-500 font-semibold",
 };
+
+/**
+ * Live progress of the check the summary started. Polls the run instead of
+ * the summary; once the run ends, the status hook refreshes the summary.
+ */
+function RankCheckProgress({ appId, run }: { appId: string; run: RankCheckRun }) {
+  const status = useRankCheckStatus(appId, { initialRun: run });
+  const current = status.data ?? run;
+  if (current.status !== "running") return null;
+  return (
+    <p className="flex items-center gap-2 text-xs text-muted-foreground">
+      <Loader2 className="h-3 w-3 animate-spin" />
+      Measuring positions ({current.checked} of {current.total})
+    </p>
+  );
+}
 
 function StatTile({ label, value }: { label: string; value: string }) {
   return (
@@ -126,6 +143,10 @@ export function KeywordRankingsCard({ appId }: { appId: string }) {
                   })}
                 </TableBody>
               </Table>
+            )}
+
+            {summary.data?.rankCheck?.status === "running" && (
+              <RankCheckProgress appId={appId} run={summary.data.rankCheck} />
             )}
 
             {stats.lastCheckedAt && (

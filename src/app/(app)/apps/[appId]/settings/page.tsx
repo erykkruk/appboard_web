@@ -2,6 +2,7 @@
 
 import { useParams } from "next/navigation";
 
+import { AppDevicesCard } from "@/components/app-devices-card";
 import { PageHeader } from "@/components/page-header";
 import { PromptEditor } from "@/components/prompt-editor";
 import {
@@ -16,12 +17,14 @@ import {
 	useDeleteAppAiPrompt,
 	useSetAppAiPrompt,
 } from "@/hooks/use-app-ai-prompts";
+import { useApp } from "@/hooks/use-apps";
 import { useGlobalPrompts } from "@/hooks/use-prompts";
 
 export default function AppSettingsPage() {
 	const params = useParams<{ appId: string }>();
 	const appId = params.appId;
 
+	const app = useApp(appId);
 	const globalPrompts = useGlobalPrompts();
 	const appPrompts = useAppAiPrompts(appId);
 	const setPrompt = useSetAppAiPrompt(appId);
@@ -57,6 +60,7 @@ export default function AppSettingsPage() {
 		<div className="flex flex-1 flex-col">
 			<PageHeader title="App Settings" />
 			<div className="mx-auto w-full max-w-4xl space-y-6 p-6">
+				{app.data && <AppDevicesCard app={app.data} />}
 				<Card>
 					<CardHeader>
 						<CardTitle>AI Prompts</CardTitle>

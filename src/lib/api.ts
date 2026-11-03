@@ -8,6 +8,7 @@ import type {
 	AiStatus,
 	App,
 	AppAiPrompt,
+	AppDevice,
 	AppAuditResponse,
 	AuditHistory,
 	AppGroup,
@@ -18,6 +19,7 @@ import type {
 	AppleTrendPoint,
 	AppReviewDetail,
 	AppTrackingConfig,
+	BulkAddKeywordsResult,
 	AppVersion,
 	AsoProfile,
 	AsoProfileInput,
@@ -101,8 +103,11 @@ import type {
 	SuggestionsResponse,
 	SuggestKeywordsRequest,
 	SyncVersionsResult,
+	RankCheckRun,
+	RankCheckStart,
 	TrackedKeyword,
 	TrackingBoard,
+	TrackingMarketsOverview,
 	TrackingOverview,
 	TrackingSummary,
 	TranslateLocalizationRequest,
@@ -504,6 +509,11 @@ export const api = {
 			}).then((r) => r.app),
 		get: (appId: string) =>
 			fetchApi<{ app: App }>(`/api/apps/${appId}`).then((r) => r.app),
+		updateDevices: (appId: string, devices: AppDevice[]) =>
+			fetchApi<{ app: App }>(`/api/apps/${appId}`, {
+				body: JSON.stringify({ devices }),
+				method: "PATCH",
+			}).then((r) => r.app),
 		list: (params?: { platform?: string; storeId?: string }) =>
 			fetchApi<{ apps: App[] }>(`/api/apps${toQuery(params ?? {})}`).then(
 				(r) => r.apps,
@@ -1305,11 +1315,25 @@ export const api = {
 			fetchApi<TrackingBoard>(
 				`/api/apps/${appId}/tracking/board${toQuery({ ...params })}`,
 			),
+		addKeywordsBulk: (
+			appId: string,
+			items: Array<{ country: string; keywords: string[] }>,
+		) =>
+			fetchApi<BulkAddKeywordsResult>(
+				`/api/apps/${appId}/tracking/keywords/bulk`,
+				{ body: JSON.stringify({ items }), method: "POST" },
+			),
+		/** Starts a background check (202); poll `checkStatus`. */
 		check: (appId: string) =>
-			fetchApi<{ result: { checked: number; snapshots: number } }>(
-				`/api/apps/${appId}/tracking/check`,
-				{ method: "POST" },
-			).then((r) => r.result),
+			fetchApi<RankCheckStart>(`/api/apps/${appId}/tracking/check`, {
+				method: "POST",
+			}),
+		checkStatus: (appId: string, runId?: string) =>
+			fetchApi<{ run: RankCheckRun | null }>(
+				`/api/apps/${appId}/tracking/check${runId ? `/${runId}` : ""}`,
+			).then((r) => r.run),
+		markets: (appId: string) =>
+			fetchApi<TrackingMarketsOverview>(`/api/apps/${appId}/tracking/markets`),
 		get: (appId: string) =>
 			fetchApi<TrackingOverview>(`/api/apps/${appId}/tracking`),
 		history: (appId: string, params?: { country?: string; keyword?: string }) =>

@@ -130,3 +130,80 @@ describe("KeywordRankingsCard", () => {
 		});
 	});
 });
+
+describe("KeywordRankingsCard first rank check", () => {
+	const RUNNING = {
+		appId: "app-1",
+		checked: 0,
+		error: null,
+		failed: 0,
+		failures: [],
+		finishedAt: null,
+		id: "run-1",
+		kind: "manual",
+		measured: 0,
+		progress: 0,
+		ranked: 0,
+		startedAt: "2026-11-03T09:59:00.000Z",
+		status: "running",
+		total: 2,
+	};
+
+	function StableWrapper() {
+		const queryClient = new QueryClient({
+			defaultOptions: { queries: { gcTime: Infinity, retry: false } },
+		});
+		const Stable = ({ children }: { children: ReactNode }) => (
+			<QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+		);
+		Stable.displayName = "StableQueryClientWrapper";
+		return Stable;
+	}
+
+	/** Summary says a check is running; GET /tracking/check answers `status`. */
+	function mockSummaryAndStatus(status: Record<string, unknown>) {
+		const calls = { status: 0, summary: 0 };
+		globalThis.fetch = (async (input: RequestInfo | URL) => {
+			const url = typeof input === "string" ? input : input.toString();
+			if (url.includes("/tracking/check")) {
+				calls.status++;
+				return new Response(JSON.stringify({ run: status }), {
+					headers: { "Content-Type": "application/json" },
+				});
+			}
+			calls.summary++;
+			const rankCheck = calls.summary === 1 ? RUNNING : null;
+			return new Response(JSON.stringify({ ...SUMMARY_PAYLOAD, rankCheck }), {
+				headers: { "Content-Type": "application/json" },
+			});
+		}) as typeof fetch;
+		return calls;
+	}
+
+	test("shows progress from the run status, not the summary snapshot", async () => {
+		mockSummaryAndStatus({ ...RUNNING, checked: 1, progress: 0.5 });
+		render(<KeywordRankingsCard appId="app-1" />, { wrapper: StableWrapper() });
+
+		await waitFor(() => {
+			expect(screen.getByText(/Measuring positions \(1 of 2\)/)).toBeInTheDocument();
+		});
+	});
+
+	test("clears the progress line and refreshes the summary when the run ends", async () => {
+		const calls = mockSummaryAndStatus({
+			...RUNNING,
+			checked: 2,
+			finishedAt: "2026-11-03T10:00:00.000Z",
+			measured: 2,
+			progress: 1,
+			status: "completed",
+		});
+		render(<KeywordRankingsCard appId="app-1" />, { wrapper: StableWrapper() });
+
+		await waitFor(() => expect(calls.summary).toBe(2));
+		await waitFor(() => {
+			expect(screen.queryByText(/Measuring positions/)).not.toBeInTheDocument();
+		});
+		expect(screen.getByText("habit tracker")).toBeInTheDocument();
+	});
+});

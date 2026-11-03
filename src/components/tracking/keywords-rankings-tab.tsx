@@ -1,7 +1,7 @@
 "use client";
 
 import { Loader2, Plus, RefreshCw, X } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 
 import { BoardChanges } from "@/components/tracking/board-changes";
 import { BoardKpis } from "@/components/tracking/board-kpis";
@@ -10,6 +10,9 @@ import { BoardMovement } from "@/components/tracking/board-movement";
 import { BoardRuns } from "@/components/tracking/board-runs";
 import { KeywordBoardTable } from "@/components/tracking/keyword-board-table";
 import { KeywordTimeline } from "@/components/tracking/keyword-timeline";
+import { MarketsOverview } from "@/components/tracking/markets-overview";
+import { RankCheckStatus } from "@/components/tracking/rank-check-status";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,12 +36,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApp } from "@/hooks/use-apps";
 import {
   useAddKeywords,
+  useRankCheckStatus,
   useRemoveKeyword,
   useRunRankCheck,
   useTracking,
   useTrackingBoard,
+  useTrackingMarkets,
 } from "@/hooks/use-tracking";
-import { RESEARCH_COUNTRIES } from "@/lib/research";
+import { marketLabel, marketOptions } from "@/lib/markets";
 import { MAX_TRACKED_KEYWORDS_PER_LANGUAGE } from "@/lib/types";
 
 export function KeywordsRankingsTab({ appId }: { appId: string }) {
@@ -46,6 +51,9 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
   const addKeywords = useAddKeywords(appId);
   const removeKeyword = useRemoveKeyword(appId);
   const rankCheck = useRunRankCheck(appId);
+  const rankCheckStatus = useRankCheckStatus(appId);
+  const markets = useTrackingMarkets(appId);
+  const trackerRef = useRef<HTMLDivElement>(null);
 
   const app = useApp(appId);
   const [pickedCountry, setPickedCountry] = useState<string | null>(null);
@@ -80,6 +88,18 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
         : (countriesUsed[0] ?? "us");
 
   const board = useTrackingBoard(appId, boardCountry);
+
+  const addOptions = useMemo(
+    () => marketOptions([...countriesUsed, homeCountry]),
+    [countriesUsed, homeCountry],
+  );
+  const support = markets.data?.rankTracking;
+  const checkRunning = rankCheckStatus.data?.status === "running";
+
+  function openMarket(market: string) {
+    setPickedBoardCountry(market);
+    trackerRef.current?.scrollIntoView?.({ behavior: "smooth", block: "start" });
+  }
 
   const perCountryCount = keywords.filter((k) => k.country === country).length;
 
@@ -120,13 +140,13 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
             <div className="space-y-1">
               <Label>Market</Label>
               <Select value={country} onValueChange={setPickedCountry}>
-                <SelectTrigger className="w-28">
+                <SelectTrigger aria-label="Market" className="w-48">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {RESEARCH_COUNTRIES.map((c) => (
+                  {addOptions.map((c) => (
                     <SelectItem key={c} value={c}>
-                      {c.toUpperCase()}
+                      {marketLabel(c)} ({c.toUpperCase()})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -161,7 +181,7 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
           {countriesUsed.map((c) => (
             <div key={c} className="space-y-2">
               <p className="text-sm font-medium text-muted-foreground">
-                {c.toUpperCase()}
+                {marketLabel(c)} ({c.toUpperCase()})
               </p>
               <div className="flex flex-wrap gap-2">
                 {keywords
@@ -195,8 +215,45 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
         </CardContent>
       </Card>
 
-      {/* The tracker itself */}
+      {/* Every market at a glance; a row opens its board below */}
       <Card>
+        <CardHeader>
+          <CardTitle>Markets</CardTitle>
+          <CardDescription>
+            Each market you track, with how many keywords rank, how many are on
+            the first page and what moved since the previous check. Pick a
+            market to open its tracker.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {support && !support.supported && (
+            <Alert>
+              <AlertTitle>Rankings cannot be measured for this app</AlertTitle>
+              <AlertDescription>{support.note}</AlertDescription>
+            </Alert>
+          )}
+          {support?.supported && support.note && (
+            <p className="text-sm text-muted-foreground">{support.note}</p>
+          )}
+          {markets.isError ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              The market overview could not be loaded. The tracker below still
+              works; reload the page to try again.
+            </p>
+          ) : markets.isLoading || !markets.data ? (
+            <Skeleton className="h-32 w-full" />
+          ) : (
+            <MarketsOverview
+              onSelect={openMarket}
+              overview={markets.data}
+              selectedCountry={boardCountry}
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      {/* The tracker itself */}
+      <Card ref={trackerRef}>
         <CardHeader className="flex-row items-center justify-between space-y-0">
           <div>
             <CardTitle>Tracker</CardTitle>
@@ -215,13 +272,13 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
                 value={boardCountry}
                 onValueChange={setPickedBoardCountry}
               >
-                <SelectTrigger className="w-28">
+                <SelectTrigger aria-label="Tracker market" className="w-48">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {countriesUsed.map((c) => (
                     <SelectItem key={c} value={c}>
-                      {c.toUpperCase()}
+                      {marketLabel(c)} ({c.toUpperCase()})
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -230,9 +287,14 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
             <Button
               variant="secondary"
               onClick={() => rankCheck.mutate()}
-              disabled={rankCheck.isPending || !keywords.length}
+              disabled={
+                rankCheck.isPending ||
+                checkRunning ||
+                !keywords.length ||
+                support?.supported === false
+              }
             >
-              {rankCheck.isPending ? (
+              {rankCheck.isPending || checkRunning ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
               ) : (
                 <RefreshCw className="h-4 w-4" />
@@ -242,6 +304,7 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
+          <RankCheckStatus run={rankCheckStatus.data ?? null} />
           {board.isLoading || !board.data ? (
             <Skeleton className="h-64 w-full" />
           ) : (
