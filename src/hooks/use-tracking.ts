@@ -37,9 +37,13 @@ export function useTrackingSummary(appId: string) {
  * position, the score and our own metadata have to line up per keyword, and
  * three responses cannot be joined on the client without guessing.
  */
-export function useTrackingBoard(appId: string, country?: string) {
+export function useTrackingBoard(
+	appId: string,
+	country?: string,
+	options: { enabled?: boolean } = {},
+) {
 	return useQuery({
-		enabled: !!appId,
+		enabled: !!appId && (options.enabled ?? true),
 		queryFn: () => api.tracking.board(appId, { country }),
 		queryKey: [...trackingKey(appId), "board", country ?? ""],
 	});

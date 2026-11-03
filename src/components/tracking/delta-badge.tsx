@@ -3,7 +3,7 @@
 import { ArrowDown, ArrowUp, Minus } from "lucide-react";
 
 export function DeltaBadge({ delta }: { delta: number | null }) {
-  if (delta === null) return <span className="text-muted-foreground">—</span>;
+  if (delta === null) return <span className="text-muted-foreground">-</span>;
   if (delta === 0)
     return (
       <span className="inline-flex items-center text-muted-foreground">

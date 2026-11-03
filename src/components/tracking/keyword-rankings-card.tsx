@@ -89,7 +89,7 @@ export function KeywordRankingsCard({ appId }: { appId: string }) {
         {summary.isLoading ? (
           <div className="flex items-center gap-2 py-6 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Checking store positions for your keywords…
+            Checking store positions for your keywords...
           </div>
         ) : !stats || stats.trackedKeywords === 0 ? (
           <p className="py-4 text-sm text-muted-foreground">
@@ -102,7 +102,7 @@ export function KeywordRankingsCard({ appId }: { appId: string }) {
               <StatTile label="Tracked" value={String(stats.trackedKeywords)} />
               <StatTile
                 label="Avg position"
-                value={stats.avgPosition !== null ? `#${stats.avgPosition}` : "—"}
+                value={stats.avgPosition !== null ? `#${stats.avgPosition}` : "-"}
               />
               <StatTile label="In top 10" value={String(stats.top10Count)} />
               <StatTile

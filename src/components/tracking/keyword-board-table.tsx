@@ -155,7 +155,12 @@ export function KeywordBoardTable({ keywords }: { keywords: BoardKeyword[] }) {
                     >
                       {position.label}
                     </span>{" "}
-                    <DeltaBadge delta={row.delta} />
+                    {row.delta !== null && <DeltaBadge delta={row.delta} />}
+                    {!row.measuredAt && (
+                      <span className="block text-xs text-muted-foreground">
+                        Measured at the next check (00:00 / 12:00)
+                      </span>
+                    )}
                   </TableCell>
                   <TableCell className="text-muted-foreground">
                     {row.bestPosition === null ? "-" : `#${row.bestPosition}`}

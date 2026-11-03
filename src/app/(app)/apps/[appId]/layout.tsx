@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams, usePathname, useRouter } from "next/navigation";
+import { useParams, usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
   ChevronDown,
@@ -31,7 +31,15 @@ import { useFeatureFilter } from "@/hooks/use-features";
 import { useCreateVersion, useVersions } from "@/hooks/use-publishing";
 import { isLocalApp } from "@/lib/apps";
 import { api } from "@/lib/api";
-import { APP_NAV, VERSION_NAV } from "@/lib/nav";
+import {
+  activeAppNavSection,
+  APP_NAV_SECTIONS,
+  appNavItemHref,
+  isAppNavItemActive,
+  type NavItem,
+  supportsRankTracking,
+  VERSION_NAV,
+} from "@/lib/nav";
 import { cn } from "@/lib/utils";
 
 const STATE_BAR_COLORS: Record<string, string> = {
@@ -85,6 +93,7 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
   const params = useParams<{ appId: string }>();
   const appId = params.appId;
   const currentPath = usePathname();
+  const currentTab = useSearchParams().get("tab");
   const router = useRouter();
   const app = useApp(appId);
   const isFeatureAllowed = useFeatureFilter();
@@ -184,11 +193,31 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
   }, [appId, isIos, isPublicApp, queryClient]);
 
   const lastSyncedAt = app.data?.lastSyncedAt;
-  const sectionItems = APP_NAV.filter((item) => !item.iosOnly || isIos)
-    .filter((item) => isFeatureAllowed(item.featureKey))
-    // Purchases are managed through the store API; without one the section
-    // is an empty list with a 403 behind every button.
-    .filter((item) => !(isPublicApp && item.label === "Purchases"));
+  const rankTracking = app.data ? supportsRankTracking(app.data) : true;
+  const isItemVisible = (item: NavItem) =>
+    (!item.iosOnly || isIos) &&
+    isFeatureAllowed(item.featureKey) &&
+    // In-app products are managed through the store API; without one the
+    // page is an empty list with a 403 behind every button.
+    !(isPublicApp && item.suffix === "/purchases") &&
+    // An Apple TV only app has no searchable results to rank in.
+    !(item.needsRankTracking && !rankTracking);
+  const sections = APP_NAV_SECTIONS.map((section) => ({
+    ...section,
+    items: section.items.filter(isItemVisible),
+  })).filter((section) => section.items.length > 0);
+  const navItems = sections.flatMap((section) => section.items);
+  const activeSection = activeAppNavSection(
+    sections,
+    basePath,
+    currentPath,
+    currentTab,
+  );
+  const isStoreSection = activeSection?.id === "store";
+  // A one-page section needs no second row, except Store, which also
+  // carries the version picker.
+  const showPageRow =
+    !!activeSection && (activeSection.items.length > 1 || isStoreSection);
   const versionItems = VERSION_NAV.filter(
     (item) => !item.iosOnly || isIos,
   ).filter((item) => isFeatureAllowed(item.featureKey));
@@ -197,114 +226,15 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
       <div className="shrink-0 border-border border-b bg-background">
         <div className="flex h-11 items-center gap-1 overflow-x-auto px-4">
-          {sectionItems.map((item) => {
-            const href = `${basePath}${item.suffix ?? ""}`;
-            return (
-              <NavPill
-                key={item.label}
-                href={href}
-                active={currentPath.startsWith(href) && !isVersionPage}
-              >
-                {item.label}
-              </NavPill>
-            );
-          })}
-
-          {hasVersions && (
-            <>
-              <span className="mx-1 h-5 w-px shrink-0 bg-border" />
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button
-                    variant={isVersionPage ? "secondary" : "ghost"}
-                    size="sm"
-                    className="shrink-0 gap-2"
-                  >
-                    <span
-                      className={cn(
-                        "h-3.5 w-1 shrink-0 rounded-full",
-                        selectedVersion
-                          ? (STATE_BAR_COLORS[selectedVersion.state] ??
-                            "bg-muted-foreground")
-                          : "bg-muted-foreground",
-                      )}
-                    />
-                    {selectedVersion
-                      ? `Version ${selectedVersion.versionString}`
-                      : "Version"}
-                    <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="start" className="w-[200px]">
-                  {versions.isLoading && (
-                    <div className="flex justify-center py-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                    </div>
-                  )}
-                  {versionList.map((v) => (
-                    <DropdownMenuItem
-                      key={v.id}
-                      className="gap-2.5"
-                      onSelect={() => router.push(`${basePath}/versions/${v.id}`)}
-                    >
-                      <span
-                        className={cn(
-                          "h-4 w-1 shrink-0 rounded-full",
-                          STATE_BAR_COLORS[v.state] ?? "bg-muted-foreground",
-                        )}
-                      />
-                      <span className="truncate">{v.versionString}</span>
-                    </DropdownMenuItem>
-                  ))}
-                  {!draftVersion && versionList.length > 0 && (
-                    <DropdownMenuSeparator />
-                  )}
-                  {!draftVersion && (
-                    <DropdownMenuItem
-                      onSelect={(e) => {
-                        e.preventDefault();
-                        setShowNewVersion(true);
-                      }}
-                    >
-                      <Plus className="h-3.5 w-3.5" />
-                      <span>New Version</span>
-                    </DropdownMenuItem>
-                  )}
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </>
-          )}
-
-          {showNewVersion && (
-            <div className="flex shrink-0 items-center gap-1.5">
-              <Input
-                value={newVersion}
-                onChange={(e) => setNewVersion(e.target.value)}
-                placeholder="1.0.0"
-                className="h-7 w-24 text-xs"
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") handleCreateVersion();
-                  if (e.key === "Escape") {
-                    setShowNewVersion(false);
-                    setNewVersion("");
-                  }
-                }}
-                autoFocus
-              />
-              <Button
-                size="sm"
-                className="h-7 px-2 text-xs"
-                onClick={handleCreateVersion}
-                disabled={createVersion.isPending || !newVersion.trim()}
-              >
-                {createVersion.isPending ? (
-                  <Loader2 className="h-3 w-3 animate-spin" />
-                ) : (
-                  "Add"
-                )}
-              </Button>
-            </div>
-          )}
+          {sections.map((section) => (
+            <NavPill
+              key={section.id}
+              href={appNavItemHref(section.items[0], basePath)}
+              active={section.id === activeSection?.id}
+            >
+              {section.label}
+            </NavPill>
+          ))}
 
           <div className="flex-1" />
 
@@ -363,10 +293,135 @@ function AppWorkspace({ children }: { children: React.ReactNode }) {
           )}
         </div>
 
-        {/* Version sub-navigation. Shown whenever a version exists, exactly
-            like the old rail did - hiding it behind "you are already on a
-            version page" made Store Graphics and App Review unreachable. */}
-        {selectedVersionId && (
+        {/* The pages of the current section. Store also carries the version
+            picker, since a version is the listing being edited. */}
+        {showPageRow && activeSection && (
+          <div className="flex h-10 items-center gap-1 overflow-x-auto border-border border-t px-4">
+            {activeSection.items.map((item) => (
+              <NavPill
+                key={item.label}
+                href={appNavItemHref(item, basePath)}
+                active={
+                  !isVersionPage &&
+                  isAppNavItemActive(
+                    item,
+                    navItems,
+                    basePath,
+                    currentPath,
+                    currentTab,
+                  )
+                }
+              >
+                {item.label}
+              </NavPill>
+            ))}
+
+            {isStoreSection && (
+              <>
+            {hasVersions && (
+              <>
+                <span className="mx-1 h-5 w-px shrink-0 bg-border" />
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant={isVersionPage ? "secondary" : "ghost"}
+                      size="sm"
+                      className="shrink-0 gap-2"
+                    >
+                      <span
+                        className={cn(
+                          "h-3.5 w-1 shrink-0 rounded-full",
+                          selectedVersion
+                            ? (STATE_BAR_COLORS[selectedVersion.state] ??
+                              "bg-muted-foreground")
+                            : "bg-muted-foreground",
+                        )}
+                      />
+                      {selectedVersion
+                        ? `Version ${selectedVersion.versionString}`
+                        : "Version"}
+                      <ChevronDown className="h-3.5 w-3.5 opacity-60" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="w-[200px]">
+                    {versions.isLoading && (
+                      <div className="flex justify-center py-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                      </div>
+                    )}
+                    {versionList.map((v) => (
+                      <DropdownMenuItem
+                        key={v.id}
+                        className="gap-2.5"
+                        onSelect={() => router.push(`${basePath}/versions/${v.id}`)}
+                      >
+                        <span
+                          className={cn(
+                            "h-4 w-1 shrink-0 rounded-full",
+                            STATE_BAR_COLORS[v.state] ?? "bg-muted-foreground",
+                          )}
+                        />
+                        <span className="truncate">{v.versionString}</span>
+                      </DropdownMenuItem>
+                    ))}
+                    {!draftVersion && versionList.length > 0 && (
+                      <DropdownMenuSeparator />
+                    )}
+                    {!draftVersion && (
+                      <DropdownMenuItem
+                        onSelect={(e) => {
+                          e.preventDefault();
+                          setShowNewVersion(true);
+                        }}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        <span>New Version</span>
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </>
+            )}
+
+            {showNewVersion && (
+              <div className="flex shrink-0 items-center gap-1.5">
+                <Input
+                  value={newVersion}
+                  onChange={(e) => setNewVersion(e.target.value)}
+                  placeholder="1.0.0"
+                  className="h-7 w-24 text-xs"
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleCreateVersion();
+                    if (e.key === "Escape") {
+                      setShowNewVersion(false);
+                      setNewVersion("");
+                    }
+                  }}
+                  autoFocus
+                />
+                <Button
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={handleCreateVersion}
+                  disabled={createVersion.isPending || !newVersion.trim()}
+                >
+                  {createVersion.isPending ? (
+                    <Loader2 className="h-3 w-3 animate-spin" />
+                  ) : (
+                    "Add"
+                  )}
+                </Button>
+              </div>
+            )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Version sub-navigation. Shown in Store whenever a version exists,
+            exactly like the old rail did - hiding it behind "you are already
+            on a version page" made Store Graphics and App Review unreachable. */}
+        {isStoreSection && selectedVersionId && (
           <div className="flex h-10 items-center gap-1 overflow-x-auto border-border border-t px-4">
             {versionItems.map((item) => {
               const suffix = item.suffix ?? "";

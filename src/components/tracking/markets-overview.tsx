@@ -81,7 +81,7 @@ export function MarketsOverview({
   if (!overview.markets.length) {
     return (
       <p className="text-sm text-muted-foreground">
-        No markets yet. Add keywords for a market above and it shows up here.
+        No markets yet. Add keywords for a market and it shows up here.
       </p>
     );
   }
