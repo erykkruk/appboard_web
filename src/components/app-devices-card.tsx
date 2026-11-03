@@ -23,7 +23,7 @@ const DEVICE_LABELS: Record<App["platform"], Record<AppDevice, string>> = {
 
 const DEVICE_HINTS: Record<App["platform"], string> = {
   android:
-    "An Android TV build usually has its own package on Google Play: add that package as its own app and mark it Android TV only. Its rankings are measured in Google Play search.",
+    "If the Android TV build ships in this same package, tick Phone and Android TV. If it has its own package on Google Play, add that package as its own app and tick only Android TV. Rankings are measured in Google Play search.",
   ios: "Apple TV is part of the same App Store record as the iPhone app. Apple publishes no Apple TV search results, so rankings are measured in iPhone search, and an Apple TV only app cannot be rank-tracked.",
 };
 

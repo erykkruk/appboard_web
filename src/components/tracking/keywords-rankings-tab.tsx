@@ -235,7 +235,12 @@ export function KeywordsRankingsTab({ appId }: { appId: string }) {
           {support?.supported && support.note && (
             <p className="text-sm text-muted-foreground">{support.note}</p>
           )}
-          {markets.isLoading || !markets.data ? (
+          {markets.isError ? (
+            <p className="text-sm text-muted-foreground" role="status">
+              The market overview could not be loaded. The tracker below still
+              works; reload the page to try again.
+            </p>
+          ) : markets.isLoading || !markets.data ? (
             <Skeleton className="h-32 w-full" />
           ) : (
             <MarketsOverview

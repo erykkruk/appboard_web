@@ -120,12 +120,21 @@ export function useTrackingMarkets(appId: string) {
 
 /**
  * The latest rank check. Polls while it runs (a throttled check of a few
- * hundred keywords takes minutes) and refreshes the tracker once it ends.
+ * hundred keywords takes minutes) and refreshes the tracker, markets and
+ * dashboard summary once it ends. `initialRun` seeds a run the caller already
+ * knows is running (the dashboard summary starts one), so its end is noticed
+ * even when this is the first read.
  */
-export function useRankCheckStatus(appId: string) {
+export function useRankCheckStatus(
+	appId: string,
+	options: { initialRun?: RankCheckRun | null; pollMs?: number } = {},
+) {
 	const queryClient = useQueryClient();
+	const pollMs = options.pollMs ?? RANK_CHECK_POLL_MS;
 	return useQuery({
 		enabled: !!appId,
+		initialData: options.initialRun ?? undefined,
+		initialDataUpdatedAt: 0,
 		queryFn: async () => {
 			const previous = queryClient.getQueryData<RankCheckRun | null>(
 				rankCheckKey(appId),
@@ -144,7 +153,7 @@ export function useRankCheckStatus(appId: string) {
 		},
 		queryKey: rankCheckKey(appId),
 		refetchInterval: (query) =>
-			query.state.data?.status === "running" ? RANK_CHECK_POLL_MS : false,
+			query.state.data?.status === "running" ? pollMs : false,
 	});
 }
 
@@ -154,31 +163,16 @@ export function useRunRankCheck(appId: string) {
 		mutationFn: () => api.tracking.check(appId),
 		onError: (err) =>
 			toast.error(err instanceof Error ? err.message : "Rank check failed"),
-		onSuccess: ({ alreadyRunning, run }) => {
+		onSuccess: async ({ alreadyRunning, run }) => {
 			toast.success(
 				alreadyRunning
 					? "A rank check is already running"
 					: `Rank check started for ${run.total} keyword(s)`,
 			);
+			// A status read still in flight from before the start must not
+			// overwrite the running run (it would stop the polling).
+			await queryClient.cancelQueries({ queryKey: rankCheckKey(appId) });
 			queryClient.setQueryData(rankCheckKey(appId), run);
-		},
-	});
-}
-
-export function useAddKeywordsBulk(appId: string) {
-	const queryClient = useQueryClient();
-	return useMutation({
-		mutationFn: (items: Array<{ country: string; keywords: string[] }>) =>
-			api.tracking.addKeywordsBulk(appId, items),
-		onError: (err) =>
-			toast.error(err instanceof Error ? err.message : "Failed to add keywords"),
-		onSuccess: (result) => {
-			const { added, rejected, skipped } = result.totals;
-			const parts = [`Added ${added}`];
-			if (skipped) parts.push(`${skipped} already tracked`);
-			if (rejected) parts.push(`${rejected} over the per-market limit`);
-			(rejected ? toast.warning : toast.success)(parts.join(", "));
-			queryClient.invalidateQueries({ queryKey: trackingKey(appId) });
 		},
 	});
 }

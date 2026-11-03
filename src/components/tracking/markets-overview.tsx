@@ -91,7 +91,8 @@ export function MarketsOverview({
   return (
     <div className="space-y-3">
       <p className="text-sm text-muted-foreground">
-        {totals.markets} markets, {totals.ranked} of {totals.tracked} keywords
+        {totals.markets} {totals.markets === 1 ? "market" : "markets"},{" "}
+        {totals.ranked} of {totals.tracked} keywords
         ranking, {totals.top10} in the top 10
         {totals.medianPosition === null
           ? ""
