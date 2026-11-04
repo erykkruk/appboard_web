@@ -1812,6 +1812,8 @@ export interface TrackingMarketStats {
 	earnedRanked?: number;
 	earnedTop10?: number;
 	earnedTop50?: number;
+	/** Median over the same keywords. Absent on servers older than 0.21.2. */
+	earnedMedianPosition?: number | null;
 	entered: number;
 	failedLastRun: number;
 	improved: number;
