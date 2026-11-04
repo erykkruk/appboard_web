@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.21.2",
+    serverVersion: "0.21.2",
+    date: "2026-11-04",
+    changes: [
+      "The Median column of the dashboard market table leaves out your app name too, like Ranked, Top 10 and Top 50, so a market where only the name ranks shows - instead of #3",
+    ],
+  },
+  {
     version: "0.21.1",
     serverVersion: "0.21.0",
     date: "2026-11-04",

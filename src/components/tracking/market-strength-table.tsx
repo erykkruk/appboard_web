@@ -190,7 +190,7 @@ export function MarketStrengthTable({
                 </TableCell>
                 <TableCell className="text-right tabular-nums">{earned.top50}</TableCell>
                 <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {m.medianPosition === null ? "-" : `#${m.medianPosition}`}
+                  {earned.median === null ? "-" : `#${earned.median}`}
                 </TableCell>
                 {showStarred && (
                   <TableCell className="text-right tabular-nums">

@@ -50,11 +50,16 @@ function byNullablePosition(a: number | null, b: number | null): number {
  * does not send them; the brand-inclusive counts are the closest stand-in.
  */
 export function earnedCounts(market: TrackingMarket): {
+  median: number | null;
   ranked: number;
   top10: number;
   top50: number;
 } {
   return {
+    median:
+      market.earnedMedianPosition === undefined
+        ? market.medianPosition
+        : market.earnedMedianPosition,
     ranked: market.earnedRanked ?? market.ranked,
     top10: market.earnedTop10 ?? market.top10,
     top50: market.earnedTop50 ?? market.top50,
@@ -107,7 +112,7 @@ function sortValue(market: TrackingMarket, key: MarketSortKey): number | null {
     case "top50":
       return earnedCounts(market).top50;
     case "median":
-      return market.medianPosition;
+      return earnedCounts(market).median;
     case "change":
       return marketChange(market);
     case "country":

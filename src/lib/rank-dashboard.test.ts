@@ -4,6 +4,7 @@ import {
   boardToSnapshots,
   DEFAULT_MARKET_SORT,
   defaultChartKeywords,
+  earnedCounts,
   MAX_CHART_KEYWORDS,
   marketStrength,
   notRankedNow,
@@ -64,6 +65,17 @@ function keyword(name: string, overrides: Partial<BoardKeyword> = {}): BoardKeyw
     ...overrides,
   };
 }
+
+describe("earnedCounts", () => {
+  test("uses the median without the app's name when the server sends it", () => {
+    const m = market("il", { earnedMedianPosition: null, medianPosition: 3, ranked: 1 });
+    expect(earnedCounts(m).median).toBeNull();
+  });
+
+  test("falls back to the plain median on an older server", () => {
+    expect(earnedCounts(market("pl", { medianPosition: 4 })).median).toBe(4);
+  });
+});
 
 describe("marketStrength", () => {
   test("counts first-page keywords three times over keywords beyond the name", () => {
