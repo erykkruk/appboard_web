@@ -7,6 +7,15 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.27.0",
+    serverVersion: "0.27.0",
+    date: "2026-11-04",
+    changes: [
+      "The market table on the dashboard shows a small trend next to Ranked, Top 10, Top 50 and Median for every market (last 90 days, from the first check in that market). Hover it, or tap or click it, to open a larger day-by-day chart with the date on the axis and every day's values; switch Ranked, Top 10, Top 50 and Median on and off there, and move between days with the arrow keys. Escape closes it",
+      "Each day counts every keyword at its last check up to that day, like the table itself, and leaves out your app name. A day without any check in that market is a gap in the line. On narrow screens the trends are hidden",
+    ],
+  },
+  {
     version: "0.23.0",
     serverVersion: "0.23.0",
     date: "2026-11-04",

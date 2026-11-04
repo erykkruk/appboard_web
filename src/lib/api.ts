@@ -110,6 +110,7 @@ import type {
 	RankCheckStart,
 	TrackedKeyword,
 	TrackingBoard,
+	TrackingMarketsHistory,
 	TrackingMarketsOverview,
 	TrackingOverview,
 	TrackingSummary,
@@ -1348,6 +1349,11 @@ export const api = {
 			).then((r) => r.run),
 		markets: (appId: string) =>
 			fetchApi<TrackingMarketsOverview>(`/api/apps/${appId}/tracking/markets`),
+		/** Day-by-day market table for the sparklines (1-180 days). */
+		marketsHistory: (appId: string, days: number) =>
+			fetchApi<TrackingMarketsHistory>(
+				`/api/apps/${appId}/tracking/markets/history${toQuery({ days: String(days) })}`,
+			),
 		/** Keyword ideas for one market from stored data (no store calls). */
 		suggestions: (appId: string, country: string) =>
 			fetchApi<MarketSuggestions>(

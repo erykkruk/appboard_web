@@ -1850,6 +1850,37 @@ export interface TrackingMarketsOverview {
 	totals: TrackingMarketStats & { markets: number };
 }
 
+/**
+ * One market on one local day (scheduler time zone), counted like the market
+ * table: every tracked keyword at its last measurement on or before the day.
+ * `ranked`, `top10`, `top50` and `median` leave out the app's own name.
+ */
+export interface TrackingMarketHistoryPoint {
+	/** "2026-11-04" */
+	day: string;
+	/** Keywords measured on this very day. */
+	measured: number;
+	median: number | null;
+	ranked: number;
+	top10: number;
+	top50: number;
+	tracked: number;
+}
+
+export interface TrackingMarketHistory {
+	country: string;
+	/** Oldest first; days without a measurement are left out. */
+	points: TrackingMarketHistoryPoint[];
+}
+
+/** `GET /apps/:id/tracking/markets/history` (backend 0.27.0+). */
+export interface TrackingMarketsHistory {
+	from: string;
+	markets: TrackingMarketHistory[];
+	timeZone: string;
+	to: string;
+}
+
 export interface BulkAddMarketResult {
 	added: string[];
 	country: string;

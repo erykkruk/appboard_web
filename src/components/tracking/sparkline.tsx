@@ -9,12 +9,15 @@
 export function Sparkline({
   values,
   lowerIsBetter = true,
+  invert = false,
   width = 64,
   height = 18,
   title,
 }: {
   values: Array<number | null>;
   lowerIsBetter?: boolean;
+  /** Draw the lowest value at the top, like a rank axis with #1 on top. */
+  invert?: boolean;
   width?: number;
   height?: number;
   title?: string;
@@ -28,7 +31,10 @@ export function Sparkline({
   const max = Math.max(...known);
   const span = max - min || 1;
   const step = width / (values.length - 1);
-  const y = (v: number) => height - ((v - min) / span) * (height - 2) - 1;
+  const y = (v: number) =>
+    invert
+      ? ((v - min) / span) * (height - 2) + 1
+      : height - ((v - min) / span) * (height - 2) - 1;
 
   // A gap in the data is a gap in the line: joining across a missing
   // measurement would draw a movement that was never observed.

@@ -210,6 +210,28 @@ export function useTrackingMarkets(appId: string) {
 	});
 }
 
+/** Days of history behind the market table sparklines. */
+export const MARKET_HISTORY_DAYS = 90;
+/** Checks run twice a day; a finished check invalidates this anyway. */
+const MARKET_HISTORY_STALE_MS = 5 * 60 * 1000;
+
+/**
+ * Day-by-day market table (tracked, ranked, top 10, top 50, median per
+ * market) for the sparklines and their larger chart. Lives under the tracking
+ * key, so a finished rank check refreshes it with the table.
+ */
+export function useTrackingMarketsHistory(
+	appId: string,
+	days: number = MARKET_HISTORY_DAYS,
+) {
+	return useQuery({
+		enabled: !!appId,
+		queryFn: () => api.tracking.marketsHistory(appId, days),
+		queryKey: [...trackingKey(appId), "markets", "history", days],
+		staleTime: MARKET_HISTORY_STALE_MS,
+	});
+}
+
 /**
  * The latest rank check. Polls while it runs (a throttled check of a few
  * hundred keywords takes minutes) and refreshes the tracker, markets and
