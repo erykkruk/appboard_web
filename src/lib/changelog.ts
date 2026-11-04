@@ -7,13 +7,21 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
-    version: "0.23.0",
-    serverVersion: "0.23.0",
+    version: "0.24.0",
+    serverVersion: "0.24.0",
     date: "2026-11-04",
     changes: [
       "Daily summary for all apps: one email at 07:30 (Europe/Warsaw) covering every app with rank tracking or auto-research, with tracked, ranked and top 10 counts without your app name, the five biggest gains and drops, starred keywords, the three strongest markets and the latest auto-research with its best new keyword ideas. Turn it on under Automations > Reminders",
       "While the daily summary is on, the per-app rank digests and research reports are not sent, so you get one email a morning instead of several. Turned off, everything works as before",
       "Pick a different address for the summary, or leave it empty to use your apps' report email or your account email, and press Send a test summary now to see it right away",
+    ],
+  },
+  {
+    version: "0.23.0",
+    serverVersion: "0.23.0",
+    date: "2026-11-04",
+    changes: [
+      "Each market now tracks up to 80 keywords (was 40). Rank checks take longer with more keywords: about 3.5 s per keyword on the App Store and 1.5 s on Google Play",
     ],
   },
   {
