@@ -45,6 +45,17 @@ function keyword(overrides: Partial<BoardKeyword> = {}): BoardKeyword {
 }
 
 describe("KeywordBoardTable", () => {
+  test("names the next check from the store's schedule", () => {
+    const { unmount } = render(<KeywordBoardTable keywords={[keyword({ measuredAt: null })]} />);
+    expect(screen.getByText("Measured at the next check (00:00 / 12:00)")).toBeDefined();
+    unmount();
+
+    render(
+      <KeywordBoardTable keywords={[keyword({ measuredAt: null })]} rankCheckHours={[0]} />,
+    );
+    expect(screen.getByText("Measured at the next check (00:00)")).toBeDefined();
+  });
+
   test("shows position, difficulty, metadata use and the leader in one row", () => {
     render(<KeywordBoardTable keywords={[keyword()]} />);
 

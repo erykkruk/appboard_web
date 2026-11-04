@@ -225,7 +225,7 @@ export function useTrackingMarkets(appId: string) {
 
 /** Days of history behind the market table sparklines. */
 export const MARKET_HISTORY_DAYS = 90;
-/** Checks run twice a day; a finished check invalidates this anyway. */
+/** Checks run once or twice a day; a finished check invalidates this anyway. */
 const MARKET_HISTORY_STALE_MS = 5 * 60 * 1000;
 
 /**

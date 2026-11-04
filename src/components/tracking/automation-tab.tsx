@@ -22,6 +22,11 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useDailySummary } from "@/hooks/use-daily-summary";
 import { useTracking, useUpdateTrackingConfig } from "@/hooks/use-tracking";
+import {
+  rankCheckFrequencyLabel,
+  rankCheckHours,
+  rankCheckTimesLabel,
+} from "@/lib/rank-schedule";
 import type { AutoResearchFrequency, TrackingSchedule } from "@/lib/types";
 
 import { DailySummaryCard } from "./daily-summary-card";
@@ -96,6 +101,7 @@ export function AutomationTab({ appId }: { appId: string }) {
   const update = useUpdateTrackingConfig(appId);
   const config = tracking.data?.config;
   const schedule = tracking.data?.schedule;
+  const checkHours = rankCheckHours(schedule);
   const summaryOn = useDailySummary().data?.enabled ?? false;
 
   if (tracking.isLoading || !config) {
@@ -110,14 +116,15 @@ export function AutomationTab({ appId }: { appId: string }) {
         <CardHeader>
           <CardTitle>Daily rank tracking</CardTitle>
           <CardDescription>
-            Automatically measure your tracked keyword positions every day at
-            00:00 and 12:00 (Europe/Warsaw), and store the history for the chart.
+            Automatically measure your tracked keyword positions every day at{" "}
+            {rankCheckTimesLabel(checkHours)} ({schedule?.timezone ?? DEFAULT_TIMEZONE}),
+            and store the history for the chart.
           </CardDescription>
         </CardHeader>
         <CardContent className="divide-y">
           <Row
             title="Track rankings daily"
-            description="Record positions twice a day for all tracked keywords."
+            description={`Record positions ${rankCheckFrequencyLabel(checkHours)} for all tracked keywords.`}
           >
             <Switch
               checked={config.rankTrackingEnabled}
