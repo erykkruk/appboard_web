@@ -37,6 +37,8 @@ import type {
 	CreateGroupInput,
 	CreatePurchaseInput,
 	CreateSubscriptionInput,
+	DailySummarySendResult,
+	DailySummarySettings,
 	DraftReplyRequest,
 	FeaturesResponse,
 	GenerateDescriptionRequest,
@@ -77,6 +79,7 @@ import type {
 	ResearchKeywordPosition,
 	ResearchMarketSnapshot,
 	ResearchReview,
+	RatingsSummary,
 	ResearchRun,
 	ResearchRunReport,
 	ResearchRunSummary,
@@ -87,6 +90,8 @@ import type {
 	ResearchVisualAnalysis,
 	Review,
 	ReviewInfo,
+	ReviewList,
+	ReviewScope,
 	ReviewStats,
 	SceneData,
 	ScreenshotDimensionErrorData,
@@ -1386,6 +1391,18 @@ export const api = {
 			}),
 		summary: (appId: string) =>
 			fetchApi<TrackingSummary>(`/api/apps/${appId}/tracking/summary`),
+		// ── Workspace daily summary email ──
+		dailySummary: () =>
+			fetchApi<DailySummarySettings>("/api/tracking/daily-summary"),
+		sendTestDailySummary: () =>
+			fetchApi<DailySummarySendResult>("/api/tracking/daily-summary/test", {
+				method: "POST",
+			}),
+		updateDailySummary: (body: { email?: string | null; enabled?: boolean }) =>
+			fetchApi<DailySummarySettings>("/api/tracking/daily-summary", {
+				body: JSON.stringify(body),
+				method: "PATCH",
+			}),
 		updateConfig: (
 			appId: string,
 			body: {
@@ -1432,11 +1449,22 @@ export const api = {
 				language?: string;
 				storeType?: string;
 				hasReply?: string;
+				country?: string;
+				scope?: ReviewScope;
 			},
 		) =>
-			fetchApi<{ reviews: Review[] }>(
+			fetchApi<ReviewList>(
 				`/api/apps/${appId}/reviews${toQuery(params ?? {})}`,
-			).then((r) => r.reviews),
+			).then((r) => ({ countries: r.countries ?? [], reviews: r.reviews })),
+		ratings: (appId: string, scope?: ReviewScope) =>
+			fetchApi<RatingsSummary>(
+				`/api/apps/${appId}/reviews/ratings${toQuery({ scope })}`,
+			),
+		refreshRatings: (appId: string, scope?: ReviewScope) =>
+			fetchApi<{ started: string[] }>(
+				`/api/apps/${appId}/reviews/ratings/refresh${toQuery({ scope })}`,
+				{ method: "POST" },
+			),
 		reply: (appId: string, reviewId: string, body: { text: string }) =>
 			fetchApi<{ review: Review }>(
 				`/api/apps/${appId}/reviews/${reviewId}/reply`,
@@ -1445,10 +1473,15 @@ export const api = {
 					method: "POST",
 				},
 			).then((r) => r.review),
-		stats: (appId: string) =>
-			fetchApi<ReviewStats>(`/api/apps/${appId}/reviews/stats`),
-		sync: (appId: string) =>
-			fetchApi<{ synced: number }>(`/api/apps/${appId}/reviews/sync`, {
+		stats: (appId: string, scope?: ReviewScope) =>
+			fetchApi<ReviewStats>(
+				`/api/apps/${appId}/reviews/stats${toQuery({ scope })}`,
+			),
+		sync: (appId: string, scope?: ReviewScope) =>
+			fetchApi<{
+				synced: number;
+				errors?: { appId: string; message: string }[];
+			}>(`/api/apps/${appId}/reviews/sync${toQuery({ scope })}`, {
 				method: "POST",
 			}),
 	},

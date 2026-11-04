@@ -16,6 +16,39 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.26.0",
+    serverVersion: "0.26.0",
+    date: "2026-11-04",
+    changes: [
+      "Reviews shows the real store rating: every star rating counts, also the ones without text, summed over all countries. Rating Overview gives the total and one line per store (for example App Store 4.7 from 32 ratings, 6 reviews), and Ratings by country lists each country with its rating, rating count and reviews",
+      "For an app in an app group, Reviews opens on the whole group: the App Store and Google Play apps of one product together, with a switch to This app only. Filter the review list by store and by country",
+      "App Store reviews come in with their country and can be answered from AppBoard when App Store Connect is connected. Each review in the group view replies through its own app",
+      "Ratings refresh every day from 04:00 (Warsaw time), paced like the rank checks; a refresh cut short picks up where it stopped. Every country is checked once a week, rated countries every day. Refresh in Rating Overview starts one now",
+      "Apps connected through the store API also pull new written reviews every day. Google Play only hands out the last 7 days of reviews, so a missed day used to lose them",
+      "MCP: new tool reviews_ratings_summary, and reviews_list takes scope and country",
+    ],
+  },
+  {
+    version: "0.25.0",
+    serverVersion: "0.25.0",
+    date: "2026-11-04",
+    changes: [
+      "Keyword scores (popularity and difficulty) depend only on the keyword and the country, so the App Store search behind them is now measured once and reused for 7 days by every app and workspace. Scoring a keyword someone already measured this week is instant and costs no App Store call",
+      "The nightly score refresh measures each tracked keyword about once a week instead of every night, a slice per night, with new keywords first. It now takes minutes instead of hours and no longer collides with the rank check and auto-research",
+      "Score history is dated on the day the App Store was asked (the Measured column), so a cached score never shows up as a new point in a trend. Your own app's rank is never shared: it is measured for your app only",
+    ],
+  },
+  {
+    version: "0.24.0",
+    serverVersion: "0.24.0",
+    date: "2026-11-04",
+    changes: [
+      "Daily summary for all apps: one email at 07:30 (Europe/Warsaw) covering every app with rank tracking or auto-research, with tracked, ranked and top 10 counts without your app name, the five biggest gains and drops, starred keywords, the three strongest markets and the latest auto-research with its best new keyword ideas. Turn it on under Automations > Reminders",
+      "While the daily summary is on, the per-app rank digests and research reports are not sent, so you get one email a morning instead of several. Turned off, everything works as before",
+      "Pick a different address for the summary, or leave it empty to use your apps' report email or your account email, and press Send a test summary now to see it right away",
+    ],
+  },
+  {
     version: "0.23.0",
     serverVersion: "0.23.0",
     date: "2026-11-04",

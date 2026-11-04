@@ -194,6 +194,65 @@ export interface Review {
 	repliedAt?: string;
 	reviewDate: string;
 	territory?: string;
+	/** Name of the app record the review belongs to (group view). */
+	appName?: string;
+	/** Whether a reply can be sent from AppBoard (store API connected). */
+	canReply?: boolean;
+	/** Storefront country, lower-case ISO alpha-2, when the store says. */
+	country?: string | null;
+}
+
+export type ReviewScope = "app" | "group";
+
+export interface ReviewList {
+	reviews: Review[];
+	/** Countries the reviews of the scope come from (filter options). */
+	countries: string[];
+}
+
+export type RatingStoreType = "app_store" | "google_play";
+
+export type RatingHistogram = Record<"1" | "2" | "3" | "4" | "5", number>;
+
+export interface CountryRatingSummary {
+	country: string;
+	average: number | null;
+	ratingCount: number;
+	writtenReviews: number;
+	histogram: RatingHistogram | null;
+	fetchedAt: string;
+}
+
+export interface StoreRatingSummary {
+	storeType: RatingStoreType;
+	average: number | null;
+	/** Every star rating, star-only ones included. */
+	ratingCount: number;
+	/** Ratings with text, as the store counts them. */
+	writtenReviews: number;
+	/** Reviews AppBoard has synced for this store. */
+	syncedReviews: number;
+	histogram: RatingHistogram | null;
+	fetchedAt: string | null;
+	countries: CountryRatingSummary[];
+}
+
+export interface RatingsSummary {
+	scope: ReviewScope;
+	group: { id: string; name: string } | null;
+	apps: {
+		appId: string;
+		name: string;
+		platform: string;
+		storeType: string;
+		devices: string[];
+		externalId: string;
+		lastRefreshedAt: string | null;
+	}[];
+	stores: StoreRatingSummary[];
+	total: { average: number | null; ratingCount: number; writtenReviews: number };
+	fetchedAt: string | null;
+	refreshing: boolean;
 }
 
 export interface ReviewStats {
@@ -1701,6 +1760,25 @@ export interface TrackingSchedule {
 	nextAutoResearchAt: string | null;
 }
 
+/** Workspace-wide morning email; replaces the per-app digests while on. */
+export interface DailySummarySettings {
+	/** Address set on the setting; null = fallback. */
+	email: string | null;
+	/** Where the next summary goes (setting, else a per-app report email, else the owner). */
+	effectiveEmail: string | null;
+	enabled: boolean;
+	lastSentAt: string | null;
+	schedule: { hour: number; minute: number; timezone: string };
+	/** Apps with rank tracking or auto-research on: what the email covers. */
+	trackedApps: number;
+}
+
+export interface DailySummarySendResult {
+	apps: number;
+	sent: boolean;
+	to: string | null;
+}
+
 export interface TrackingOverview {
 	config: AppTrackingConfig;
 	keywords: TrackedKeyword[];
@@ -2145,6 +2223,10 @@ export interface KeywordScore {
 	downloads: KeywordDownloadEstimates;
 	appRank?: number | null;
 	competitors: KeywordCompetitor[];
+	/** When the App Store search behind the score was made (ISO, server 0.25.0+). */
+	scoredAt?: string;
+	/** True when the score came from the 7-day cross-workspace cache. */
+	cached?: boolean;
 	error?: string;
 }
 
