@@ -3,7 +3,12 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 
-import type { BoardKeyword, TrackingBoard, TrackingMarket } from "@/lib/types";
+import type {
+  BoardKeyword,
+  TrackingBoard,
+  TrackingMarket,
+  TrackingMarketsHistory,
+} from "@/lib/types";
 
 import { KeywordPositionsCard } from "./keyword-positions-card";
 
@@ -148,6 +153,21 @@ const BOARDS: Record<string, TrackingBoard> = {
 let originalFetch: typeof fetch;
 let requested: string[];
 
+const HISTORY: TrackingMarketsHistory = {
+  from: "2026-08-07",
+  markets: [
+    {
+      country: "pl",
+      points: [
+        { day: "2026-11-02", measured: 3, median: 30, ranked: 1, top10: 0, top50: 1, tracked: 3 },
+        { day: "2026-11-03", measured: 3, median: 8, ranked: 2, top10: 1, top50: 2, tracked: 3 },
+      ],
+    },
+  ],
+  timeZone: "Europe/Warsaw",
+  to: "2026-11-03",
+};
+
 function json(payload: unknown): Response {
   return new Response(JSON.stringify(payload), {
     headers: { "Content-Type": "application/json" },
@@ -161,6 +181,7 @@ beforeEach(() => {
   globalThis.fetch = mock(async (input: RequestInfo | URL) => {
     const url = String(input);
     requested.push(url);
+    if (url.includes("/tracking/markets/history")) return json(HISTORY);
     if (url.includes("/tracking/markets")) return json(MARKETS);
     const country = new URL(url, "http://localhost").searchParams.get("country") ?? "";
     return json(BOARDS[country] ?? board(country, []));
@@ -207,6 +228,19 @@ describe("KeywordPositionsCard", () => {
     expect(rows[0]?.textContent).toContain("Poland");
     expect(rows[0]?.textContent).toContain("quiz rodzinny");
     expect(rows[1]?.textContent).toContain("United States");
+  });
+
+  test("puts a trend in front of the counts of a market with history", async () => {
+    render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+    expect(
+      await screen.findByRole("button", { name: /Top 10 in Poland, .*open the day-by-day chart/ }),
+    ).toBeDefined();
+    for (const metric of ["Ranked", "Top 50", "Median"]) {
+      expect(screen.getByRole("button", { name: new RegExp(`^${metric} in Poland`) })).toBeDefined();
+    }
+    // No history for the United States: plain numbers.
+    expect(screen.queryByRole("button", { name: /in United States/ })).toBeNull();
+    expect(requested.some((u) => u.includes("/tracking/markets/history?days=90"))).toBe(true);
   });
 
   test("says when the history has a single day instead of an empty chart", async () => {

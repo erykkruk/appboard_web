@@ -194,6 +194,65 @@ export interface Review {
 	repliedAt?: string;
 	reviewDate: string;
 	territory?: string;
+	/** Name of the app record the review belongs to (group view). */
+	appName?: string;
+	/** Whether a reply can be sent from AppBoard (store API connected). */
+	canReply?: boolean;
+	/** Storefront country, lower-case ISO alpha-2, when the store says. */
+	country?: string | null;
+}
+
+export type ReviewScope = "app" | "group";
+
+export interface ReviewList {
+	reviews: Review[];
+	/** Countries the reviews of the scope come from (filter options). */
+	countries: string[];
+}
+
+export type RatingStoreType = "app_store" | "google_play";
+
+export type RatingHistogram = Record<"1" | "2" | "3" | "4" | "5", number>;
+
+export interface CountryRatingSummary {
+	country: string;
+	average: number | null;
+	ratingCount: number;
+	writtenReviews: number;
+	histogram: RatingHistogram | null;
+	fetchedAt: string;
+}
+
+export interface StoreRatingSummary {
+	storeType: RatingStoreType;
+	average: number | null;
+	/** Every star rating, star-only ones included. */
+	ratingCount: number;
+	/** Ratings with text, as the store counts them. */
+	writtenReviews: number;
+	/** Reviews AppBoard has synced for this store. */
+	syncedReviews: number;
+	histogram: RatingHistogram | null;
+	fetchedAt: string | null;
+	countries: CountryRatingSummary[];
+}
+
+export interface RatingsSummary {
+	scope: ReviewScope;
+	group: { id: string; name: string } | null;
+	apps: {
+		appId: string;
+		name: string;
+		platform: string;
+		storeType: string;
+		devices: string[];
+		externalId: string;
+		lastRefreshedAt: string | null;
+	}[];
+	stores: StoreRatingSummary[];
+	total: { average: number | null; ratingCount: number; writtenReviews: number };
+	fetchedAt: string | null;
+	refreshing: boolean;
 }
 
 export interface ReviewStats {
@@ -1606,7 +1665,7 @@ export type ResearchRunKind = "manual" | "scheduled";
 
 export type AutoResearchFrequency = "daily" | "monthly" | "weekly";
 
-export const MAX_TRACKED_KEYWORDS_PER_LANGUAGE = 40;
+export const MAX_TRACKED_KEYWORDS_PER_LANGUAGE = 80;
 
 export interface ResearchRunReport {
 	analysis?: ResearchAnalysis;
@@ -1673,6 +1732,8 @@ export interface RankSnapshot {
 	keyword: string;
 	platform: ResearchStoreKind;
 	position: number | null;
+	/** Store version live when measured; null = unknown (server 0.28.0+). */
+	version?: string | null;
 }
 
 export interface RankAnnotation {
@@ -1699,6 +1760,25 @@ export interface TrackingSchedule {
 	autoResearchHour: number;
 	/** Null when auto-research is off. */
 	nextAutoResearchAt: string | null;
+}
+
+/** Workspace-wide morning email; replaces the per-app digests while on. */
+export interface DailySummarySettings {
+	/** Address set on the setting; null = fallback. */
+	email: string | null;
+	/** Where the next summary goes (setting, else a per-app report email, else the owner). */
+	effectiveEmail: string | null;
+	enabled: boolean;
+	lastSentAt: string | null;
+	schedule: { hour: number; minute: number; timezone: string };
+	/** Apps with rank tracking or auto-research on: what the email covers. */
+	trackedApps: number;
+}
+
+export interface DailySummarySendResult {
+	apps: number;
+	sent: boolean;
+	to: string | null;
 }
 
 export interface TrackingOverview {
@@ -1850,6 +1930,37 @@ export interface TrackingMarketsOverview {
 	totals: TrackingMarketStats & { markets: number };
 }
 
+/**
+ * One market on one local day (scheduler time zone), counted like the market
+ * table: every tracked keyword at its last measurement on or before the day.
+ * `ranked`, `top10`, `top50` and `median` leave out the app's own name.
+ */
+export interface TrackingMarketHistoryPoint {
+	/** "2026-11-04" */
+	day: string;
+	/** Keywords measured on this very day. */
+	measured: number;
+	median: number | null;
+	ranked: number;
+	top10: number;
+	top50: number;
+	tracked: number;
+}
+
+export interface TrackingMarketHistory {
+	country: string;
+	/** Oldest first; days without a measurement are left out. */
+	points: TrackingMarketHistoryPoint[];
+}
+
+/** `GET /apps/:id/tracking/markets/history` (backend 0.27.0+). */
+export interface TrackingMarketsHistory {
+	from: string;
+	markets: TrackingMarketHistory[];
+	timeZone: string;
+	to: string;
+}
+
 export interface BulkAddMarketResult {
 	added: string[];
 	country: string;
@@ -1995,6 +2106,69 @@ export interface TrackingBoard {
 	metadataUntracked: string[];
 }
 
+// ============ Positions per store version ============
+
+/** Listing text a store indexes for search; null = not known. */
+export interface ListingText {
+	keywords: string | null;
+	subtitle: string | null;
+	title: string | null;
+}
+
+export type ListingTextField = keyof ListingText;
+
+/** Version key of measurements whose store version is not known. */
+export const UNKNOWN_VERSION_KEY = "unknown";
+
+export interface ByVersionListing extends ListingText {
+	firstSeenAt: string;
+	id: string;
+	inferred: boolean;
+	language: string | null;
+	lastSeenAt: string;
+}
+
+export interface ByVersionColumn {
+	/** Text fields that differ from the previous (older) version. */
+	changedFields: ListingTextField[];
+	/** Every measurement was matched to the version afterwards (estimated). */
+	inferred: boolean;
+	/** Version string, or UNKNOWN_VERSION_KEY. */
+	key: string;
+	listing: ListingText | null;
+	listings: ByVersionListing[];
+	measuredFrom: string;
+	measuredTo: string;
+	measurements: number;
+	releasedAt: string | null;
+	versionString: string | null;
+}
+
+export interface ByVersionCell {
+	best: number | null;
+	/** Positions gained vs the previous version (positive = up). */
+	delta: number | null;
+	/** Last position while the version was live; null = not in the top 50. */
+	last: number | null;
+	measurements: number;
+	ranked: number;
+}
+
+export interface ByVersionKeyword {
+	/** Keyed by ByVersionColumn.key; missing = not measured under it. */
+	cells: Record<string, ByVersionCell>;
+	keyword: string;
+	starred: boolean;
+	tracked: boolean;
+}
+
+export interface RankByVersion {
+	country: string;
+	keywords: ByVersionKeyword[];
+	/** Newest version first. */
+	versions: ByVersionColumn[];
+}
+
 // ============ Audit history ============
 
 export interface AuditHistoryPoint {
@@ -2114,6 +2288,10 @@ export interface KeywordScore {
 	downloads: KeywordDownloadEstimates;
 	appRank?: number | null;
 	competitors: KeywordCompetitor[];
+	/** When the App Store search behind the score was made (ISO, server 0.25.0+). */
+	scoredAt?: string;
+	/** True when the score came from the 7-day cross-workspace cache. */
+	cached?: boolean;
 	error?: string;
 }
 

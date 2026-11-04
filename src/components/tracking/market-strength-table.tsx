@@ -1,9 +1,10 @@
 "use client";
 
 import { ArrowDown, ArrowUp, ArrowUpDown } from "lucide-react";
-import { useMemo, useState } from "react";
+import { type ReactNode, useMemo, useState } from "react";
 
 import { DeltaBadge } from "@/components/tracking/delta-badge";
+import { MarketTrendSparkline } from "@/components/tracking/market-trend-sparkline";
 import { Button } from "@/components/ui/button";
 import {
   Table,
@@ -13,6 +14,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { type MarketDay, type MarketMetric, marketDays } from "@/lib/market-history";
 import { marketLabel } from "@/lib/markets";
 import {
   DASHBOARD_MARKETS_PREVIEW,
@@ -24,7 +26,11 @@ import {
   nextMarketSort,
   sortMarketTable,
 } from "@/lib/rank-dashboard";
-import { MAX_TRACKED_KEYWORDS_PER_LANGUAGE, type TrackingMarket } from "@/lib/types";
+import {
+  MAX_TRACKED_KEYWORDS_PER_LANGUAGE,
+  type TrackingMarket,
+  type TrackingMarketsHistory,
+} from "@/lib/types";
 import { cn } from "@/lib/utils";
 
 interface Column {
@@ -47,6 +53,27 @@ const COLUMNS: Column[] = [
   { align: "right", key: "top50", label: "Top 50" },
   { align: "right", key: "median", label: "Median" },
 ];
+
+/** A market-table number with its trend in front, right-aligned. */
+function TrendNumber({
+  children,
+  days,
+  marketName,
+  metric,
+}: {
+  children: ReactNode;
+  days: MarketDay[] | undefined;
+  marketName: string;
+  metric: MarketMetric;
+}) {
+  if (!days?.length) return <>{children}</>;
+  return (
+    <span className="inline-flex items-center justify-end gap-2">
+      <MarketTrendSparkline days={days} marketName={marketName} metric={metric} />
+      <span>{children}</span>
+    </span>
+  );
+}
 
 function SortIcon({ sort, column }: { sort: MarketSort; column: MarketSortKey }) {
   if (sort.key !== column) return <ArrowUpDown className="h-3 w-3 opacity-40" />;
@@ -73,14 +100,17 @@ function ChangeCell({ market }: { market: TrackingMarket }) {
  * How strong the app is in each tracked market, strongest first. Counts leave
  * out the app's own name, so a market where only "buzzin" ranks reads as
  * weak instead of as a top-10 market. Clicking a row picks the market for the
- * chart below.
+ * chart below. With `history`, the counts and the median carry a sparkline
+ * that opens the market's day-by-day chart.
  */
 export function MarketStrengthTable({
+  history,
   homeCountry,
   markets,
   onSelect,
   selected,
 }: {
+  history?: TrackingMarketsHistory;
   homeCountry: string | null;
   markets: TrackingMarket[];
   onSelect: (country: string) => void;
@@ -94,6 +124,10 @@ export function MarketStrengthTable({
     [homeCountry, markets, sort],
   );
   const visible = showAll ? rows : rows.slice(0, DASHBOARD_MARKETS_PREVIEW);
+  const daysByCountry = useMemo(
+    () => new Map(markets.map((m) => [m.country, marketDays(history, m.country)])),
+    [history, markets],
+  );
   // Only once something is starred: an all-dash column says nothing.
   const showStarred = markets.some((m) => (m.starred ?? 0) > 0);
 
@@ -153,6 +187,8 @@ export function MarketStrengthTable({
           {visible.map((m) => {
             const earned = earnedCounts(m);
             const isSelected = m.country === selected;
+            const days = daysByCountry.get(m.country);
+            const name = marketLabel(m.country);
             return (
               <TableRow
                 key={m.country}
@@ -173,24 +209,35 @@ export function MarketStrengthTable({
                     <span className="w-6 font-semibold text-muted-foreground">
                       {m.country.toUpperCase()}
                     </span>
-                    {marketLabel(m.country)}
+                    {name}
                   </button>
                 </TableCell>
                 <TableCell className="text-right tabular-nums text-muted-foreground">
                   {m.tracked}/{MAX_TRACKED_KEYWORDS_PER_LANGUAGE}
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{earned.ranked}</TableCell>
-                <TableCell
-                  className={cn(
-                    "text-right tabular-nums",
-                    earned.top10 > 0 && "font-semibold text-emerald-500",
-                  )}
-                >
-                  {earned.top10}
+                <TableCell className="text-right tabular-nums">
+                  <TrendNumber days={days} marketName={name} metric="ranked">
+                    {earned.ranked}
+                  </TrendNumber>
                 </TableCell>
-                <TableCell className="text-right tabular-nums">{earned.top50}</TableCell>
-                <TableCell className="text-right tabular-nums text-muted-foreground">
-                  {earned.median === null ? "-" : `#${earned.median}`}
+                <TableCell className="text-right tabular-nums">
+                  <TrendNumber days={days} marketName={name} metric="top10">
+                    <span className={cn(earned.top10 > 0 && "font-semibold text-emerald-500")}>
+                      {earned.top10}
+                    </span>
+                  </TrendNumber>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  <TrendNumber days={days} marketName={name} metric="top50">
+                    {earned.top50}
+                  </TrendNumber>
+                </TableCell>
+                <TableCell className="text-right tabular-nums">
+                  <TrendNumber days={days} marketName={name} metric="median">
+                    <span className="text-muted-foreground">
+                      {earned.median === null ? "-" : `#${earned.median}`}
+                    </span>
+                  </TrendNumber>
                 </TableCell>
                 {showStarred && (
                   <TableCell className="text-right tabular-nums">

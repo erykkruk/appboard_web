@@ -55,6 +55,19 @@ export function useTrackingBoard(
 	});
 }
 
+/** Positions of one market per store version, newest version first. */
+export function useRankByVersion(
+	appId: string,
+	country: string,
+	options: { enabled?: boolean } = {},
+) {
+	return useQuery({
+		enabled: !!appId && !!country && (options.enabled ?? true),
+		queryFn: () => api.tracking.byVersion(appId, { country }),
+		queryKey: [...trackingKey(appId), "by-version", country],
+	});
+}
+
 /** Keyword ideas for one market; read from stored scores, never scored here. */
 export function useKeywordSuggestions(appId: string, country: string | null) {
 	return useQuery({
@@ -207,6 +220,28 @@ export function useTrackingMarkets(appId: string) {
 		enabled: !!appId,
 		queryFn: () => api.tracking.markets(appId),
 		queryKey: [...trackingKey(appId), "markets"],
+	});
+}
+
+/** Days of history behind the market table sparklines. */
+export const MARKET_HISTORY_DAYS = 90;
+/** Checks run twice a day; a finished check invalidates this anyway. */
+const MARKET_HISTORY_STALE_MS = 5 * 60 * 1000;
+
+/**
+ * Day-by-day market table (tracked, ranked, top 10, top 50, median per
+ * market) for the sparklines and their larger chart. Lives under the tracking
+ * key, so a finished rank check refreshes it with the table.
+ */
+export function useTrackingMarketsHistory(
+	appId: string,
+	days: number = MARKET_HISTORY_DAYS,
+) {
+	return useQuery({
+		enabled: !!appId,
+		queryFn: () => api.tracking.marketsHistory(appId, days),
+		queryKey: [...trackingKey(appId), "markets", "history", days],
+		staleTime: MARKET_HISTORY_STALE_MS,
 	});
 }
 

@@ -32,6 +32,7 @@ import {
   useStarKeyword,
   useTrackingBoard,
   useTrackingMarkets,
+  useTrackingMarketsHistory,
 } from "@/hooks/use-tracking";
 import { marketLabel } from "@/lib/markets";
 import {
@@ -97,6 +98,7 @@ export function KeywordPositionsCard({
   homeCountry: string | null;
 }) {
   const markets = useTrackingMarkets(appId);
+  const marketsHistory = useTrackingMarketsHistory(appId);
   const [pickedCountry, setPickedCountry] = useState<string | null>(null);
   const [showAllKeywords, setShowAllKeywords] = useState(false);
   const [picks, setPicks] = useState<Record<string, string[]>>({});
@@ -205,6 +207,7 @@ export function KeywordPositionsCard({
       </CardHeader>
       <CardContent className="space-y-5">
         <MarketStrengthTable
+          history={marketsHistory.data}
           homeCountry={homeCountry}
           markets={marketRows}
           onSelect={setPickedCountry}
