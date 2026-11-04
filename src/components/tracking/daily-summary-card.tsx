@@ -158,6 +158,9 @@ export function DailySummaryCard() {
   const summary = useDailySummary();
   const update = useUpdateDailySummary();
   const sendTest = useSendTestDailySummary();
+  // A server older than 0.23.0 has no daily summary: show nothing rather
+  // than a skeleton that never resolves.
+  if (summary.isError) return null;
   return (
     <DailySummaryCardView
       isLoading={summary.isLoading}
