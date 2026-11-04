@@ -22,6 +22,7 @@ import {
   Sparkles,
   Star,
   ToggleLeft,
+  TrendingUp,
   Wand2,
 } from "lucide-react";
 
@@ -72,6 +73,12 @@ export const APP_NAV_SECTIONS: NavSection[] = [
         tab: "keywords",
       },
       { featureKey: "RESEARCH", icon: Microscope, label: "Research", suffix: "/research" },
+      {
+        featureKey: "RESEARCH",
+        icon: TrendingUp,
+        label: "Store performance",
+        suffix: "/store-performance",
+      },
       { icon: Wand2, label: "Fixes", suffix: "/fixes" },
     ],
     label: "Marketing & ASO",

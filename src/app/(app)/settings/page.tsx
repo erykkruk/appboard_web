@@ -14,6 +14,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Trash2,
+  TrendingUp,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
@@ -21,6 +22,7 @@ import { toast } from "sonner";
 
 import { StoreLogo } from "@/components/store-logo";
 import { StoreAccessReport } from "@/components/stores/store-access-report";
+import { PlayReportsBucketDialog } from "@/components/stores/play-reports-bucket-dialog";
 import { StoreCapabilitiesPicker } from "@/components/stores/store-capabilities-picker";
 import {
   AlertDialog,
@@ -511,6 +513,7 @@ export default function SettingsGeneralPage() {
   const [renameValue, setRenameValue] = useState("");
   const [managingStore, setManagingStore] = useState<Store | null>(null);
   const [verifyingStore, setVerifyingStore] = useState<Store | null>(null);
+  const [bucketStore, setBucketStore] = useState<Store | null>(null);
 
   useEffect(() => {
     if (settings.data) {
@@ -796,6 +799,23 @@ export default function SettingsGeneralPage() {
                           <PackagePlus className="h-4 w-4" />
                         </Button>
                       )}
+                      {store.type === "google_play" &&
+                        store.connectionMode !== "public" && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => setBucketStore(store)}
+                            aria-label="Play reports bucket"
+                            title={
+                              store.playReportsBucket
+                                ? `Play reports bucket: ${store.playReportsBucket}`
+                                : "Play reports bucket (not set)"
+                            }
+                          >
+                            <TrendingUp className="h-4 w-4" />
+                          </Button>
+                        )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -943,6 +963,13 @@ export default function SettingsGeneralPage() {
       <VerifyAccessDialog
         store={verifyingStore}
         onClose={() => setVerifyingStore(null)}
+      />
+
+      <PlayReportsBucketDialog
+        currentBucket={bucketStore?.playReportsBucket ?? null}
+        onClose={() => setBucketStore(null)}
+        open={bucketStore !== null}
+        storeId={bucketStore?.id ?? ""}
       />
 
       <VaultSettingsCard />

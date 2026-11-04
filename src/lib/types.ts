@@ -19,6 +19,8 @@ export interface Store {
 	createdAt: string;
 	lastSyncedAt: string | null;
 	capabilities: string[];
+	/** Google Play only: Play Console bulk-report bucket (pubsite_prod_...). Missing on servers older than 0.22.0. */
+	playReportsBucket?: string | null;
 }
 
 export interface ConnectStoreResponse {
@@ -2368,3 +2370,98 @@ export interface AiStatus {
   /** Last OpenRouter failure for this workspace, e.g. a rejected key. */
   lastError: string | null;
 }
+
+// --- Store performance (Google Play bulk reports, server 0.22.0) ---
+
+/** Store listing funnel: visitors of the listing and installs from it. */
+export interface StoreFunnel {
+	acquisitions: number;
+	/** 0..1, null when nobody visited. */
+	conversionRate: number | null;
+	visitors: number;
+}
+
+export interface StoreTrafficSourceRow extends StoreFunnel {
+	source: string;
+}
+
+export interface StoreSearchTermRow extends StoreFunnel {
+	term: string;
+}
+
+/** Play placeholder in the search term column ("Other", "No search terms specified"). */
+export interface StorePlaceholderRow extends StoreFunnel {
+	label: string;
+}
+
+export interface StoreCampaignRow extends StoreFunnel {
+	utmCampaign: string;
+	utmSource: string;
+}
+
+export interface StoreCountryRow extends StoreFunnel {
+	country: string;
+}
+
+export interface StoreTrafficReport {
+	campaigns: StoreCampaignRow[];
+	searchTermPlaceholders: StorePlaceholderRow[];
+	searchTerms: StoreSearchTermRow[];
+	sources: StoreTrafficSourceRow[];
+	totals: StoreFunnel;
+}
+
+export interface StoreInstallsReport {
+	activeDevices: number | null;
+	deviceInstalls: number;
+	deviceUninstalls: number;
+	installEvents: number;
+	lastDay: string | null;
+	uninstallEvents: number;
+	updateEvents: number;
+	userInstalls: number;
+	userUninstalls: number;
+}
+
+export interface StorePerformanceMonth {
+	countries: StoreCountryRow[] | null;
+	files: { country: boolean; installs: boolean; trafficSource: boolean };
+	installs: StoreInstallsReport | null;
+	lastDay: string | null;
+	/** YYYY-MM */
+	month: string;
+	traffic: StoreTrafficReport | null;
+}
+
+export type StorePerformanceStatus =
+	| "ok"
+	| "bucket_missing"
+	| "integration_required"
+	| "access_denied"
+	| "bucket_not_found"
+	| "credentials_invalid"
+	| "error";
+
+export interface StorePerformanceReport {
+	bucket: string | null;
+	devices: string[];
+	fetchedAt: string | null;
+	message: string | null;
+	months: StorePerformanceMonth[];
+	packageName: string;
+	serviceAccountEmail: string | null;
+	status: StorePerformanceStatus;
+	storeId: string;
+	supported: true;
+	tvOnly: boolean;
+}
+
+export interface StorePerformanceUnsupported {
+	message: string;
+	platform: string;
+	supported: false;
+}
+
+export type StorePerformanceResponse =
+	| StorePerformanceReport
+	| StorePerformanceUnsupported;

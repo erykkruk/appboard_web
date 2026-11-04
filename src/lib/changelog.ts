@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.22.0",
+    serverVersion: "0.22.0",
+    date: "2026-11-04",
+    changes: [
+      "Store performance, a new page under Marketing & ASO for Google Play apps: store listing visitors, acquisitions and conversion per month, split by traffic source (Google Play search, Ads and referrals, Other), search term, UTM campaign and country, plus the installs overview. Pick the month at the top",
+      "The numbers come from the monthly reports Google Play writes to your developer account's Cloud Storage bucket. Paste the bucket once per Google Play connection (Settings > Connected Stores > Play reports bucket, from Play Console > Download reports > Copy Cloud Storage URI). The service account needs the Play Console permission View app information and download bulk reports; when it is missing the page says so and how to grant it",
+      "Play's own labels such as Other and No search terms specified are shown apart from real search terms, and Android TV packages say why all their traffic is Other",
+      "App Store apps show that App Store analytics are coming later",
+    ],
+  },
+  {
     version: "0.21.2",
     serverVersion: "0.21.2",
     date: "2026-11-04",
