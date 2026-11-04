@@ -1701,6 +1701,25 @@ export interface TrackingSchedule {
 	nextAutoResearchAt: string | null;
 }
 
+/** Workspace-wide morning email; replaces the per-app digests while on. */
+export interface DailySummarySettings {
+	/** Address set on the setting; null = fallback. */
+	email: string | null;
+	/** Where the next summary goes (setting, else a per-app report email, else the owner). */
+	effectiveEmail: string | null;
+	enabled: boolean;
+	lastSentAt: string | null;
+	schedule: { hour: number; minute: number; timezone: string };
+	/** Apps with rank tracking or auto-research on: what the email covers. */
+	trackedApps: number;
+}
+
+export interface DailySummarySendResult {
+	apps: number;
+	sent: boolean;
+	to: string | null;
+}
+
 export interface TrackingOverview {
 	config: AppTrackingConfig;
 	keywords: TrackedKeyword[];

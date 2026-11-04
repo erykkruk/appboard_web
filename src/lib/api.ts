@@ -37,6 +37,8 @@ import type {
 	CreateGroupInput,
 	CreatePurchaseInput,
 	CreateSubscriptionInput,
+	DailySummarySendResult,
+	DailySummarySettings,
 	DraftReplyRequest,
 	FeaturesResponse,
 	GenerateDescriptionRequest,
@@ -1380,6 +1382,18 @@ export const api = {
 			}),
 		summary: (appId: string) =>
 			fetchApi<TrackingSummary>(`/api/apps/${appId}/tracking/summary`),
+		// ── Workspace daily summary email ──
+		dailySummary: () =>
+			fetchApi<DailySummarySettings>("/api/tracking/daily-summary"),
+		sendTestDailySummary: () =>
+			fetchApi<DailySummarySendResult>("/api/tracking/daily-summary/test", {
+				method: "POST",
+			}),
+		updateDailySummary: (body: { email?: string | null; enabled?: boolean }) =>
+			fetchApi<DailySummarySettings>("/api/tracking/daily-summary", {
+				body: JSON.stringify(body),
+				method: "PATCH",
+			}),
 		updateConfig: (
 			appId: string,
 			body: {
