@@ -310,9 +310,11 @@ export function KeywordHistorySection() {
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">Score history</CardTitle>
           <CardDescription>
-            Latest stored score per keyword and country. Every search stores
-            one snapshot per day; tracked keywords refresh nightly, so trends
-            build up automatically.
+            Latest stored score per keyword and country, dated on the day the
+            App Store was asked. Store searches are cached for up to 7 days
+            and shared between workspaces, and tracked keywords are measured
+            again about once a week overnight, so trends build up
+            automatically.
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -331,7 +333,7 @@ export function KeywordHistorySection() {
                   <TableHead className="w-8" />
                   <TableHead>Keyword</TableHead>
                   <TableHead>Country</TableHead>
-                  <TableHead>Day</TableHead>
+                  <TableHead>Measured</TableHead>
                   <TableHead>Pop</TableHead>
                   <TableHead>Diff</TableHead>
                   <TableHead>Opp</TableHead>

@@ -20,6 +20,26 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.25.0",
+    serverVersion: "0.25.0",
+    date: "2026-11-04",
+    changes: [
+      "Keyword scores (popularity and difficulty) depend only on the keyword and the country, so the App Store search behind them is now measured once and reused for 7 days by every app and workspace. Scoring a keyword someone already measured this week is instant and costs no App Store call",
+      "The nightly score refresh measures each tracked keyword about once a week instead of every night, a slice per night, with new keywords first. It now takes minutes instead of hours and no longer collides with the rank check and auto-research",
+      "Score history is dated on the day the App Store was asked (the Measured column), so a cached score never shows up as a new point in a trend. Your own app's rank is never shared: it is measured for your app only",
+    ],
+  },
+  {
+    version: "0.24.0",
+    serverVersion: "0.24.0",
+    date: "2026-11-04",
+    changes: [
+      "Daily summary for all apps: one email at 07:30 (Europe/Warsaw) covering every app with rank tracking or auto-research, with tracked, ranked and top 10 counts without your app name, the five biggest gains and drops, starred keywords, the three strongest markets and the latest auto-research with its best new keyword ideas. Turn it on under Automations > Reminders",
+      "While the daily summary is on, the per-app rank digests and research reports are not sent, so you get one email a morning instead of several. Turned off, everything works as before",
+      "Pick a different address for the summary, or leave it empty to use your apps' report email or your account email, and press Send a test summary now to see it right away",
+    ],
+  },
+  {
     version: "0.23.0",
     serverVersion: "0.23.0",
     date: "2026-11-04",
