@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { DeltaBadge } from "@/components/tracking/delta-badge";
+import {
+  KeywordDownloadsNote,
+  KeywordDownloadsSortHeader,
+  KeywordDownloadsValue,
+} from "@/components/tracking/keyword-downloads";
 import { MarketStrengthTable } from "@/components/tracking/market-strength-table";
 import { RankChart, SERIES_COLORS } from "@/components/tracking/rank-chart";
 import { StarToggle } from "@/components/tracking/star-toggle";
@@ -29,10 +34,18 @@ import {
 } from "@/components/ui/table";
 import { useKeywordFilter } from "@/hooks/use-keyword-filter";
 import {
+  useKeywordDownloads,
   useStarKeyword,
+  useTracking,
   useTrackingBoard,
   useTrackingMarkets,
+  useTrackingMarketsHistory,
 } from "@/hooks/use-tracking";
+import {
+  compareByDownloads,
+  keywordDownloadsCells,
+  keywordDownloadsHeaderTitle,
+} from "@/lib/keyword-downloads";
 import { marketLabel } from "@/lib/markets";
 import {
   boardToSnapshots,
@@ -46,6 +59,11 @@ import {
   toggleChartKeyword,
   unmeasuredKeywords,
 } from "@/lib/rank-dashboard";
+import {
+  rankCheckHours,
+  rankCheckSlotsLabel,
+  rankCheckTimesLabel,
+} from "@/lib/rank-schedule";
 import { formatKeywordPosition } from "@/lib/research";
 import { filterByStar, isStarred } from "@/lib/starred-keywords";
 import type { BoardChange, RankAnnotation } from "@/lib/types";
@@ -97,9 +115,15 @@ export function KeywordPositionsCard({
   homeCountry: string | null;
 }) {
   const markets = useTrackingMarkets(appId);
+  const marketsHistory = useTrackingMarketsHistory(appId);
+  // Same query the audit card on the dashboard already loads.
+  const checkHours = rankCheckHours(useTracking(appId).data?.schedule);
+  const nextCheckHint = `Measured at the next check (${rankCheckSlotsLabel(checkHours)})`;
   const [pickedCountry, setPickedCountry] = useState<string | null>(null);
   const [showAllKeywords, setShowAllKeywords] = useState(false);
   const [picks, setPicks] = useState<Record<string, string[]>>({});
+  const [hoveredKeyword, setHoveredKeyword] = useState<string | null>(null);
+  const [sortByDownloads, setSortByDownloads] = useState(false);
 
   const marketRows = useMemo(
     () => markets.data?.markets ?? [],
@@ -121,10 +145,23 @@ export function KeywordPositionsCard({
     enabled: country !== null,
   });
 
-  const keywords = useMemo(
-    () => sortKeywordsForDashboard(board.data?.keywords ?? []),
-    [board.data?.keywords],
+  const downloads = useKeywordDownloads(appId, country ?? undefined, {
+    enabled: country !== null,
+  });
+  const downloadCells = useMemo(
+    () =>
+      downloads.data
+        ? keywordDownloadsCells(downloads.data, board.data?.keywords ?? [])
+        : null,
+    [board.data?.keywords, downloads.data],
   );
+
+  const keywords = useMemo(() => {
+    const sorted = sortKeywordsForDashboard(board.data?.keywords ?? []);
+    return sortByDownloads && downloadCells
+      ? [...sorted].sort(compareByDownloads(downloadCells))
+      : sorted;
+  }, [board.data?.keywords, downloadCells, sortByDownloads]);
   const starredCount = keywords.filter(isStarred).length;
   const { filter, pin, setFilter } = useKeywordFilter(starredCount > 0);
   const listed = useMemo(() => filterByStar(keywords, filter), [filter, keywords]);
@@ -204,6 +241,7 @@ export function KeywordPositionsCard({
       </CardHeader>
       <CardContent className="space-y-5">
         <MarketStrengthTable
+          history={marketsHistory.data}
           homeCountry={homeCountry}
           markets={marketRows}
           onSelect={setPickedCountry}
@@ -222,12 +260,14 @@ export function KeywordPositionsCard({
                 <p className="flex h-32 items-center justify-center rounded-md border border-dashed px-4 text-center text-sm text-muted-foreground">
                   History starts {formatDay(onlyDay)}. Positions are kept per
                   day, so lines appear once a second day is measured (checks
-                  run at 00:00 and 12:00). Today&apos;s positions are in the
+                  run at {rankCheckTimesLabel(checkHours)}). Today&apos;s positions are in the
                   table below.
                 </p>
               ) : selected.length ? (
                 <RankChart
+                  activeKeyword={hoveredKeyword}
                   annotations={board.data.changes.map(toAnnotation)}
+                  onActiveKeywordChange={setHoveredKeyword}
                   seriesColors={seriesColors}
                   snapshots={snapshots}
                 />
@@ -252,8 +292,7 @@ export function KeywordPositionsCard({
               {notMeasured.length > 0 && (
                 <p className="text-xs text-muted-foreground">
                   Not measured yet, so not on the chart:{" "}
-                  {notMeasured.join(", ")}. Measured at the next check (00:00 /
-                  12:00).
+                  {notMeasured.join(", ")}. {nextCheckHint}.
                 </p>
               )}
             </div>
@@ -265,6 +304,7 @@ export function KeywordPositionsCard({
                 onChange={setFilter}
                 starredCount={starredCount}
               />
+              <KeywordDownloadsNote report={downloads.data} />
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -279,6 +319,18 @@ export function KeywordPositionsCard({
                     <TableHead className="text-right">Position</TableHead>
                     <TableHead className="text-right">Change</TableHead>
                     <TableHead className="text-right">Best</TableHead>
+                    {downloads.data && (
+                      <TableHead
+                        aria-sort={sortByDownloads ? "descending" : undefined}
+                        className="text-right"
+                      >
+                        <KeywordDownloadsSortHeader
+                          active={sortByDownloads}
+                          onToggle={() => setSortByDownloads((v) => !v)}
+                          title={keywordDownloadsHeaderTitle(downloads.data)}
+                        />
+                      </TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -288,7 +340,15 @@ export function KeywordPositionsCard({
                       k.measuredAt ? k.position : undefined,
                     );
                     return (
-                      <TableRow key={k.keyword}>
+                      <TableRow
+                        key={k.keyword}
+                        className={cn(
+                          onChart && hoveredKeyword === k.keyword && "bg-muted",
+                        )}
+                        data-highlighted={hoveredKeyword === k.keyword || undefined}
+                        onMouseEnter={() => onChart && setHoveredKeyword(k.keyword)}
+                        onMouseLeave={() => setHoveredKeyword(null)}
+                      >
                         <TableCell>
                           <Checkbox
                             aria-label={`Show ${k.keyword} on the chart`}
@@ -335,7 +395,7 @@ export function KeywordPositionsCard({
                           title={
                             k.measuredAt
                               ? undefined
-                              : "Measured at the next check (00:00 / 12:00)"
+                              : nextCheckHint
                           }
                         >
                           {position.label}
@@ -346,6 +406,11 @@ export function KeywordPositionsCard({
                         <TableCell className="text-right tabular-nums text-muted-foreground">
                           {k.bestPosition === null ? "-" : `#${k.bestPosition}`}
                         </TableCell>
+                        {downloadCells && (
+                          <TableCell className="text-right">
+                            <KeywordDownloadsValue cell={downloadCells.get(k.keyword)} />
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
@@ -353,7 +418,7 @@ export function KeywordPositionsCard({
                     <TableRow>
                       <TableCell
                         className="text-center text-sm text-muted-foreground"
-                        colSpan={7}
+                        colSpan={downloadCells ? 8 : 7}
                       >
                         No starred keywords in this market yet. Star the ones
                         you target with the star next to them in All.

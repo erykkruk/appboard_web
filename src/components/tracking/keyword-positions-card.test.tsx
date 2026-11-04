@@ -3,7 +3,13 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
 
-import type { BoardKeyword, TrackingBoard, TrackingMarket } from "@/lib/types";
+import type {
+  BoardKeyword,
+  KeywordDownloadsReport,
+  TrackingBoard,
+  TrackingMarket,
+  TrackingMarketsHistory,
+} from "@/lib/types";
 
 import { KeywordPositionsCard } from "./keyword-positions-card";
 
@@ -145,8 +151,66 @@ const BOARDS: Record<string, TrackingBoard> = {
   ]),
 };
 
+/** App Store estimate for pl: quiz rodzinny ranks #1, gry na telewizor #4, kalambury unmeasured. */
+const DOWNLOADS_PL: KeywordDownloadsReport = {
+  country: "pl",
+  estimate: {
+    daysPerMonth: 30,
+    perDay: { high: 0.5, low: 0.12 },
+    perMonth: { high: 15, low: 3.6 },
+    ranked: 2,
+    scored: 2,
+  },
+  keywords: [
+    {
+      estimate: {
+        beyondModel: false,
+        perDay: { high: 0.1, low: 0.02 },
+        perMonth: { high: 3, low: 0.6 },
+        popularity: 30,
+        position: 1,
+        scoredAt: "2026-11-03",
+      },
+      keyword: "quiz rodzinny",
+      play: null,
+    },
+    {
+      estimate: {
+        beyondModel: false,
+        perDay: { high: 0.4, low: 0.1 },
+        perMonth: { high: 12, low: 3 },
+        popularity: 50,
+        position: 4,
+        scoredAt: "2026-11-03",
+      },
+      keyword: "gry na telewizor",
+      play: null,
+    },
+    { estimate: null, keyword: "kalambury", play: null },
+  ],
+  message: null,
+  platform: "ios",
+  play: null,
+  source: "app_store_estimate",
+};
+
 let originalFetch: typeof fetch;
 let requested: string[];
+
+const HISTORY: TrackingMarketsHistory = {
+  from: "2026-08-07",
+  markets: [
+    {
+      country: "pl",
+      points: [
+        { day: "2026-11-02", measured: 3, median: 30, ranked: 1, top10: 0, top50: 1, tracked: 3 },
+        { day: "2026-11-03", measured: 3, median: 8, ranked: 2, top10: 1, top50: 2, tracked: 3 },
+      ],
+    },
+  ],
+  timeZone: "Europe/Warsaw",
+  to: "2026-11-03",
+};
 
 function json(payload: unknown): Response {
   return new Response(JSON.stringify(payload), {
@@ -161,7 +225,11 @@ beforeEach(() => {
   globalThis.fetch = mock(async (input: RequestInfo | URL) => {
     const url = String(input);
     requested.push(url);
+    if (url.includes("/tracking/markets/history")) return json(HISTORY);
     if (url.includes("/tracking/markets")) return json(MARKETS);
+    if (url.includes("/tracking/keyword-downloads")) {
+      return json(url.includes("country=pl") ? DOWNLOADS_PL : { ...DOWNLOADS_PL, keywords: [] });
+    }
     const country = new URL(url, "http://localhost").searchParams.get("country") ?? "";
     return json(BOARDS[country] ?? board(country, []));
   }) as unknown as typeof fetch;
@@ -200,6 +268,32 @@ describe("KeywordPositionsCard", () => {
     expect(cell.textContent).toBe("Not checked");
   });
 
+  test("uses the check times of the app's store (Google Play: once a day)", async () => {
+    const boardFetch = globalThis.fetch;
+    globalThis.fetch = mock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (new URL(url, "http://localhost").pathname.endsWith("/tracking")) {
+        return json({
+          config: null,
+          keywords: [],
+          positions: [],
+          schedule: {
+            autoResearchHour: 6,
+            nextAutoResearchAt: null,
+            rankCheckHours: [0],
+            scoreRefreshHour: 1,
+            timezone: "Europe/Warsaw",
+          },
+        });
+      }
+      return boardFetch(input);
+    }) as unknown as typeof fetch;
+
+    render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+    const cell = await screen.findByTitle("Measured at the next check (00:00)");
+    expect(cell.textContent).toBe("Not checked");
+  });
+
   test("shows a strength table that ignores the brand's #1", async () => {
     render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
     const table = await screen.findByRole("table", { name: "Markets by strength" });
@@ -207,6 +301,19 @@ describe("KeywordPositionsCard", () => {
     expect(rows[0]?.textContent).toContain("Poland");
     expect(rows[0]?.textContent).toContain("quiz rodzinny");
     expect(rows[1]?.textContent).toContain("United States");
+  });
+
+  test("puts a trend in front of the counts of a market with history", async () => {
+    render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+    expect(
+      await screen.findByRole("button", { name: /Top 10 in Poland, .*open the day-by-day chart/ }),
+    ).toBeDefined();
+    for (const metric of ["Ranked", "Top 50", "Median"]) {
+      expect(screen.getByRole("button", { name: new RegExp(`^${metric} in Poland`) })).toBeDefined();
+    }
+    // No history for the United States: plain numbers.
+    expect(screen.queryByRole("button", { name: /in United States/ })).toBeNull();
+    expect(requested.some((u) => u.includes("/tracking/markets/history?days=90"))).toBe(true);
   });
 
   test("says when the history has a single day instead of an empty chart", async () => {
@@ -324,6 +431,28 @@ describe("KeywordPositionsCard", () => {
     render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
     const star = await screen.findByRole("button", { name: "Star quiz rodzinny" });
     expect((star as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  test("shows estimated downloads per keyword with the total and sorts by them", async () => {
+    render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+
+    const estimate = await screen.findByText("est. 3-12/mo");
+    expect(estimate.getAttribute("title")).toContain("not Apple data");
+    expect(screen.getByText("est. <1-3/mo")).toBeDefined();
+    expect(
+      screen.getByText(/Estimated search downloads: 4-15\/month from 2 ranked of 2 scored keywords/),
+    ).toBeDefined();
+    expect(requested.some((u) => u.includes("/tracking/keyword-downloads?country=pl"))).toBe(true);
+
+    const rowOrder = () =>
+      screen
+        .getAllByRole("checkbox")
+        .map((c) => c.getAttribute("aria-label"))
+        .filter((label): label is string => label !== null);
+    expect(rowOrder()[0]).toBe("Show quiz rodzinny on the chart");
+    fireEvent.click(screen.getByRole("button", { name: /Downloads/ }));
+    expect(rowOrder()[0]).toBe("Show gry na telewizor on the chart");
+    expect(rowOrder().at(-1)).toBe("Show kalambury on the chart");
   });
 
   test("renders nothing when the store has no searchable rankings", async () => {

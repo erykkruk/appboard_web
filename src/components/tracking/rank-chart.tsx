@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 
 import type { RankAnnotation, RankSnapshot } from "@/lib/types";
 
@@ -55,16 +55,42 @@ function fmtDate(ms: number): string {
 	});
 }
 
+/** Opacity of the other lines while one keyword is highlighted. */
+const DIMMED_OPACITY = 0.15;
+
+/** Draw order with the highlighted keyword last, so its line sits on top. */
+export function orderForHighlight<T extends { keyword: string }>(
+	series: T[],
+	active: string | null,
+): T[] {
+	if (!active) return series;
+	return [
+		...series.filter((s) => s.keyword !== active),
+		...series.filter((s) => s.keyword === active),
+	];
+}
+
 export function RankChart({
+	activeKeyword,
 	annotations,
+	onActiveKeywordChange,
 	seriesColors,
 	snapshots,
 }: {
+	/** Highlighted keyword when the parent controls it (e.g. a table row hover). */
+	activeKeyword?: string | null;
 	annotations: RankAnnotation[];
+	onActiveKeywordChange?: (keyword: string | null) => void;
 	/** Fixed colour per keyword, so a legend elsewhere can match the lines. */
 	seriesColors?: Record<string, string>;
 	snapshots: RankSnapshot[];
 }) {
+	const [ownActive, setOwnActive] = useState<string | null>(null);
+	const active = activeKeyword === undefined ? ownActive : activeKeyword;
+	const setActive = (keyword: string | null) => {
+		setOwnActive(keyword);
+		onActiveKeywordChange?.(keyword);
+	};
 	const { annos, series, xLabels, yTicks, offY } = useMemo(() => {
 		const times = snapshots.map((s) => new Date(s.createdAt).getTime());
 		const positions = snapshots
@@ -258,8 +284,31 @@ export function RankChart({
 						</text>
 					))}
 
+					{active && (
+						<text
+							className="fill-foreground"
+							fontSize="11"
+							fontWeight={600}
+							x={PAD.left + 4}
+							y={PAD.top - 6}
+						>
+							{active}
+							{(() => {
+								const last = series
+									.find((s) => s.keyword === active)
+									?.points.at(-1);
+								if (!last) return "";
+								return last.position === null
+									? " · not in top 50"
+									: ` · #${last.position}`;
+							})()}
+						</text>
+					)}
+
 					{/* Series lines + points */}
-					{series.map((s) => {
+					{orderForHighlight(series, active).map((s) => {
+						const isActive = active === s.keyword;
+						const dimmed = active !== null && !isActive;
 						const segments: string[] = [];
 						let started = false;
 						for (const p of s.points) {
@@ -271,14 +320,30 @@ export function RankChart({
 							started = true;
 						}
 						return (
-							<g key={s.keyword}>
+							<g
+								key={s.keyword}
+								className="cursor-pointer transition-opacity"
+								data-keyword={s.keyword}
+								onMouseEnter={() => setActive(s.keyword)}
+								onMouseLeave={() => setActive(null)}
+								opacity={dimmed ? DIMMED_OPACITY : 1}
+							>
 								{segments.length > 0 && (
-									<path
-										d={segments.join(" ")}
-										fill="none"
-										stroke={s.color}
-										strokeWidth={2}
-									/>
+									<>
+										{/* Wide invisible stroke: easier to hover a thin line. */}
+										<path
+											d={segments.join(" ")}
+											fill="none"
+											stroke="transparent"
+											strokeWidth={12}
+										/>
+										<path
+											d={segments.join(" ")}
+											fill="none"
+											stroke={s.color}
+											strokeWidth={isActive ? 3.5 : 2}
+										/>
+									</>
 								)}
 								{s.points.map((p) => (
 									<circle
@@ -286,7 +351,7 @@ export function RankChart({
 										cx={p.x}
 										cy={p.y}
 										fill={p.position === null ? "transparent" : s.color}
-										r={3.5}
+										r={isActive ? 4.5 : 3.5}
 										stroke={s.color}
 										strokeWidth={p.position === null ? 1.5 : 0}
 									>
@@ -305,15 +370,33 @@ export function RankChart({
 
 			{/* Legend */}
 			<div className="flex flex-wrap gap-x-4 gap-y-1 text-xs">
-				{series.map((s) => (
-					<span key={s.keyword} className="inline-flex items-center gap-1.5">
-						<span
-							className="inline-block h-2.5 w-2.5 rounded-full"
-							style={{ backgroundColor: s.color }}
-						/>
-						{s.keyword}
-					</span>
-				))}
+				{series.map((s) => {
+					const isActive = active === s.keyword;
+					return (
+						<button
+							key={s.keyword}
+							aria-pressed={isActive}
+							className={`inline-flex items-center gap-1.5 rounded px-1 transition-opacity ${
+								isActive
+									? "bg-muted font-semibold"
+									: active
+										? "opacity-40"
+										: ""
+							}`}
+							onBlur={() => setActive(null)}
+							onFocus={() => setActive(s.keyword)}
+							onMouseEnter={() => setActive(s.keyword)}
+							onMouseLeave={() => setActive(null)}
+							type="button"
+						>
+							<span
+								className="inline-block h-2.5 w-2.5 rounded-full"
+								style={{ backgroundColor: s.color }}
+							/>
+							{s.keyword}
+						</button>
+					);
+				})}
 				<span className="inline-flex items-center gap-1.5 text-muted-foreground">
 					<span className="inline-block h-2.5 w-2.5 rounded-full border-2 border-amber-500" />
 					text change

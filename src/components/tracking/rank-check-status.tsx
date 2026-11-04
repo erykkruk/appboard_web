@@ -2,6 +2,7 @@
 
 import { Progress } from "@/components/ui/progress";
 import { marketLabel } from "@/lib/markets";
+import { deferredReason, isDeferredRun } from "@/lib/rank-schedule";
 import type { RankCheckRun } from "@/lib/types";
 
 /** Failures listed under a finished run; the rest is a count. */
@@ -27,6 +28,16 @@ export function RankCheckStatus({ run }: { run: RankCheckRun | null }) {
           value={Math.round(run.progress * 100)}
         />
       </div>
+    );
+  }
+
+  if (isDeferredRun(run)) {
+    const reason = deferredReason(run).replace(/\.$/, "");
+    return (
+      <p className="text-sm text-muted-foreground" role="status">
+        The last rank check was deferred{reason ? `: ${reason}` : ""}. Positions
+        from earlier checks are kept.
+      </p>
     );
   }
 

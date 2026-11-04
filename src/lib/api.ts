@@ -37,6 +37,8 @@ import type {
 	CreateGroupInput,
 	CreatePurchaseInput,
 	CreateSubscriptionInput,
+	DailySummarySendResult,
+	DailySummarySettings,
 	DraftReplyRequest,
 	FeaturesResponse,
 	GenerateDescriptionRequest,
@@ -53,6 +55,7 @@ import type {
 	ImportAppResponse,
 	InAppPurchase,
 	KeywordCountrySummary,
+	KeywordDownloadsReport,
 	KeywordHistoryRow,
 	KeywordScore,
 	KeywordTrendPoint,
@@ -70,6 +73,7 @@ import type {
 	PurchaseSyncResult,
 	PushPreview,
 	QuickActionFocusContext,
+	RankByVersion,
 	RankHistory,
 	ResearchAnalysis,
 	ResearchAppMeta,
@@ -77,6 +81,7 @@ import type {
 	ResearchKeywordPosition,
 	ResearchMarketSnapshot,
 	ResearchReview,
+	RatingsSummary,
 	ResearchRun,
 	ResearchRunReport,
 	ResearchRunSummary,
@@ -87,6 +92,8 @@ import type {
 	ResearchVisualAnalysis,
 	Review,
 	ReviewInfo,
+	ReviewList,
+	ReviewScope,
 	ReviewStats,
 	SceneData,
 	ScreenshotDimensionErrorData,
@@ -110,6 +117,7 @@ import type {
 	RankCheckStart,
 	TrackedKeyword,
 	TrackingBoard,
+	TrackingMarketsHistory,
 	TrackingMarketsOverview,
 	TrackingOverview,
 	TrackingSummary,
@@ -1329,6 +1337,16 @@ export const api = {
 			fetchApi<TrackingBoard>(
 				`/api/apps/${appId}/tracking/board${toQuery({ ...params })}`,
 			),
+		/** Downloads each tracked keyword of one market brings (server 0.30.0+). */
+		keywordDownloads: (appId: string, params?: { country?: string }) =>
+			fetchApi<KeywordDownloadsReport>(
+				`/api/apps/${appId}/tracking/keyword-downloads${toQuery({ ...params })}`,
+			),
+		/** Positions of one market per store version (server 0.28.0+). */
+		byVersion: (appId: string, params?: { country?: string }) =>
+			fetchApi<RankByVersion>(
+				`/api/apps/${appId}/tracking/by-version${toQuery({ ...params })}`,
+			),
 		addKeywordsBulk: (
 			appId: string,
 			items: Array<{ country: string; keywords: string[] }>,
@@ -1348,6 +1366,11 @@ export const api = {
 			).then((r) => r.run),
 		markets: (appId: string) =>
 			fetchApi<TrackingMarketsOverview>(`/api/apps/${appId}/tracking/markets`),
+		/** Day-by-day market table for the sparklines (1-180 days). */
+		marketsHistory: (appId: string, days: number) =>
+			fetchApi<TrackingMarketsHistory>(
+				`/api/apps/${appId}/tracking/markets/history${toQuery({ days: String(days) })}`,
+			),
 		/** Keyword ideas for one market from stored data (no store calls). */
 		suggestions: (appId: string, country: string) =>
 			fetchApi<MarketSuggestions>(
@@ -1380,6 +1403,18 @@ export const api = {
 			}),
 		summary: (appId: string) =>
 			fetchApi<TrackingSummary>(`/api/apps/${appId}/tracking/summary`),
+		// ── Workspace daily summary email ──
+		dailySummary: () =>
+			fetchApi<DailySummarySettings>("/api/tracking/daily-summary"),
+		sendTestDailySummary: () =>
+			fetchApi<DailySummarySendResult>("/api/tracking/daily-summary/test", {
+				method: "POST",
+			}),
+		updateDailySummary: (body: { email?: string | null; enabled?: boolean }) =>
+			fetchApi<DailySummarySettings>("/api/tracking/daily-summary", {
+				body: JSON.stringify(body),
+				method: "PATCH",
+			}),
 		updateConfig: (
 			appId: string,
 			body: {
@@ -1426,11 +1461,22 @@ export const api = {
 				language?: string;
 				storeType?: string;
 				hasReply?: string;
+				country?: string;
+				scope?: ReviewScope;
 			},
 		) =>
-			fetchApi<{ reviews: Review[] }>(
+			fetchApi<ReviewList>(
 				`/api/apps/${appId}/reviews${toQuery(params ?? {})}`,
-			).then((r) => r.reviews),
+			).then((r) => ({ countries: r.countries ?? [], reviews: r.reviews })),
+		ratings: (appId: string, scope?: ReviewScope) =>
+			fetchApi<RatingsSummary>(
+				`/api/apps/${appId}/reviews/ratings${toQuery({ scope })}`,
+			),
+		refreshRatings: (appId: string, scope?: ReviewScope) =>
+			fetchApi<{ started: string[] }>(
+				`/api/apps/${appId}/reviews/ratings/refresh${toQuery({ scope })}`,
+				{ method: "POST" },
+			),
 		reply: (appId: string, reviewId: string, body: { text: string }) =>
 			fetchApi<{ review: Review }>(
 				`/api/apps/${appId}/reviews/${reviewId}/reply`,
@@ -1439,10 +1485,15 @@ export const api = {
 					method: "POST",
 				},
 			).then((r) => r.review),
-		stats: (appId: string) =>
-			fetchApi<ReviewStats>(`/api/apps/${appId}/reviews/stats`),
-		sync: (appId: string) =>
-			fetchApi<{ synced: number }>(`/api/apps/${appId}/reviews/sync`, {
+		stats: (appId: string, scope?: ReviewScope) =>
+			fetchApi<ReviewStats>(
+				`/api/apps/${appId}/reviews/stats${toQuery({ scope })}`,
+			),
+		sync: (appId: string, scope?: ReviewScope) =>
+			fetchApi<{
+				synced: number;
+				errors?: { appId: string; message: string }[];
+			}>(`/api/apps/${appId}/reviews/sync${toQuery({ scope })}`, {
 				method: "POST",
 			}),
 	},
