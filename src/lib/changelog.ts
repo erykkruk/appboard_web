@@ -7,6 +7,19 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.26.0",
+    serverVersion: "0.26.0",
+    date: "2026-11-04",
+    changes: [
+      "Reviews shows the real store rating: every star rating counts, also the ones without text, summed over all countries. Rating Overview gives the total and one line per store (for example App Store 4.7 from 32 ratings, 6 reviews), and Ratings by country lists each country with its rating, rating count and reviews",
+      "For an app in an app group, Reviews opens on the whole group: the App Store and Google Play apps of one product together, with a switch to This app only. Filter the review list by store and by country",
+      "App Store reviews come in with their country and can be answered from AppBoard when App Store Connect is connected. Each review in the group view replies through its own app",
+      "Ratings refresh every day from 04:00 (Warsaw time), paced like the rank checks; a refresh cut short picks up where it stopped. Every country is checked once a week, rated countries every day. Refresh in Rating Overview starts one now",
+      "Apps connected through the store API also pull new written reviews every day. Google Play only hands out the last 7 days of reviews, so a missed day used to lose them",
+      "MCP: new tool reviews_ratings_summary, and reviews_list takes scope and country",
+    ],
+  },
+  {
     version: "0.23.0",
     serverVersion: "0.23.0",
     date: "2026-11-04",

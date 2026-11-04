@@ -194,6 +194,65 @@ export interface Review {
 	repliedAt?: string;
 	reviewDate: string;
 	territory?: string;
+	/** Name of the app record the review belongs to (group view). */
+	appName?: string;
+	/** Whether a reply can be sent from AppBoard (store API connected). */
+	canReply?: boolean;
+	/** Storefront country, lower-case ISO alpha-2, when the store says. */
+	country?: string | null;
+}
+
+export type ReviewScope = "app" | "group";
+
+export interface ReviewList {
+	reviews: Review[];
+	/** Countries the reviews of the scope come from (filter options). */
+	countries: string[];
+}
+
+export type RatingStoreType = "app_store" | "google_play";
+
+export type RatingHistogram = Record<"1" | "2" | "3" | "4" | "5", number>;
+
+export interface CountryRatingSummary {
+	country: string;
+	average: number | null;
+	ratingCount: number;
+	writtenReviews: number;
+	histogram: RatingHistogram | null;
+	fetchedAt: string;
+}
+
+export interface StoreRatingSummary {
+	storeType: RatingStoreType;
+	average: number | null;
+	/** Every star rating, star-only ones included. */
+	ratingCount: number;
+	/** Ratings with text, as the store counts them. */
+	writtenReviews: number;
+	/** Reviews AppBoard has synced for this store. */
+	syncedReviews: number;
+	histogram: RatingHistogram | null;
+	fetchedAt: string | null;
+	countries: CountryRatingSummary[];
+}
+
+export interface RatingsSummary {
+	scope: ReviewScope;
+	group: { id: string; name: string } | null;
+	apps: {
+		appId: string;
+		name: string;
+		platform: string;
+		storeType: string;
+		devices: string[];
+		externalId: string;
+		lastRefreshedAt: string | null;
+	}[];
+	stores: StoreRatingSummary[];
+	total: { average: number | null; ratingCount: number; writtenReviews: number };
+	fetchedAt: string | null;
+	refreshing: boolean;
 }
 
 export interface ReviewStats {
