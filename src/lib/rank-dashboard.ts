@@ -1,6 +1,7 @@
+import { isStarred } from "@/lib/starred-keywords";
 import type { BoardKeyword, RankSnapshot, TrackingMarket } from "@/lib/types";
 
-/** The chart opens on the most searched keywords of the market, this many. */
+/** The chart opens on the starred (else most searched) keywords, at most this many. */
 export const MAX_CHART_KEYWORDS = 20;
 
 /** Market rows shown on the dashboard before "All markets" is opened. */
@@ -198,16 +199,18 @@ export function sortKeywordsForDashboard(
 }
 
 /**
- * Chart lines drawn before the user picks: the market's most searched
- * keywords. Popularity comes from the stored scores; a keyword nobody scored
- * yet sorts after the scored ones, keywords that ever ranked before those
- * that never did, and otherwise the tracker's own order is kept.
+ * Chart lines drawn before the user picks: the market's starred keywords
+ * when it has any, otherwise its most searched keywords. Popularity comes
+ * from the stored scores; a keyword nobody scored yet sorts after the scored
+ * ones, keywords that ever ranked before those that never did, and otherwise
+ * the tracker's own order is kept.
  */
 export function defaultChartKeywords(
   keywords: BoardKeyword[],
   max: number = MAX_CHART_KEYWORDS,
 ): string[] {
-  return keywords
+  const starred = keywords.filter(isStarred);
+  return (starred.length ? starred : keywords)
     .map((k, index) => ({ index, k }))
     .sort(
       (a, b) =>

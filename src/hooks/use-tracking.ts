@@ -4,7 +4,13 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
-import type { AutoResearchFrequency, RankCheckRun } from "@/lib/types";
+import type {
+	AutoResearchFrequency,
+	BoardKeyword,
+	RankCheckRun,
+	TrackingBoard,
+	TrackingOverview,
+} from "@/lib/types";
 
 const trackingKey = (appId: string) => ["apps", appId, "tracking"] as const;
 const historyKey = (appId: string) =>
@@ -110,6 +116,79 @@ export function useRemoveKeyword(appId: string) {
 		onSuccess: () => {
 			queryClient.invalidateQueries({ queryKey: trackingKey(appId) });
 		},
+	});
+}
+
+/** Puts a star change into every cached board and tracked list at once. */
+function patchStarInCache(
+	queryClient: ReturnType<typeof useQueryClient>,
+	appId: string,
+	keywordId: string,
+	starred: boolean,
+) {
+	queryClient.setQueriesData<TrackingBoard>(
+		{ queryKey: [...trackingKey(appId), "board"] },
+		(board) =>
+			board && {
+				...board,
+				keywords: board.keywords.map(
+					(k): BoardKeyword => (k.keywordId === keywordId ? { ...k, starred } : k),
+				),
+			},
+	);
+	queryClient.setQueryData<TrackingOverview>(trackingKey(appId), (overview) =>
+		overview && {
+			...overview,
+			keywords: overview.keywords.map((k) =>
+				k.id === keywordId ? { ...k, starred } : k,
+			),
+		},
+	);
+}
+
+/**
+ * Star or unstar a tracked keyword. The star shows at once (every cached
+ * list is patched) and the lists are re-read afterwards, so a failed request
+ * puts the previous state back.
+ */
+export function useStarKeyword(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (body: { keywordId: string; starred: boolean }) =>
+			api.tracking.setStarred(appId, body.keywordId, body.starred),
+		onError: (err) =>
+			toast.error(err instanceof Error ? err.message : "Failed to update the star"),
+		onMutate: ({ keywordId, starred }) =>
+			patchStarInCache(queryClient, appId, keywordId, starred),
+		onSettled: () =>
+			queryClient.invalidateQueries({ queryKey: trackingKey(appId) }),
+	});
+}
+
+/**
+ * Star an idea that is not tracked yet: it is tracked first (the per-market
+ * cap still applies, the server rejects the add over it), then starred.
+ */
+export function useTrackAndStarKeyword(appId: string) {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: async (body: { country: string; keyword: string }) => {
+			const country = body.country.toLowerCase();
+			const phrase = body.keyword.trim().toLowerCase();
+			const tracked = await api.tracking.addKeywords(appId, {
+				country,
+				keywords: [phrase],
+			});
+			const row = tracked.find(
+				(k) => k.country === country && k.keyword === phrase,
+			);
+			if (!row) throw new Error(`"${phrase}" could not be tracked`);
+			return api.tracking.setStarred(appId, row.id, true);
+		},
+		onError: (err) =>
+			toast.error(err instanceof Error ? err.message : "Failed to star the keyword"),
+		onSettled: () =>
+			queryClient.invalidateQueries({ queryKey: trackingKey(appId) }),
 	});
 }
 

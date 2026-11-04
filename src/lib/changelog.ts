@@ -7,6 +7,17 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.21.0",
+    serverVersion: "0.21.0",
+    date: "2026-11-04",
+    changes: [
+      "Star the keywords that are yours: a star next to every keyword on the dashboard, in the Keywords & Rankings tracker and tracked list, and in Research > Keyword scores. Starring an idea there tracks it first (the 40 slots per market still apply)",
+      "Every keyword list has a Starred / All switch. Lists open on Starred once the market has starred keywords and on All until then; the choice is kept in the address bar (?kw=starred), so a link or a reload shows the same view",
+      "The dashboard chart opens on your starred keywords of the market (up to 20) instead of the 20 most searched ones, as soon as the market has any",
+      "The market table on the dashboard gets a Starred top 10 column (starred keywords in the top 10, of all starred) once something is starred",
+    ],
+  },
+  {
     version: "0.20.1",
     serverVersion: "0.20.1",
     date: "2026-11-03",

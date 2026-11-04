@@ -3,11 +3,18 @@
 import { ChevronRight, X } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { StarToggle } from "@/components/tracking/star-toggle";
+import { StarredFilter } from "@/components/tracking/starred-filter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { groupTrackedKeywords } from "@/lib/keyword-groups";
 import { marketLabel } from "@/lib/markets";
+import {
+  filterByStar,
+  isStarred,
+  type KeywordFilter,
+} from "@/lib/starred-keywords";
 import type { TrackedKeyword, TrackingMarket } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -19,18 +26,26 @@ import { cn } from "@/lib/utils";
  */
 export function TrackedKeywordGroups({
   countries,
+  filter = "all",
   keywords,
   markets,
   maxPerMarket,
+  onFilterChange,
   onRemove,
+  onToggleStar,
   selectedCountry,
 }: {
   countries: string[];
+  /** Starred / All; the switch shows when `onFilterChange` is given. */
+  filter?: KeywordFilter;
   keywords: TrackedKeyword[];
   /** Ranking counts per market, when the overview has loaded. */
   markets: TrackingMarket[];
   maxPerMarket: number;
+  onFilterChange?: (next: KeywordFilter) => void;
   onRemove: (keywordId: string) => void;
+  /** Star buttons show on each keyword when given. */
+  onToggleStar?: (keyword: TrackedKeyword) => void;
   selectedCountry: string;
 }) {
   const [query, setQuery] = useState("");
@@ -41,11 +56,17 @@ export function TrackedKeywordGroups({
     () => new Map(markets.map((m) => [m.country, m])),
     [markets],
   );
-  const groups = useMemo(
-    () => groupTrackedKeywords(keywords, countries, query, marketLabel),
-    [countries, keywords, query],
-  );
-  const filtering = query.trim().length > 0;
+  const groups = useMemo(() => {
+    const shown = filterByStar(keywords, filter);
+    const totals = new Map<string, number>();
+    for (const k of keywords) totals.set(k.country, (totals.get(k.country) ?? 0) + 1);
+    // Slots used stay the market's real count whatever the star filter.
+    return groupTrackedKeywords(shown, countries, query, marketLabel)
+      .filter((group) => filter === "all" || group.keywords.length > 0)
+      .map((group) => ({ ...group, total: totals.get(group.country) ?? 0 }));
+  }, [countries, filter, keywords, query]);
+  const starredCount = keywords.filter(isStarred).length;
+  const filtering = query.trim().length > 0 || filter === "starred";
 
   const isOpen = (country: string) =>
     filtering ||
@@ -83,6 +104,14 @@ export function TrackedKeywordGroups({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
+        {onFilterChange && (
+          <StarredFilter
+            allCount={keywords.length}
+            filter={filter}
+            onChange={onFilterChange}
+            starredCount={starredCount}
+          />
+        )}
         <Input
           aria-label="Filter keywords and markets"
           className="max-w-xs"
@@ -148,6 +177,14 @@ export function TrackedKeywordGroups({
                 <div className="flex flex-wrap gap-2 px-3 pt-1 pb-3" id={panelId}>
                   {group.keywords.map((k) => (
                     <Badge key={k.id} className="gap-1 pr-1" variant="secondary">
+                      {onToggleStar && (
+                        <StarToggle
+                          className="-ml-1 h-5 w-5"
+                          keyword={k.keyword}
+                          onToggle={() => onToggleStar(k)}
+                          starred={isStarred(k)}
+                        />
+                      )}
                       {k.keyword}
                       <button
                         aria-label={`Remove ${k.keyword}`}
@@ -166,7 +203,9 @@ export function TrackedKeywordGroups({
         })}
         {!groups.length && (
           <p className="px-3 py-2 text-sm text-muted-foreground">
-            No keyword or market matches &quot;{query}&quot;.
+            {query.trim()
+              ? <>No keyword or market matches &quot;{query}&quot;.</>
+              : "No starred keywords yet. Switch to All and star the ones you target."}
           </p>
         )}
       </div>

@@ -1,11 +1,15 @@
 import { isWinnableScore } from "@/lib/aso-engine/listing-audit";
 import { MAX_KEYWORDS_PER_SCORING } from "@/lib/keyword-research";
+import { type KeywordFilter, isStarred } from "@/lib/starred-keywords";
 import type { BoardKeyword, KeywordSuggestion } from "@/lib/types";
 
 /** One row of the per-market keyword table: a tracked keyword or an idea. */
 export interface MarketKeywordRow {
   keyword: string;
   tracked: boolean;
+  /** Tracked keyword id; null for an idea (or history no longer tracked). */
+  keywordId: string | null;
+  starred: boolean;
   /**
    * Tracked: latest rank check (undefined = never checked, null = not in
    * the scanned results). Idea: App Store position seen when it was scored.
@@ -24,9 +28,11 @@ function trackedRow(k: BoardKeyword): MarketKeywordRow {
     difficulty: k.difficulty,
     difficultyTrend: k.scoreTrend.map((p) => p.difficulty),
     keyword: k.keyword,
+    keywordId: k.keywordId ?? null,
     popularity: k.popularity,
     position,
     scoredAt: k.scoredAt,
+    starred: isStarred(k),
     tracked: true,
     winnable:
       k.difficulty === null
@@ -40,9 +46,11 @@ function ideaRow(s: KeywordSuggestion): MarketKeywordRow {
     difficulty: s.difficulty,
     difficultyTrend: [],
     keyword: s.keyword,
+    keywordId: null,
     popularity: s.popularity,
     position: s.scoredAt === null ? undefined : s.appRank,
     scoredAt: s.scoredAt,
+    starred: false,
     tracked: false,
     winnable: s.winnable,
   };
@@ -79,6 +87,17 @@ export function buildMarketKeywordRows(
         a.keyword.localeCompare(b.keyword),
     );
   return [...trackedRows, ...ideas];
+}
+
+/**
+ * Starred narrows the tracked keywords to the starred ones; ideas always stay
+ * listed, they are where the next keyword to star comes from.
+ */
+export function filterMarketKeywordRows(
+  rows: MarketKeywordRow[],
+  filter: KeywordFilter,
+): MarketKeywordRow[] {
+  return filter === "starred" ? rows.filter((r) => !r.tracked || r.starred) : rows;
 }
 
 /**

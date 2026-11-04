@@ -34,16 +34,19 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useApp } from "@/hooks/use-apps";
+import { useKeywordFilter } from "@/hooks/use-keyword-filter";
 import {
   useAddKeywords,
   useRankCheckStatus,
   useRemoveKeyword,
   useRunRankCheck,
+  useStarKeyword,
   useTracking,
   useTrackingBoard,
   useTrackingMarkets,
 } from "@/hooks/use-tracking";
 import { marketLabel, marketOptions } from "@/lib/markets";
+import { isStarred } from "@/lib/starred-keywords";
 import { MAX_TRACKED_KEYWORDS_PER_LANGUAGE } from "@/lib/types";
 
 export function KeywordsRankingsTab({
@@ -57,6 +60,7 @@ export function KeywordsRankingsTab({
   const tracking = useTracking(appId);
   const addKeywords = useAddKeywords(appId);
   const removeKeyword = useRemoveKeyword(appId);
+  const starKeyword = useStarKeyword(appId);
   const rankCheck = useRunRankCheck(appId);
   const rankCheckStatus = useRankCheckStatus(appId);
   const markets = useTrackingMarkets(appId);
@@ -99,6 +103,13 @@ export function KeywordsRankingsTab({
         : (countriesUsed[0] ?? "us");
 
   const board = useTrackingBoard(appId, boardCountry);
+
+  // One URL filter for both lists; without a choice each opens on Starred
+  // once its own scope (the tracker's market, the whole list) has a star.
+  const boardFilter = useKeywordFilter(
+    (board.data?.keywords ?? []).some(isStarred),
+  );
+  const listFilter = useKeywordFilter(keywords.some(isStarred));
 
   const addOptions = useMemo(
     () => marketOptions([...countriesUsed, homeCountry]),
@@ -192,8 +203,14 @@ export function KeywordsRankingsTab({
           countries={countriesUsed}
           keywords={keywords}
           markets={markets.data?.markets ?? []}
+          filter={listFilter.filter}
           maxPerMarket={MAX_TRACKED_KEYWORDS_PER_LANGUAGE}
+          onFilterChange={listFilter.setFilter}
           onRemove={(id) => removeKeyword.mutate(id)}
+          onToggleStar={(k) => {
+            listFilter.pin();
+            starKeyword.mutate({ keywordId: k.id, starred: !isStarred(k) });
+          }}
           selectedCountry={country}
         />
         {!keywords.length && (
@@ -323,7 +340,19 @@ export function KeywordsRankingsTab({
                 </TabsList>
 
                 <TabsContent className="pt-4" value="keywords">
-                  <KeywordBoardTable keywords={board.data.keywords} />
+                  <KeywordBoardTable
+                    filter={boardFilter.filter}
+                    keywords={board.data.keywords}
+                    onFilterChange={boardFilter.setFilter}
+                    onToggleStar={(row) => {
+                      if (!row.keywordId) return;
+                      boardFilter.pin();
+                      starKeyword.mutate({
+                        keywordId: row.keywordId,
+                        starred: !isStarred(row),
+                      });
+                    }}
+                  />
                 </TabsContent>
                 <TabsContent className="pt-4" value="timeline">
                   <KeywordTimeline

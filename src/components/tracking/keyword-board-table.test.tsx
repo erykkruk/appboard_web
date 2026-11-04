@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, test } from "bun:test";
+import { afterEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
 import type { BoardKeyword } from "@/lib/types";
@@ -106,5 +106,49 @@ describe("KeywordBoardTable", () => {
     });
     expect(screen.queryByText("quiz na tv")).toBeNull();
     expect(screen.getByText("kalambury")).toBeDefined();
+  });
+});
+
+describe("KeywordBoardTable stars", () => {
+  const rows = [
+    keyword({ keyword: "ours", keywordId: "kw-1", starred: true }),
+    keyword({ keyword: "other", keywordId: "kw-2" }),
+    keyword({ keyword: "history only", keywordId: null }),
+  ];
+
+  test("Starred shows only the starred rows", () => {
+    render(<KeywordBoardTable filter="starred" keywords={rows} onFilterChange={() => {}} />);
+    expect(screen.getByText("ours")).toBeDefined();
+    expect(screen.queryByText("other")).toBeNull();
+    expect(screen.getByRole("button", { name: "Starred (1)" }).getAttribute("aria-pressed")).toBe(
+      "true",
+    );
+  });
+
+  test("an empty Starred view says how to star", () => {
+    render(
+      <KeywordBoardTable
+        filter="starred"
+        keywords={[keyword({ keyword: "other" })]}
+        onFilterChange={() => {}}
+      />,
+    );
+    expect(screen.getByText(/No starred keywords in this market yet/)).toBeDefined();
+  });
+
+  test("stars a row; a phrase that is no longer tracked cannot be starred", () => {
+    const onToggleStar = mock(() => {});
+    render(<KeywordBoardTable keywords={rows} onToggleStar={onToggleStar} />);
+    fireEvent.click(screen.getByRole("button", { name: "Star other" }));
+    expect(onToggleStar).toHaveBeenCalledWith(rows[1]);
+    expect(
+      (screen.getByRole("button", { name: "Star history only" }) as HTMLButtonElement).disabled,
+    ).toBe(true);
+  });
+
+  test("without the callbacks the table has no star column or switch", () => {
+    render(<KeywordBoardTable keywords={rows} />);
+    expect(screen.queryByRole("button", { name: /Star / })).toBeNull();
+    expect(screen.queryByRole("group", { name: "Show keywords" })).toBeNull();
   });
 });

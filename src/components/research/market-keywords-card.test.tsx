@@ -180,7 +180,8 @@ describe("MarketKeywordsCard", () => {
 
     await screen.findByText("teleturniej");
     const rows = screen.getAllByRole("row").slice(1);
-    expect(rows.map((r) => within(r).getAllByRole("cell")[0].textContent)).toEqual([
+    // Cell 0 is the star.
+    expect(rows.map((r) => within(r).getAllByRole("cell")[1].textContent)).toEqual([
       "quiz rodzinnytracked",
       "kalamburytracked",
       "teleturniejidea",
@@ -219,6 +220,88 @@ describe("MarketKeywordsCard", () => {
       country: "pl",
       keywords: ["kalambury", "gra na tv"],
     });
+  });
+
+  test("stars a tracked keyword and tracks an idea before starring it", async () => {
+    const calls: Array<{ body: unknown; method: string; url: string }> = [];
+    const starredBoard = board("pl", [
+      keyword("quiz rodzinny", { keywordId: "kw-quiz", position: 2 }),
+      keyword("kalambury", { keywordId: "kw-kal", position: 18 }),
+    ]);
+    globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      const method = init?.method ?? "GET";
+      if (method !== "GET") {
+        calls.push({ body: JSON.parse(String(init?.body)), method, url });
+        if (method === "POST") {
+          return json({
+            keywords: [
+              {
+                appId: "app-1",
+                country: "pl",
+                createdAt: "2026-11-04T00:00:00.000Z",
+                id: "kw-new",
+                keyword: "gra na tv",
+                starred: false,
+              },
+            ],
+          });
+        }
+        return json({ keyword: { id: url.split("/").pop(), starred: true } });
+      }
+      if (url.includes("/tracking/markets")) return json(MARKETS);
+      if (url.includes("/tracking/suggestions")) return json(SUGGESTIONS_PL);
+      return json(starredBoard);
+    }) as unknown as typeof fetch;
+
+    render(<MarketKeywordsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+    fireEvent.click(await screen.findByRole("button", { name: "Star kalambury" }));
+    await waitFor(() => expect(calls).toHaveLength(1));
+    expect(calls[0]).toEqual({
+      body: { starred: true },
+      method: "PATCH",
+      url: "/api/apps/app-1/tracking/keywords/kw-kal",
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Star gra na tv" }));
+    await waitFor(() => expect(calls).toHaveLength(3));
+    expect(calls[1]).toEqual({
+      body: { country: "pl", keywords: ["gra na tv"] },
+      method: "POST",
+      url: "/api/apps/app-1/tracking/keywords",
+    });
+    expect(calls[2]).toEqual({
+      body: { starred: true },
+      method: "PATCH",
+      url: "/api/apps/app-1/tracking/keywords/kw-new",
+    });
+  });
+
+  test("opens on Starred once the market has a star, keeping the ideas listed", async () => {
+    globalThis.fetch = mock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/tracking/markets")) return json(MARKETS);
+      if (url.includes("/tracking/suggestions")) return json(SUGGESTIONS_PL);
+      return json(
+        board("pl", [
+          keyword("quiz rodzinny", { keywordId: "kw-quiz", starred: true }),
+          keyword("kalambury", { keywordId: "kw-kal" }),
+        ]),
+      );
+    }) as unknown as typeof fetch;
+
+    render(<MarketKeywordsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+    await screen.findByText("teleturniej");
+    expect(
+      screen.getByRole("button", { name: "Starred (1)" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(screen.queryByText("kalambury")).toBeNull();
+    expect(screen.getByText("quiz rodzinny")).toBeDefined();
+    expect(screen.getByText("gra na tv")).toBeDefined();
+
+    fireEvent.click(screen.getByRole("button", { name: "All (2)" }));
+    expect(await screen.findByText("kalambury")).toBeDefined();
+    expect(new URL(window.location.href).searchParams.get("kw")).toBe("all");
   });
 
   test("disables Track once the market is full", async () => {

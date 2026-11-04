@@ -234,6 +234,24 @@ describe("defaultChartKeywords", () => {
     expect(picked).toEqual(["ranked before", "b never", "a never"]);
   });
 
+  test("opens on the starred keywords when the market has any", () => {
+    const picked = defaultChartKeywords([
+      keyword("popular", { popularity: 80 }),
+      keyword("ours, less searched", { popularity: 10, starred: true }),
+      keyword("ours", { popularity: 40, starred: true }),
+    ]);
+    expect(picked).toEqual(["ours", "ours, less searched"]);
+  });
+
+  test("caps starred keywords at twenty too", () => {
+    const many = Array.from({ length: MAX_CHART_KEYWORDS + 3 }, (_, i) =>
+      keyword(`star-${i}`, { popularity: i, starred: true }),
+    );
+    expect(defaultChartKeywords([keyword("other", { popularity: 99 }), ...many])).toHaveLength(
+      MAX_CHART_KEYWORDS,
+    );
+  });
+
   test("caps the chart at twenty keywords", () => {
     expect(MAX_CHART_KEYWORDS).toBe(20);
     const many = Array.from({ length: MAX_CHART_KEYWORDS + 4 }, (_, i) =>

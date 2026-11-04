@@ -94,6 +94,8 @@ export function MarketStrengthTable({
     [homeCountry, markets, sort],
   );
   const visible = showAll ? rows : rows.slice(0, DASHBOARD_MARKETS_PREVIEW);
+  // Only once something is starred: an all-dash column says nothing.
+  const showStarred = markets.some((m) => (m.starred ?? 0) > 0);
 
   return (
     <div className="space-y-2">
@@ -126,6 +128,14 @@ export function MarketStrengthTable({
                 </button>
               </TableHead>
             ))}
+            {showStarred && (
+              <TableHead
+                className="text-right"
+                title="Starred keywords in the top 10 now, of all starred in the market"
+              >
+                Starred top 10
+              </TableHead>
+            )}
             <TableHead>Best keyword</TableHead>
             <TableHead className="text-right">
               <button
@@ -182,6 +192,21 @@ export function MarketStrengthTable({
                 <TableCell className="text-right tabular-nums text-muted-foreground">
                   {m.medianPosition === null ? "-" : `#${m.medianPosition}`}
                 </TableCell>
+                {showStarred && (
+                  <TableCell className="text-right tabular-nums">
+                    {m.starred ? (
+                      <span
+                        className={cn(
+                          (m.starredTop10 ?? 0) > 0 && "font-semibold text-emerald-500",
+                        )}
+                      >
+                        {m.starredTop10 ?? 0}/{m.starred}
+                      </span>
+                    ) : (
+                      <span className="text-muted-foreground">-</span>
+                    )}
+                  </TableCell>
+                )}
                 <TableCell>
                   {m.bestEarned ? (
                     <span className="inline-flex items-center gap-2">
