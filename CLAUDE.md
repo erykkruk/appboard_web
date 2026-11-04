@@ -152,6 +152,12 @@ Components            TanStack Query
 - **Wszystkie rynki (0.17.0)**: `src/lib/aso-check/run-check.ts` (`runCheck`) iteruje po `KEYWORD_COUNTRIES` (30 storefrontow, rynek z linku pierwszy), per rynek lookup + max `ALL_MARKETS_CANDIDATES` (8, Play 5) keywordow, pauza 300 ms miedzy KAZDYM callem do sklepu; brak apki w storefroncie = `missing`, a nie blad. Komponent tylko reaguje na eventy (`onMarket`, `onScores`, `onMissing`, `onProgress`) i moze przerwac przez `isCancelled` (przycisk "Stop here", raport `partial`). Tryb pojedynczego rynku = ta sama funkcja z `mode: "single"` i pelnym `MAX_CANDIDATES`.
 - **Link do raportu**: po skonczonym biegu `createShare` wysyla caly snapshot (`SharedAsoReport`, `version: 1`) do `POST /api/public/aso-reports/share`, a adres w pasku zmienia sie przez `history.replaceState` na `/aso-check/r/<id>` (`src/app/aso-check/r/[id]/page.tsx`, noindex). Strona udostepniona pobiera snapshot i renderuje go WYLACZNIE po `sanitizeSharedReport` (`src/lib/aso-check/share.ts`): stringi ciete, liczby skonczone, obrazki tylko z mzstatic/googleusercontent, linki tylko do apps.apple.com/play.google.com, kazde CTA przepisane na sign-up. To tresc od anonimow pod naszym originem - nie renderowac surowego payloadu, nie dodawac pol bez sanitizera.
 
+## Store performance (/apps/:appId/store-performance, 0.22.0)
+
+- Google Play listing visitors / acquisitions / conversion per month (traffic source, search term, UTM campaign, country, installs overview) from `GET /api/apps/:id/store-performance?months=6`. Nav: Marketing & ASO > Store performance (RESEARCH flag).
+- The response is always 200: problems are `status` values (bucket_missing, access_denied, bucket_not_found, credentials_invalid, integration_required, error) and `StorePerformanceView` renders the fix for each. iOS = `supported: false` ("App Store analytics coming later"). Keep the view prop-driven (tested without module mocks); the page only wires hooks.
+- Bucket per Play connection: `PlayReportsBucketDialog` (Settings > Connected Stores, trending-up icon, and from the page) -> `PATCH /api/stores/:id/play-reports-bucket`.
+
 ## Feature Flags System
 
 Workspace-scoped toggles for 12 modules. The sidebar navigation is filtered by the flags, and endpoints are gated on the backend (403 when a flag is disabled).

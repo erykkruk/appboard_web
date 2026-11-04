@@ -98,6 +98,7 @@ import type {
 	SplitUploadResult,
 	Store,
 	StoreCapabilities,
+	StorePerformanceResponse,
 	StoreType,
 	SubscriptionGroup,
 	SuggestCategoryRequest,
@@ -206,6 +207,17 @@ export const api = {
 
 	overview: {
 		get: () => fetchApi<WorkspaceOverview>("/api/overview"),
+	},
+
+	storePerformance: {
+		/** Google Play bulk reports per month; problems come back as `status`, not as errors. */
+		get: (appId: string, params?: { months?: number; refresh?: boolean }) =>
+			fetchApi<StorePerformanceResponse>(
+				`/api/apps/${appId}/store-performance${toQuery({
+					months: params?.months ? String(params.months) : undefined,
+					refresh: params?.refresh ? "true" : undefined,
+				})}`,
+			),
 	},
 
 	audit: {
@@ -1681,6 +1693,11 @@ export const api = {
 			fetchApi<{ synced: number }>(`/api/stores/${id}/sync`, {
 				method: "POST",
 			}),
+		setPlayReportsBucket: (id: string, bucket: string | null) =>
+			fetchApi<{ playReportsBucket: string | null }>(
+				`/api/stores/${id}/play-reports-bucket`,
+				{ body: JSON.stringify({ bucket }), method: "PATCH" },
+			),
 		syncAll: () =>
 			fetchApi<{
 				results: { storeId: string; storeName: string; synced: number }[];

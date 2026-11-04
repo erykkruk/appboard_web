@@ -32,7 +32,10 @@ describe("nav model", () => {
     expect(
       APP_NAV_SECTIONS.map((section) => [section.label, labels(section.items)]),
     ).toEqual([
-      ["Marketing & ASO", ["Dashboard", "Keyword rankings", "Research", "Fixes"]],
+      [
+        "Marketing & ASO",
+        ["Dashboard", "Keyword rankings", "Research", "Store performance", "Fixes"],
+      ],
       [
         "Store",
         [
@@ -66,6 +69,7 @@ describe("nav model", () => {
       "/information",
       "/screenshots",
       "/research",
+      "/store-performance",
       "/publish",
       "/purchases",
       "/reviews",
