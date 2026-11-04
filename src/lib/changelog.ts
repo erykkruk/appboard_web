@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.25.0",
+    serverVersion: "0.25.0",
+    date: "2026-11-04",
+    changes: [
+      "Keyword scores (popularity and difficulty) depend only on the keyword and the country, so the App Store search behind them is now measured once and reused for 7 days by every app and workspace. Scoring a keyword someone already measured this week is instant and costs no App Store call",
+      "The nightly score refresh measures each tracked keyword about once a week instead of every night, a slice per night, with new keywords first. It now takes minutes instead of hours and no longer collides with the rank check and auto-research",
+      "Score history is dated on the day the App Store was asked (the Measured column), so a cached score never shows up as a new point in a trend. Your own app's rank is never shared: it is measured for your app only",
+    ],
+  },
+  {
     version: "0.23.0",
     serverVersion: "0.23.0",
     date: "2026-11-04",

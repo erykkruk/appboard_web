@@ -322,7 +322,7 @@ export function MarketKeywordsCard({
         {ideas.data && ideas.data.suggestions.length === 0 && (
           <p className="text-xs text-muted-foreground">
             No ideas yet for this market: they appear once its tracked
-            keywords have been scored (every night at 01:00).
+            keywords have been scored (new keywords overnight, from 01:00).
           </p>
         )}
       </CardContent>

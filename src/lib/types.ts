@@ -2114,6 +2114,10 @@ export interface KeywordScore {
 	downloads: KeywordDownloadEstimates;
 	appRank?: number | null;
 	competitors: KeywordCompetitor[];
+	/** When the App Store search behind the score was made (ISO, server 0.25.0+). */
+	scoredAt?: string;
+	/** True when the score came from the 7-day cross-workspace cache. */
+	cached?: boolean;
 	error?: string;
 }
 
