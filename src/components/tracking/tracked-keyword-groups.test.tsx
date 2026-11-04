@@ -72,3 +72,55 @@ describe("TrackedKeywordGroups", () => {
     expect(onRemove).toHaveBeenCalledWith("pl-kalambury");
   });
 });
+
+describe("TrackedKeywordGroups stars", () => {
+  const starred = [
+    { ...kw("pl", "quiz rodzinny"), starred: true },
+    kw("pl", "kalambury"),
+    kw("de", "quizshow"),
+  ];
+
+  test("Starred shows only starred keywords and keeps the real slot count", () => {
+    render(
+      <TrackedKeywordGroups
+        countries={["de", "pl"]}
+        filter="starred"
+        keywords={starred}
+        markets={[]}
+        maxPerMarket={40}
+        onFilterChange={() => {}}
+        onRemove={() => {}}
+        selectedCountry="pl"
+      />,
+    );
+    expect(screen.getByText("quiz rodzinny")).toBeDefined();
+    expect(screen.queryByText("kalambury")).toBeNull();
+    // A market without a star drops out of the Starred view.
+    expect(screen.queryByRole("button", { name: /Germany/ })).toBeNull();
+    expect(header(/Poland/).textContent).toContain("1 of 2/40");
+  });
+
+  test("the switch and the star call back", () => {
+    const onFilterChange = mock(() => {});
+    const onToggleStar = mock(() => {});
+    render(
+      <TrackedKeywordGroups
+        countries={["de", "pl"]}
+        keywords={starred}
+        markets={[]}
+        maxPerMarket={40}
+        onFilterChange={onFilterChange}
+        onRemove={() => {}}
+        onToggleStar={onToggleStar}
+        selectedCountry="pl"
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Starred (1)" }));
+    expect(onFilterChange).toHaveBeenCalledWith("starred");
+    fireEvent.click(screen.getByRole("button", { name: "Star kalambury" }));
+    expect(onToggleStar).toHaveBeenCalledWith(kw("pl", "kalambury"));
+    expect(
+      screen.getByRole("button", { name: "Unstar quiz rodzinny" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+});

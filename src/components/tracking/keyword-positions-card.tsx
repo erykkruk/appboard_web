@@ -7,6 +7,8 @@ import { useMemo, useState } from "react";
 import { DeltaBadge } from "@/components/tracking/delta-badge";
 import { MarketStrengthTable } from "@/components/tracking/market-strength-table";
 import { RankChart, SERIES_COLORS } from "@/components/tracking/rank-chart";
+import { StarToggle } from "@/components/tracking/star-toggle";
+import { StarredFilter } from "@/components/tracking/starred-filter";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,7 +27,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useTrackingBoard, useTrackingMarkets } from "@/hooks/use-tracking";
+import { useKeywordFilter } from "@/hooks/use-keyword-filter";
+import {
+  useStarKeyword,
+  useTrackingBoard,
+  useTrackingMarkets,
+} from "@/hooks/use-tracking";
 import { marketLabel } from "@/lib/markets";
 import {
   boardToSnapshots,
@@ -40,6 +47,7 @@ import {
   unmeasuredKeywords,
 } from "@/lib/rank-dashboard";
 import { formatKeywordPosition } from "@/lib/research";
+import { filterByStar, isStarred } from "@/lib/starred-keywords";
 import type { BoardChange, RankAnnotation } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
@@ -117,6 +125,10 @@ export function KeywordPositionsCard({
     () => sortKeywordsForDashboard(board.data?.keywords ?? []),
     [board.data?.keywords],
   );
+  const starredCount = keywords.filter(isStarred).length;
+  const { filter, pin, setFilter } = useKeywordFilter(starredCount > 0);
+  const listed = useMemo(() => filterByStar(keywords, filter), [filter, keywords]);
+  const starKeyword = useStarKeyword(appId);
   const selected = useMemo<string[]>(
     () =>
       (country ? picks[country] : undefined) ??
@@ -156,8 +168,8 @@ export function KeywordPositionsCard({
   if (!country || !marketRows.length) return null;
 
   const visibleKeywords = showAllKeywords
-    ? keywords
-    : keywords.slice(0, KEYWORD_ROWS_PREVIEW);
+    ? listed
+    : listed.slice(0, KEYWORD_ROWS_PREVIEW);
   const chartFull = selected.length >= MAX_CHART_KEYWORDS;
   const earned = selectedMarket ? earnedCounts(selectedMarket) : null;
 
@@ -247,11 +259,20 @@ export function KeywordPositionsCard({
             </div>
 
             <div className="space-y-2">
+              <StarredFilter
+                allCount={keywords.length}
+                filter={filter}
+                onChange={setFilter}
+                starredCount={starredCount}
+              />
               <Table>
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-8">
                       <span className="sr-only">On the chart</span>
+                    </TableHead>
+                    <TableHead className="w-8">
+                      <span className="sr-only">Starred</span>
                     </TableHead>
                     <TableHead>Keyword</TableHead>
                     <TableHead className="text-right">Popularity</TableHead>
@@ -274,6 +295,21 @@ export function KeywordPositionsCard({
                             checked={onChart}
                             disabled={!onChart && chartFull}
                             onCheckedChange={() => toggle(k.keyword)}
+                          />
+                        </TableCell>
+                        <TableCell>
+                          <StarToggle
+                            disabled={!k.keywordId}
+                            keyword={k.keyword}
+                            onToggle={() => {
+                              if (!k.keywordId) return;
+                              pin();
+                              starKeyword.mutate({
+                                keywordId: k.keywordId,
+                                starred: !isStarred(k),
+                              });
+                            }}
+                            starred={isStarred(k)}
                           />
                         </TableCell>
                         <TableCell className="font-medium">
@@ -313,14 +349,27 @@ export function KeywordPositionsCard({
                       </TableRow>
                     );
                   })}
+                  {!listed.length && (
+                    <TableRow>
+                      <TableCell
+                        className="text-center text-sm text-muted-foreground"
+                        colSpan={7}
+                      >
+                        No starred keywords in this market yet. Star the ones
+                        you target with the star next to them in All.
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
               <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
                 <span>
-                  The chart opens on the {MAX_CHART_KEYWORDS} most searched
-                  keywords; tick up to {MAX_CHART_KEYWORDS} of your own.
+                  {starredCount > 0
+                    ? `The chart opens on your starred keywords (up to ${MAX_CHART_KEYWORDS})`
+                    : `The chart opens on the ${MAX_CHART_KEYWORDS} most searched keywords`}
+                  ; tick up to {MAX_CHART_KEYWORDS} of your own.
                 </span>
-                {keywords.length > KEYWORD_ROWS_PREVIEW && (
+                {listed.length > KEYWORD_ROWS_PREVIEW && (
                   <Button
                     className="h-auto px-2 py-1 text-xs"
                     onClick={() => setShowAllKeywords((v) => !v)}
@@ -329,7 +378,7 @@ export function KeywordPositionsCard({
                   >
                     {showAllKeywords
                       ? "Fewer keywords"
-                      : `All ${keywords.length} keywords`}
+                      : `All ${listed.length} keywords`}
                   </Button>
                 )}
               </div>

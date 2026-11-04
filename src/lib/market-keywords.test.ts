@@ -3,7 +3,11 @@ import { describe, expect, test } from "bun:test";
 import { MAX_KEYWORDS_PER_SCORING } from "@/lib/keyword-research";
 import type { BoardKeyword, KeywordSuggestion } from "@/lib/types";
 
-import { buildMarketKeywordRows, keywordsToScore } from "./market-keywords";
+import {
+  buildMarketKeywordRows,
+  filterMarketKeywordRows,
+  keywordsToScore,
+} from "./market-keywords";
 
 function tracked(name: string, overrides: Partial<BoardKeyword> = {}): BoardKeyword {
   return {
@@ -126,5 +130,34 @@ describe("keywordsToScore", () => {
       [idea("b", { difficulty: 20, scoredAt: "2026-11-03" })],
     );
     expect(keywordsToScore(rows)).toEqual([]);
+  });
+});
+
+describe("filterMarketKeywordRows", () => {
+  const rows = buildMarketKeywordRows(
+    [
+      tracked("ours", { keywordId: "kw-1", starred: true }),
+      tracked("other", { keywordId: "kw-2" }),
+    ],
+    [idea("idea")],
+  );
+
+  test("carries the id and the star of tracked rows; ideas have neither", () => {
+    expect(rows.map((r) => [r.keyword, r.keywordId, r.starred])).toEqual([
+      ["other", "kw-2", false],
+      ["ours", "kw-1", true],
+      ["idea", null, false],
+    ]);
+  });
+
+  test("Starred narrows tracked keywords and keeps the ideas", () => {
+    expect(filterMarketKeywordRows(rows, "starred").map((r) => r.keyword)).toEqual([
+      "ours",
+      "idea",
+    ]);
+  });
+
+  test("All keeps everything", () => {
+    expect(filterMarketKeywordRows(rows, "all")).toHaveLength(3);
   });
 });

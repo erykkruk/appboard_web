@@ -20,6 +20,7 @@ import type {
 	AppReviewDetail,
 	AppTrackingConfig,
 	BulkAddKeywordsResult,
+	BulkStarKeywordsResult,
 	AppVersion,
 	AsoProfile,
 	AsoProfileInput,
@@ -1351,6 +1352,20 @@ export const api = {
 				`/api/apps/${appId}/tracking/keywords/${keywordId}`,
 				{ method: "DELETE" },
 			),
+		setStarred: (appId: string, keywordId: string, starred: boolean) =>
+			fetchApi<{ keyword: TrackedKeyword }>(
+				`/api/apps/${appId}/tracking/keywords/${keywordId}`,
+				{ body: JSON.stringify({ starred }), method: "PATCH" },
+			).then((r) => r.keyword),
+		setStarredBulk: (
+			appId: string,
+			items: Array<{ country: string; keywords: string[] }>,
+			starred: boolean,
+		) =>
+			fetchApi<BulkStarKeywordsResult>(`/api/apps/${appId}/tracking/keywords`, {
+				body: JSON.stringify({ items, starred }),
+				method: "PATCH",
+			}),
 		summary: (appId: string) =>
 			fetchApi<TrackingSummary>(`/api/apps/${appId}/tracking/summary`),
 		updateConfig: (

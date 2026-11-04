@@ -247,6 +247,85 @@ describe("KeywordPositionsCard", () => {
     );
   });
 
+  test("opens on All with no star yet", async () => {
+    render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+    await screen.findByRole("checkbox", { name: "Show quiz rodzinny on the chart" });
+    expect(
+      screen.getByRole("button", { name: "All (3)" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(screen.getByRole("button", { name: "Starred (0)" })).toBeDefined();
+    expect(screen.getByText(/opens on the 20 most searched keywords/)).toBeDefined();
+  });
+
+  test("with starred keywords it lists and charts the starred ones by default", async () => {
+    const starredBoard = board("pl", [
+      keyword("quiz rodzinny", { keywordId: "kw-1", popularity: 50, position: 1 }),
+      keyword("gry na telewizor", {
+        keywordId: "kw-2",
+        popularity: 10,
+        position: 4,
+        starred: true,
+      }),
+      keyword("kalambury", { keywordId: "kw-3", measuredAt: null, starred: true }),
+    ]);
+    globalThis.fetch = mock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.includes("/tracking/markets")) return json(MARKETS);
+      return json(starredBoard);
+    }) as unknown as typeof fetch;
+
+    render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+    await screen.findByRole("checkbox", { name: "Show gry na telewizor on the chart" });
+
+    expect(
+      screen.getByRole("button", { name: "Starred (2)" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+    expect(screen.queryByRole("checkbox", { name: "Show quiz rodzinny on the chart" })).toBeNull();
+    expect(
+      (screen.getByRole("checkbox", { name: "Show gry na telewizor on the chart" }) as HTMLElement)
+        .getAttribute("data-state"),
+    ).toBe("checked");
+    expect(screen.getByText(/opens on your starred keywords \(up to 20\)/)).toBeDefined();
+
+    // All brings the rest back; the most searched one stays off the chart.
+    fireEvent.click(screen.getByRole("button", { name: "All (3)" }));
+    const quiz = await screen.findByRole("checkbox", { name: "Show quiz rodzinny on the chart" });
+    expect((quiz as HTMLElement).getAttribute("data-state")).toBe("unchecked");
+    expect(new URL(window.location.href).searchParams.get("kw")).toBe("all");
+  });
+
+  test("stars a keyword from the table", async () => {
+    const patches: Array<{ body: unknown; url: string }> = [];
+    globalThis.fetch = mock(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (init?.method === "PATCH") {
+        patches.push({ body: JSON.parse(String(init.body)), url });
+        return json({ keyword: { id: "kw-1", starred: true } });
+      }
+      if (url.includes("/tracking/markets")) return json(MARKETS);
+      return json(board("pl", [keyword("quiz rodzinny", { keywordId: "kw-1", position: 1 })]));
+    }) as unknown as typeof fetch;
+
+    render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+    fireEvent.click(await screen.findByRole("button", { name: "Star quiz rodzinny" }));
+
+    await waitFor(() => expect(patches).toHaveLength(1));
+    expect(patches[0]).toEqual({
+      body: { starred: true },
+      url: "/api/apps/app-1/tracking/keywords/kw-1",
+    });
+    // The first star does not flip the list to Starred under the cursor.
+    expect(
+      screen.getByRole("button", { name: "All (1)" }).getAttribute("aria-pressed"),
+    ).toBe("true");
+  });
+
+  test("a phrase that is no longer tracked cannot be starred", async () => {
+    render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+    const star = await screen.findByRole("button", { name: "Star quiz rodzinny" });
+    expect((star as HTMLButtonElement).disabled).toBe(true);
+  });
+
   test("renders nothing when the store has no searchable rankings", async () => {
     globalThis.fetch = mock(async () =>
       json({ ...MARKETS, rankTracking: { ...MARKETS.rankTracking, supported: false } }),

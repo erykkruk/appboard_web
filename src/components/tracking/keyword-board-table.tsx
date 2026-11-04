@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 
 import { DeltaBadge } from "@/components/tracking/delta-badge";
 import { Sparkline } from "@/components/tracking/sparkline";
+import { StarToggle } from "@/components/tracking/star-toggle";
+import { StarredFilter } from "@/components/tracking/starred-filter";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -24,6 +26,11 @@ import {
 } from "@/components/ui/table";
 import { CLASSIFICATION_META } from "@/lib/keyword-research";
 import { formatKeywordPosition } from "@/lib/research";
+import {
+  filterByStar,
+  isStarred,
+  type KeywordFilter,
+} from "@/lib/starred-keywords";
 import type { BoardKeyword } from "@/lib/types";
 
 type SortKey = "opportunity" | "difficulty" | "popularity" | "rank" | "keyword";
@@ -61,20 +68,33 @@ function formatNumber(value: number | null): string {
  * with it: where we stand, what the term costs, where it is heading, whether
  * our own metadata already targets it, and who owns the first result.
  */
-export function KeywordBoardTable({ keywords }: { keywords: BoardKeyword[] }) {
+export function KeywordBoardTable({
+  filter = "all",
+  keywords,
+  onFilterChange,
+  onToggleStar,
+}: {
+  /** Starred / All; the switch shows when `onFilterChange` is given. */
+  filter?: KeywordFilter;
+  keywords: BoardKeyword[];
+  onFilterChange?: (next: KeywordFilter) => void;
+  /** Star column shows when given. */
+  onToggleStar?: (row: BoardKeyword) => void;
+}) {
   const [query, setQuery] = useState("");
   const [picksOnly, setPicksOnly] = useState(false);
   const [sort, setSort] = useState<SortKey>("opportunity");
 
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
-    return keywords
+    return filterByStar(keywords, filter)
       .filter((k) => (picksOnly ? k.pick : true))
       .filter((k) => (needle ? k.keyword.toLowerCase().includes(needle) : true))
       .sort(SORTS[sort]);
-  }, [keywords, picksOnly, query, sort]);
+  }, [filter, keywords, picksOnly, query, sort]);
 
   const picks = keywords.filter((k) => k.pick).length;
+  const starredCount = keywords.filter(isStarred).length;
 
   if (!keywords.length) {
     return (
@@ -88,6 +108,14 @@ export function KeywordBoardTable({ keywords }: { keywords: BoardKeyword[] }) {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-3">
+        {onFilterChange && (
+          <StarredFilter
+            allCount={keywords.length}
+            filter={filter}
+            onChange={onFilterChange}
+            starredCount={starredCount}
+          />
+        )}
         <Input
           className="w-56"
           onChange={(e) => setQuery(e.target.value)}
@@ -121,6 +149,11 @@ export function KeywordBoardTable({ keywords }: { keywords: BoardKeyword[] }) {
         <Table>
           <TableHeader>
             <TableRow>
+              {onToggleStar && (
+                <TableHead className="w-8">
+                  <span className="sr-only">Starred</span>
+                </TableHead>
+              )}
               <TableHead>Keyword</TableHead>
               <TableHead>Position</TableHead>
               <TableHead>Best</TableHead>
@@ -142,6 +175,16 @@ export function KeywordBoardTable({ keywords }: { keywords: BoardKeyword[] }) {
                 : null;
               return (
                 <TableRow key={`${row.country}-${row.keyword}`}>
+                  {onToggleStar && (
+                    <TableCell>
+                      <StarToggle
+                        disabled={!row.keywordId}
+                        keyword={row.keyword}
+                        onToggle={() => onToggleStar(row)}
+                        starred={isStarred(row)}
+                      />
+                    </TableCell>
+                  )}
                   <TableCell className="font-medium">{row.keyword}</TableCell>
                   <TableCell className="whitespace-nowrap">
                     <span
@@ -236,7 +279,9 @@ export function KeywordBoardTable({ keywords }: { keywords: BoardKeyword[] }) {
 
       {!rows.length && (
         <p className="text-sm text-muted-foreground">
-          No keyword matches this filter.
+          {filter === "starred" && starredCount === 0
+            ? "No starred keywords in this market yet. Switch to All and star the ones you target."
+            : "No keyword matches this filter."}
         </p>
       )}
     </div>

@@ -1650,6 +1650,8 @@ export interface TrackedKeyword {
 	createdAt: string;
 	id: string;
 	keyword: string;
+	/** One of the team's own target keywords. Absent on servers older than 0.21.0. */
+	starred?: boolean;
 }
 
 export interface LatestRankPosition {
@@ -1817,6 +1819,10 @@ export interface TrackingMarketStats {
 	measured: number;
 	medianPosition: number | null;
 	ranked: number;
+	/** Starred (own target) keywords. Absent on servers older than 0.21.0. */
+	starred?: number;
+	/** Starred keywords in the top 10 now. Absent on servers older than 0.21.0. */
+	starredTop10?: number;
 	top10: number;
 	top50: number;
 	tracked: number;
@@ -1845,6 +1851,17 @@ export interface BulkAddMarketResult {
 	country: string;
 	rejected: string[];
 	skipped: string[];
+}
+
+export interface BulkStarMarketResult {
+	country: string;
+	notTracked: string[];
+	updated: string[];
+}
+
+export interface BulkStarKeywordsResult {
+	results: BulkStarMarketResult[];
+	totals: { notTracked: number; updated: number };
 }
 
 export interface BulkAddKeywordsResult {
@@ -1880,6 +1897,13 @@ export interface BoardKeyword {
 	keyword: string;
 	country: string;
 	platform: ResearchStoreKind;
+	/**
+	 * Tracked keyword id (null for history of a phrase no longer tracked) and
+	 * whether it is one of the team's own targets. Absent on servers older
+	 * than 0.21.0.
+	 */
+	keywordId?: string | null;
+	starred?: boolean;
 	position: number | null;
 	previousPosition: number | null;
 	/** Positive = moved up. */
@@ -1939,6 +1963,8 @@ export interface BoardGap {
 
 export interface BoardStats {
 	tracked: number;
+	/** Absent on servers older than 0.21.0. */
+	starred?: number;
 	ranked: number;
 	top10: number;
 	picks: number;

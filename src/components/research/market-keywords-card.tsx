@@ -5,6 +5,8 @@ import { Loader2, Plus, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { Sparkline } from "@/components/tracking/sparkline";
+import { StarToggle } from "@/components/tracking/star-toggle";
+import { StarredFilter } from "@/components/tracking/starred-filter";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -30,15 +32,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { useKeywordFilter } from "@/hooks/use-keyword-filter";
 import { useKeywordScores } from "@/hooks/use-keyword-research";
 import {
   useAddKeywords,
   useKeywordSuggestions,
+  useStarKeyword,
+  useTrackAndStarKeyword,
   useTrackingBoard,
   useTrackingMarkets,
 } from "@/hooks/use-tracking";
 import {
   buildMarketKeywordRows,
+  filterMarketKeywordRows,
   keywordsToScore,
   type MarketKeywordRow,
 } from "@/lib/market-keywords";
@@ -106,6 +112,8 @@ export function MarketKeywordsCard({
   const ideas = useKeywordSuggestions(appId, country);
   const scoring = useKeywordScores();
   const addKeywords = useAddKeywords(appId);
+  const starKeyword = useStarKeyword(appId);
+  const trackAndStar = useTrackAndStarKeyword(appId);
 
   const rows = useMemo(
     () =>
@@ -117,6 +125,12 @@ export function MarketKeywordsCard({
   );
   const missing = useMemo(() => keywordsToScore(rows), [rows]);
   const trackedCount = rows.filter((r) => r.tracked).length;
+  const starredCount = rows.filter((r) => r.starred).length;
+  const { filter, pin, setFilter } = useKeywordFilter(starredCount > 0);
+  const listed = useMemo(
+    () => filterMarketKeywordRows(rows, filter),
+    [filter, rows],
+  );
   const cap = ideas.data?.cap ?? MAX_TRACKED_KEYWORDS_PER_LANGUAGE;
   const atCap = trackedCount >= cap;
 
@@ -172,6 +186,12 @@ export function MarketKeywordsCard({
           <span className="text-sm text-muted-foreground tabular-nums">
             {trackedCount}/{cap} tracked
           </span>
+          <StarredFilter
+            allCount={trackedCount}
+            filter={filter}
+            onChange={setFilter}
+            starredCount={starredCount}
+          />
           <Button
             variant="outline"
             size="sm"
@@ -194,6 +214,9 @@ export function MarketKeywordsCard({
           <Table>
             <TableHeader>
               <TableRow>
+                <TableHead className="w-8">
+                  <span className="sr-only">Starred</span>
+                </TableHead>
                 <TableHead>Keyword</TableHead>
                 <TableHead>Position</TableHead>
                 <TableHead>Popularity</TableHead>
@@ -203,10 +226,43 @@ export function MarketKeywordsCard({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {rows.map((row) => {
+              {listed.map((row) => {
                 const pos = formatKeywordPosition(row.position);
+                const keywordId = row.keywordId;
                 return (
                   <TableRow key={`${row.tracked ? "t" : "i"}-${row.keyword}`}>
+                    <TableCell>
+                      {row.tracked ? (
+                        <StarToggle
+                          disabled={!keywordId}
+                          keyword={row.keyword}
+                          onToggle={() => {
+                            if (!keywordId) return;
+                            pin();
+                            starKeyword.mutate({
+                              keywordId,
+                              starred: !row.starred,
+                            });
+                          }}
+                          starred={row.starred}
+                        />
+                      ) : (
+                        <StarToggle
+                          disabled={atCap || trackAndStar.isPending}
+                          keyword={row.keyword}
+                          onToggle={() => {
+                            pin();
+                            trackAndStar.mutate({ country, keyword: row.keyword });
+                          }}
+                          starred={false}
+                          title={
+                            atCap
+                              ? `This market already tracks ${cap} keywords`
+                              : "Track and star this keyword"
+                          }
+                        />
+                      )}
+                    </TableCell>
                     <TableCell className="font-medium">
                       {row.keyword}
                       {row.tracked ? (
