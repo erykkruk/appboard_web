@@ -100,6 +100,7 @@ export function KeywordPositionsCard({
   const [pickedCountry, setPickedCountry] = useState<string | null>(null);
   const [showAllKeywords, setShowAllKeywords] = useState(false);
   const [picks, setPicks] = useState<Record<string, string[]>>({});
+  const [hoveredKeyword, setHoveredKeyword] = useState<string | null>(null);
 
   const marketRows = useMemo(
     () => markets.data?.markets ?? [],
@@ -227,7 +228,9 @@ export function KeywordPositionsCard({
                 </p>
               ) : selected.length ? (
                 <RankChart
+                  activeKeyword={hoveredKeyword}
                   annotations={board.data.changes.map(toAnnotation)}
+                  onActiveKeywordChange={setHoveredKeyword}
                   seriesColors={seriesColors}
                   snapshots={snapshots}
                 />
@@ -288,7 +291,15 @@ export function KeywordPositionsCard({
                       k.measuredAt ? k.position : undefined,
                     );
                     return (
-                      <TableRow key={k.keyword}>
+                      <TableRow
+                        key={k.keyword}
+                        className={cn(
+                          onChart && hoveredKeyword === k.keyword && "bg-muted",
+                        )}
+                        data-highlighted={hoveredKeyword === k.keyword || undefined}
+                        onMouseEnter={() => onChart && setHoveredKeyword(k.keyword)}
+                        onMouseLeave={() => setHoveredKeyword(null)}
+                      >
                         <TableCell>
                           <Checkbox
                             aria-label={`Show ${k.keyword} on the chart`}

@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.22.1",
+    serverVersion: "0.22.0",
+    date: "2026-11-04",
+    changes: [
+      "Dashboard chart: hover a line to highlight its keyword in the legend and the table, or hover a keyword in the legend or the table to bring its line to the front and dim the others. The highlighted keyword and its latest position show above the chart",
+    ],
+  },
+  {
     version: "0.22.0",
     serverVersion: "0.22.0",
     date: "2026-11-04",
