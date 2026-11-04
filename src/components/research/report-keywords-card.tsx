@@ -1,7 +1,7 @@
 "use client";
 
 import { Check, Loader2, Plus } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -21,7 +21,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useResearchKeywords } from "@/hooks/use-research";
-import { useAddKeywords } from "@/hooks/use-tracking";
+import { useAddKeywords, useTracking } from "@/hooks/use-tracking";
 import {
   formatKeywordPosition,
   parseCustomKeywords,
@@ -47,6 +47,19 @@ function PositionCell({ position }: { position: number | null | undefined }) {
   return <span className={TONE_CLASS[formatted.tone]}>{formatted.label}</span>;
 }
 
+/** Lower-cased keywords the app already tracks in this market. */
+export function trackedKeywordsFor(
+  keywords: Array<{ country: string; keyword: string }>,
+  country: string,
+): Set<string> {
+  const market = country.toLowerCase();
+  return new Set(
+    keywords
+      .filter((k) => k.country.toLowerCase() === market)
+      .map((k) => k.keyword.trim().toLowerCase()),
+  );
+}
+
 export function ReportKeywordsCard({
   analysis,
   appId,
@@ -68,6 +81,11 @@ export function ReportKeywordsCard({
     ResearchKeywordPosition[]
   >([]);
   const [added, setAdded] = useState<Set<string>>(new Set());
+  const tracking = useTracking(appId ?? "");
+  const trackedHere = useMemo(
+    () => trackedKeywordsFor(tracking.data?.keywords ?? [], country),
+    [tracking.data?.keywords, country],
+  );
 
   const allPositions = [...positions, ...customPositions];
 
@@ -104,11 +122,13 @@ export function ReportKeywordsCard({
   return (
     <Card>
       <CardHeader>
-        <CardTitle>ASO keywords & positions ({country.toUpperCase()})</CardTitle>
+        <CardTitle>
+          ASO keywords & positions ({country.toUpperCase()})
+        </CardTitle>
         <CardDescription>
           Position = the app&apos;s rank in the store&apos;s top 50 search
-          results. You
-          can add your own keywords separated by commas or new lines.
+          results. You can add your own keywords separated by commas or new
+          lines.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-3">
@@ -142,6 +162,9 @@ export function ReportKeywordsCard({
                 const reason = analysis?.asoKeywords.find(
                   (k) => k.keyword === position.keyword,
                 )?.reason;
+                const isTracked =
+                  added.has(position.keyword) ||
+                  trackedHere.has(position.keyword.trim().toLowerCase());
                 return (
                   <TableRow key={position.keyword}>
                     <TableCell className="font-medium">
@@ -157,11 +180,11 @@ export function ReportKeywordsCard({
                       />
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
-                      {reason ?? "(custom)"}
+                      {reason ?? (isTracked ? "Tracked keyword" : "(custom)")}
                     </TableCell>
                     {appId && (
                       <TableCell className="text-right">
-                        {added.has(position.keyword) ? (
+                        {isTracked ? (
                           <span className="inline-flex items-center gap-1 text-xs text-emerald-600">
                             <Check className="h-3.5 w-3.5" /> Tracked
                           </span>
