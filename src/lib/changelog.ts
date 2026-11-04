@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.23.0",
+    serverVersion: "0.23.0",
+    date: "2026-11-04",
+    changes: [
+      "Each market now tracks up to 80 keywords (was 40). Rank checks take longer with more keywords: about 3.5 s per keyword on the App Store and 1.5 s on Google Play",
+    ],
+  },
+  {
     version: "0.22.0",
     serverVersion: "0.22.0",
     date: "2026-11-04",
