@@ -38,6 +38,7 @@ import { useApp } from "@/hooks/use-apps";
 import { useKeywordFilter } from "@/hooks/use-keyword-filter";
 import {
   useAddKeywords,
+  useKeywordDownloads,
   useRankByVersion,
   useRankCheckStatus,
   useRemoveKeyword,
@@ -105,6 +106,7 @@ export function KeywordsRankingsTab({
         : (countriesUsed[0] ?? "us");
 
   const board = useTrackingBoard(appId, boardCountry);
+  const keywordDownloads = useKeywordDownloads(appId, boardCountry);
   const [trackerTab, setTrackerTab] = useState("keywords");
   // Fetched only once the tab is opened: most visits never look at it.
   const byVersion = useRankByVersion(appId, boardCountry, {
@@ -349,6 +351,7 @@ export function KeywordsRankingsTab({
 
                 <TabsContent className="pt-4" value="keywords">
                   <KeywordBoardTable
+                    downloads={keywordDownloads.data}
                     filter={boardFilter.filter}
                     keywords={board.data.keywords}
                     onFilterChange={boardFilter.setFilter}

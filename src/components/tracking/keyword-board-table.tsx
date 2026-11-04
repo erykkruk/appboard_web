@@ -3,6 +3,10 @@
 import { useMemo, useState } from "react";
 
 import { DeltaBadge } from "@/components/tracking/delta-badge";
+import {
+  KeywordDownloadsNote,
+  KeywordDownloadsValue,
+} from "@/components/tracking/keyword-downloads";
 import { Sparkline } from "@/components/tracking/sparkline";
 import { StarToggle } from "@/components/tracking/star-toggle";
 import { StarredFilter } from "@/components/tracking/starred-filter";
@@ -24,6 +28,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import {
+  compareByDownloads,
+  keywordDownloadsCells,
+  keywordDownloadsHeaderTitle,
+} from "@/lib/keyword-downloads";
 import { CLASSIFICATION_META } from "@/lib/keyword-research";
 import { formatKeywordPosition } from "@/lib/research";
 import {
@@ -31,11 +40,13 @@ import {
   isStarred,
   type KeywordFilter,
 } from "@/lib/starred-keywords";
-import type { BoardKeyword } from "@/lib/types";
+import type { BoardKeyword, KeywordDownloadsReport } from "@/lib/types";
 
-type SortKey = "opportunity" | "difficulty" | "popularity" | "rank" | "keyword";
+type BoardSortKey = "opportunity" | "difficulty" | "popularity" | "rank" | "keyword";
+/** "downloads" sorts by the Downloads column, offered once that data is loaded. */
+type SortKey = BoardSortKey | "downloads";
 
-const SORTS: Record<SortKey, (a: BoardKeyword, b: BoardKeyword) => number> = {
+const SORTS: Record<BoardSortKey, (a: BoardKeyword, b: BoardKeyword) => number> = {
   difficulty: (a, b) => (a.difficulty ?? 101) - (b.difficulty ?? 101),
   keyword: (a, b) => a.keyword.localeCompare(b.keyword),
   opportunity: (a, b) =>
@@ -47,6 +58,7 @@ const SORTS: Record<SortKey, (a: BoardKeyword, b: BoardKeyword) => number> = {
 
 const SORT_LABELS: Record<SortKey, string> = {
   difficulty: "Sort: difficulty",
+  downloads: "Sort: downloads",
   keyword: "Sort: A-Z",
   opportunity: "Sort: opportunity, then difficulty",
   popularity: "Sort: popularity",
@@ -69,11 +81,14 @@ function formatNumber(value: number | null): string {
  * our own metadata already targets it, and who owns the first result.
  */
 export function KeywordBoardTable({
+  downloads,
   filter = "all",
   keywords,
   onFilterChange,
   onToggleStar,
 }: {
+  /** Downloads per keyword of the market; the column shows once it is loaded. */
+  downloads?: KeywordDownloadsReport;
   /** Starred / All; the switch shows when `onFilterChange` is given. */
   filter?: KeywordFilter;
   keywords: BoardKeyword[];
@@ -85,13 +100,28 @@ export function KeywordBoardTable({
   const [picksOnly, setPicksOnly] = useState(false);
   const [sort, setSort] = useState<SortKey>("opportunity");
 
+  const downloadCells = useMemo(
+    () => (downloads ? keywordDownloadsCells(downloads, keywords) : null),
+    [downloads, keywords],
+  );
+
   const rows = useMemo(() => {
     const needle = query.trim().toLowerCase();
+    const compare =
+      sort === "downloads"
+        ? downloadCells
+          ? compareByDownloads(downloadCells)
+          : SORTS.opportunity
+        : SORTS[sort];
     return filterByStar(keywords, filter)
       .filter((k) => (picksOnly ? k.pick : true))
       .filter((k) => (needle ? k.keyword.toLowerCase().includes(needle) : true))
-      .sort(SORTS[sort]);
-  }, [filter, keywords, picksOnly, query, sort]);
+      .sort(compare);
+  }, [downloadCells, filter, keywords, picksOnly, query, sort]);
+  const sortKeys: SortKey[] = [
+    ...(Object.keys(SORTS) as BoardSortKey[]),
+    ...(downloadCells ? (["downloads"] as const) : []),
+  ];
 
   const picks = keywords.filter((k) => k.pick).length;
   const starredCount = keywords.filter(isStarred).length;
@@ -136,7 +166,7 @@ export function KeywordBoardTable({
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {(Object.keys(SORTS) as SortKey[]).map((key) => (
+            {sortKeys.map((key) => (
               <SelectItem key={key} value={key}>
                 {SORT_LABELS[key]}
               </SelectItem>
@@ -144,6 +174,8 @@ export function KeywordBoardTable({
           </SelectContent>
         </Select>
       </div>
+
+      <KeywordDownloadsNote report={downloads} />
 
       <div className="overflow-x-auto">
         <Table>
@@ -160,6 +192,14 @@ export function KeywordBoardTable({
               <TableHead>Difficulty</TableHead>
               <TableHead>Trend</TableHead>
               <TableHead>Popularity</TableHead>
+              {downloads && (
+                <TableHead
+                  aria-sort={sort === "downloads" ? "descending" : undefined}
+                  title={keywordDownloadsHeaderTitle(downloads)}
+                >
+                  Downloads
+                </TableHead>
+              )}
               <TableHead>Targeting</TableHead>
               <TableHead>In your listing</TableHead>
               <TableHead>Leader</TableHead>
@@ -244,6 +284,11 @@ export function KeywordBoardTable({
                   <TableCell className="tabular-nums">
                     {formatNumber(row.popularity)}
                   </TableCell>
+                  {downloadCells && (
+                    <TableCell>
+                      <KeywordDownloadsValue cell={downloadCells.get(row.keyword)} />
+                    </TableCell>
+                  )}
                   <TableCell>
                     {meta ? (
                       <Badge className={meta.className} variant="outline">

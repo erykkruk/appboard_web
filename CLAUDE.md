@@ -197,6 +197,11 @@ Listing change history with rollback — git-log style.
 
 ---
 
+## Downloads per keyword (0.30.0)
+
+- `useKeywordDownloads(appId, country)` -> `GET /api/apps/:id/tracking/keyword-downloads` (separate from the board so a slow Play bucket never blocks positions). Cells, sorting, tooltips and the total line are pure functions in `src/lib/keyword-downloads.ts`; `src/components/tracking/keyword-downloads.tsx` only renders them.
+- Shown in the dashboard `KeywordPositionsCard` (header button sorts) and the tracker `KeywordBoardTable` ("Sort: downloads"). Google Play = real installs (latest full month, else month so far, all countries). App Store = "est. X-Y/mo", always labelled as an estimate and never as Apple data. "-" means no number (not in Play's report, no score or no position), never zero.
+
 ## Naming Conventions
 
 | Context | Convention | Example |

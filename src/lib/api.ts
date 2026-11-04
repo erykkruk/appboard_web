@@ -55,6 +55,7 @@ import type {
 	ImportAppResponse,
 	InAppPurchase,
 	KeywordCountrySummary,
+	KeywordDownloadsReport,
 	KeywordHistoryRow,
 	KeywordScore,
 	KeywordTrendPoint,
@@ -1335,6 +1336,11 @@ export const api = {
 		board: (appId: string, params?: { country?: string }) =>
 			fetchApi<TrackingBoard>(
 				`/api/apps/${appId}/tracking/board${toQuery({ ...params })}`,
+			),
+		/** Downloads each tracked keyword of one market brings (server 0.30.0+). */
+		keywordDownloads: (appId: string, params?: { country?: string }) =>
+			fetchApi<KeywordDownloadsReport>(
+				`/api/apps/${appId}/tracking/keyword-downloads${toQuery({ ...params })}`,
 			),
 		/** Positions of one market per store version (server 0.28.0+). */
 		byVersion: (appId: string, params?: { country?: string }) =>

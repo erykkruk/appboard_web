@@ -5,6 +5,11 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 
 import { DeltaBadge } from "@/components/tracking/delta-badge";
+import {
+  KeywordDownloadsNote,
+  KeywordDownloadsSortHeader,
+  KeywordDownloadsValue,
+} from "@/components/tracking/keyword-downloads";
 import { MarketStrengthTable } from "@/components/tracking/market-strength-table";
 import { RankChart, SERIES_COLORS } from "@/components/tracking/rank-chart";
 import { StarToggle } from "@/components/tracking/star-toggle";
@@ -29,11 +34,17 @@ import {
 } from "@/components/ui/table";
 import { useKeywordFilter } from "@/hooks/use-keyword-filter";
 import {
+  useKeywordDownloads,
   useStarKeyword,
   useTrackingBoard,
   useTrackingMarkets,
   useTrackingMarketsHistory,
 } from "@/hooks/use-tracking";
+import {
+  compareByDownloads,
+  keywordDownloadsCells,
+  keywordDownloadsHeaderTitle,
+} from "@/lib/keyword-downloads";
 import { marketLabel } from "@/lib/markets";
 import {
   boardToSnapshots,
@@ -103,6 +114,7 @@ export function KeywordPositionsCard({
   const [showAllKeywords, setShowAllKeywords] = useState(false);
   const [picks, setPicks] = useState<Record<string, string[]>>({});
   const [hoveredKeyword, setHoveredKeyword] = useState<string | null>(null);
+  const [sortByDownloads, setSortByDownloads] = useState(false);
 
   const marketRows = useMemo(
     () => markets.data?.markets ?? [],
@@ -124,10 +136,23 @@ export function KeywordPositionsCard({
     enabled: country !== null,
   });
 
-  const keywords = useMemo(
-    () => sortKeywordsForDashboard(board.data?.keywords ?? []),
-    [board.data?.keywords],
+  const downloads = useKeywordDownloads(appId, country ?? undefined, {
+    enabled: country !== null,
+  });
+  const downloadCells = useMemo(
+    () =>
+      downloads.data
+        ? keywordDownloadsCells(downloads.data, board.data?.keywords ?? [])
+        : null,
+    [board.data?.keywords, downloads.data],
   );
+
+  const keywords = useMemo(() => {
+    const sorted = sortKeywordsForDashboard(board.data?.keywords ?? []);
+    return sortByDownloads && downloadCells
+      ? [...sorted].sort(compareByDownloads(downloadCells))
+      : sorted;
+  }, [board.data?.keywords, downloadCells, sortByDownloads]);
   const starredCount = keywords.filter(isStarred).length;
   const { filter, pin, setFilter } = useKeywordFilter(starredCount > 0);
   const listed = useMemo(() => filterByStar(keywords, filter), [filter, keywords]);
@@ -271,6 +296,7 @@ export function KeywordPositionsCard({
                 onChange={setFilter}
                 starredCount={starredCount}
               />
+              <KeywordDownloadsNote report={downloads.data} />
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -285,6 +311,18 @@ export function KeywordPositionsCard({
                     <TableHead className="text-right">Position</TableHead>
                     <TableHead className="text-right">Change</TableHead>
                     <TableHead className="text-right">Best</TableHead>
+                    {downloads.data && (
+                      <TableHead
+                        aria-sort={sortByDownloads ? "descending" : undefined}
+                        className="text-right"
+                      >
+                        <KeywordDownloadsSortHeader
+                          active={sortByDownloads}
+                          onToggle={() => setSortByDownloads((v) => !v)}
+                          title={keywordDownloadsHeaderTitle(downloads.data)}
+                        />
+                      </TableHead>
+                    )}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -360,6 +398,11 @@ export function KeywordPositionsCard({
                         <TableCell className="text-right tabular-nums text-muted-foreground">
                           {k.bestPosition === null ? "-" : `#${k.bestPosition}`}
                         </TableCell>
+                        {downloadCells && (
+                          <TableCell className="text-right">
+                            <KeywordDownloadsValue cell={downloadCells.get(k.keyword)} />
+                          </TableCell>
+                        )}
                       </TableRow>
                     );
                   })}
@@ -367,7 +410,7 @@ export function KeywordPositionsCard({
                     <TableRow>
                       <TableCell
                         className="text-center text-sm text-muted-foreground"
-                        colSpan={7}
+                        colSpan={downloadCells ? 8 : 7}
                       >
                         No starred keywords in this market yet. Star the ones
                         you target with the star next to them in All.

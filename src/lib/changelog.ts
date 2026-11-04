@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.30.0",
+    serverVersion: "0.30.0",
+    date: "2026-11-04",
+    changes: [
+      "New Downloads column in the dashboard's Keyword positions table and in Keywords & Rankings > Tracker: how many downloads each tracked keyword brings. Click the column header on the dashboard (or pick Sort: downloads in the tracker) to put the biggest ones first",
+      "Google Play apps show real installs from the Play Console report (the Play reports bucket set up for Store performance): the latest full month, or this month so far, with visitors in the tooltip. Play counts search terms for all countries together and leaves out small ones, so a keyword it does not list shows a dash, not zero. A line above the table gives the month's total installs from Google Play search",
+      "App Store apps show an estimate per month (for example est. 2-9/mo), because Apple does not publish downloads per keyword. It uses the same model as the keyword score download intervals: searches from the keyword's popularity and market size, the share of people who tap the result at your current position, and a 5-20% install rate. Below position 20 it is 0, and keywords without a score or a position show a dash",
+    ],
+  },
+  {
     version: "0.28.1",
     serverVersion: "0.28.1",
     date: "2026-11-04",

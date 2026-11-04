@@ -55,6 +55,23 @@ export function useTrackingBoard(
 	});
 }
 
+/**
+ * Downloads per tracked keyword of one market: real Google Play installs from
+ * the Play Console report, or the App Store estimate. Separate from the board
+ * so a slow or failing Play bucket never holds the positions back.
+ */
+export function useKeywordDownloads(
+	appId: string,
+	country?: string,
+	options: { enabled?: boolean } = {},
+) {
+	return useQuery({
+		enabled: !!appId && (options.enabled ?? true),
+		queryFn: () => api.tracking.keywordDownloads(appId, { country }),
+		queryKey: [...trackingKey(appId), "keyword-downloads", country ?? ""],
+	});
+}
+
 /** Positions of one market per store version, newest version first. */
 export function useRankByVersion(
 	appId: string,

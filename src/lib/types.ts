@@ -2106,6 +2106,84 @@ export interface TrackingBoard {
 	metadataUntracked: string[];
 }
 
+// ============ Downloads per keyword (server 0.30.0+) ============
+
+/** google_play_report = real Play numbers; app_store_estimate = model, not Apple data. */
+export type KeywordDownloadsSource =
+	| "google_play_report"
+	| "app_store_estimate"
+	| "unsupported";
+
+export interface DownloadRange {
+	high: number;
+	low: number;
+}
+
+export interface PlaySearchFunnel {
+	acquisitions: number;
+	visitors: number;
+}
+
+export interface PlayKeywordDownloads {
+	/** null = not in Play's report for the month. */
+	currentMonth: PlaySearchFunnel | null;
+	latestMonth: PlaySearchFunnel | null;
+	terms: string[];
+}
+
+export interface EstimatedKeywordDownloads {
+	/** Below position 20 the model expects no search downloads. */
+	beyondModel: boolean;
+	perDay: DownloadRange;
+	perMonth: DownloadRange;
+	popularity: number | null;
+	position: number;
+	scoredAt: string;
+}
+
+export interface KeywordDownloadsRow {
+	estimate: EstimatedKeywordDownloads | null;
+	keyword: string;
+	play: PlayKeywordDownloads | null;
+}
+
+export interface PlayMonthTotals {
+	available: boolean;
+	lastDay: string | null;
+	/** YYYY-MM */
+	month: string;
+	searchInstalls: number | null;
+	searchVisitors: number | null;
+}
+
+export interface PlayDownloadsSummary {
+	currentMonth: PlayMonthTotals | null;
+	fetchedAt: string | null;
+	latestMonth: PlayMonthTotals | null;
+	message: string | null;
+	scope: "all_countries";
+	status: StorePerformanceStatus;
+	tvOnly: boolean;
+}
+
+export interface EstimatedDownloadsSummary {
+	daysPerMonth: number;
+	perDay: DownloadRange;
+	perMonth: DownloadRange;
+	ranked: number;
+	scored: number;
+}
+
+export interface KeywordDownloadsReport {
+	country: string;
+	estimate: EstimatedDownloadsSummary | null;
+	keywords: KeywordDownloadsRow[];
+	message: string | null;
+	platform: string;
+	play: PlayDownloadsSummary | null;
+	source: KeywordDownloadsSource;
+}
+
 // ============ Positions per store version ============
 
 /** Listing text a store indexes for search; null = not known. */

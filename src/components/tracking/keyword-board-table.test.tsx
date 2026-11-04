@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, mock, test } from "bun:test";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 
-import type { BoardKeyword } from "@/lib/types";
+import type { BoardKeyword, KeywordDownloadsReport } from "@/lib/types";
 
 import { KeywordBoardTable } from "./keyword-board-table";
 
@@ -150,5 +150,66 @@ describe("KeywordBoardTable stars", () => {
     render(<KeywordBoardTable keywords={rows} />);
     expect(screen.queryByRole("button", { name: /Star / })).toBeNull();
     expect(screen.queryByRole("group", { name: "Show keywords" })).toBeNull();
+  });
+
+  test("shows real Google Play installs per keyword and sorts by them", () => {
+    const downloads: KeywordDownloadsReport = {
+      country: "pl",
+      estimate: null,
+      keywords: [
+        {
+          estimate: null,
+          keyword: "buzzin",
+          play: {
+            currentMonth: null,
+            latestMonth: { acquisitions: 509, visitors: 590 },
+            terms: ["buzzin"],
+          },
+        },
+        {
+          estimate: null,
+          keyword: "quiz na tv",
+          play: { currentMonth: null, latestMonth: null, terms: [] },
+        },
+      ],
+      message: null,
+      platform: "android",
+      play: {
+        currentMonth: null,
+        fetchedAt: null,
+        latestMonth: {
+          available: true,
+          lastDay: "2026-10-31",
+          month: "2026-10",
+          searchInstalls: 509,
+          searchVisitors: 590,
+        },
+        message: null,
+        scope: "all_countries",
+        status: "ok",
+        tvOnly: false,
+      },
+      source: "google_play_report",
+    };
+    render(
+      <KeywordBoardTable
+        downloads={downloads}
+        keywords={[
+          keyword({ keyword: "quiz na tv", opportunity: 90, platform: "playstore" }),
+          keyword({ keyword: "buzzin", opportunity: 10, platform: "playstore" }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("509 in Oct").getAttribute("title")).toContain("all countries");
+    expect(screen.getByText(/Search installs: 509 in October 2026/)).toBeDefined();
+    const dash = screen
+      .getAllByText("-")
+      .find((el) => el.getAttribute("title")?.includes("small volumes"));
+    expect(dash).toBeDefined();
+    // Opens sorted by opportunity; downloads is one more sort option.
+    const firstRow = () => screen.getAllByRole("row")[1].textContent ?? "";
+    expect(firstRow()).toContain("quiz na tv");
+    expect(screen.getByRole("columnheader", { name: "Downloads" })).toBeDefined();
   });
 });

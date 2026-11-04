@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 
 import type {
   BoardKeyword,
+  KeywordDownloadsReport,
   TrackingBoard,
   TrackingMarket,
   TrackingMarketsHistory,
@@ -150,6 +151,49 @@ const BOARDS: Record<string, TrackingBoard> = {
   ]),
 };
 
+/** App Store estimate for pl: quiz rodzinny ranks #1, gry na telewizor #4, kalambury unmeasured. */
+const DOWNLOADS_PL: KeywordDownloadsReport = {
+  country: "pl",
+  estimate: {
+    daysPerMonth: 30,
+    perDay: { high: 0.5, low: 0.12 },
+    perMonth: { high: 15, low: 3.6 },
+    ranked: 2,
+    scored: 2,
+  },
+  keywords: [
+    {
+      estimate: {
+        beyondModel: false,
+        perDay: { high: 0.1, low: 0.02 },
+        perMonth: { high: 3, low: 0.6 },
+        popularity: 30,
+        position: 1,
+        scoredAt: "2026-11-03",
+      },
+      keyword: "quiz rodzinny",
+      play: null,
+    },
+    {
+      estimate: {
+        beyondModel: false,
+        perDay: { high: 0.4, low: 0.1 },
+        perMonth: { high: 12, low: 3 },
+        popularity: 50,
+        position: 4,
+        scoredAt: "2026-11-03",
+      },
+      keyword: "gry na telewizor",
+      play: null,
+    },
+    { estimate: null, keyword: "kalambury", play: null },
+  ],
+  message: null,
+  platform: "ios",
+  play: null,
+  source: "app_store_estimate",
+};
+
 let originalFetch: typeof fetch;
 let requested: string[];
 
@@ -183,6 +227,9 @@ beforeEach(() => {
     requested.push(url);
     if (url.includes("/tracking/markets/history")) return json(HISTORY);
     if (url.includes("/tracking/markets")) return json(MARKETS);
+    if (url.includes("/tracking/keyword-downloads")) {
+      return json(url.includes("country=pl") ? DOWNLOADS_PL : { ...DOWNLOADS_PL, keywords: [] });
+    }
     const country = new URL(url, "http://localhost").searchParams.get("country") ?? "";
     return json(BOARDS[country] ?? board(country, []));
   }) as unknown as typeof fetch;
@@ -358,6 +405,28 @@ describe("KeywordPositionsCard", () => {
     render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
     const star = await screen.findByRole("button", { name: "Star quiz rodzinny" });
     expect((star as HTMLButtonElement).disabled).toBe(true);
+  });
+
+  test("shows estimated downloads per keyword with the total and sorts by them", async () => {
+    render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+
+    const estimate = await screen.findByText("est. 3-12/mo");
+    expect(estimate.getAttribute("title")).toContain("not Apple data");
+    expect(screen.getByText("est. <1-3/mo")).toBeDefined();
+    expect(
+      screen.getByText(/Estimated search downloads: 4-15\/month from 2 ranked of 2 scored keywords/),
+    ).toBeDefined();
+    expect(requested.some((u) => u.includes("/tracking/keyword-downloads?country=pl"))).toBe(true);
+
+    const rowOrder = () =>
+      screen
+        .getAllByRole("checkbox")
+        .map((c) => c.getAttribute("aria-label"))
+        .filter((label): label is string => label !== null);
+    expect(rowOrder()[0]).toBe("Show quiz rodzinny on the chart");
+    fireEvent.click(screen.getByRole("button", { name: /Downloads/ }));
+    expect(rowOrder()[0]).toBe("Show gry na telewizor on the chart");
+    expect(rowOrder().at(-1)).toBe("Show kalambury on the chart");
   });
 
   test("renders nothing when the store has no searchable rankings", async () => {
