@@ -70,6 +70,7 @@ import type {
 	PurchaseSyncResult,
 	PushPreview,
 	QuickActionFocusContext,
+	RankByVersion,
 	RankHistory,
 	ResearchAnalysis,
 	ResearchAppMeta,
@@ -1328,6 +1329,11 @@ export const api = {
 		board: (appId: string, params?: { country?: string }) =>
 			fetchApi<TrackingBoard>(
 				`/api/apps/${appId}/tracking/board${toQuery({ ...params })}`,
+			),
+		/** Positions of one market per store version (server 0.28.0+). */
+		byVersion: (appId: string, params?: { country?: string }) =>
+			fetchApi<RankByVersion>(
+				`/api/apps/${appId}/tracking/by-version${toQuery({ ...params })}`,
 			),
 		addKeywordsBulk: (
 			appId: string,

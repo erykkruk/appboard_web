@@ -1673,6 +1673,8 @@ export interface RankSnapshot {
 	keyword: string;
 	platform: ResearchStoreKind;
 	position: number | null;
+	/** Store version live when measured; null = unknown (server 0.28.0+). */
+	version?: string | null;
 }
 
 export interface RankAnnotation {
@@ -1993,6 +1995,69 @@ export interface TrackingBoard {
 	metadataGap: BoardGap[];
 	/** Metadata terms with no tracking at all - candidates, not gaps. */
 	metadataUntracked: string[];
+}
+
+// ============ Positions per store version ============
+
+/** Listing text a store indexes for search; null = not known. */
+export interface ListingText {
+	keywords: string | null;
+	subtitle: string | null;
+	title: string | null;
+}
+
+export type ListingTextField = keyof ListingText;
+
+/** Version key of measurements whose store version is not known. */
+export const UNKNOWN_VERSION_KEY = "unknown";
+
+export interface ByVersionListing extends ListingText {
+	firstSeenAt: string;
+	id: string;
+	inferred: boolean;
+	language: string | null;
+	lastSeenAt: string;
+}
+
+export interface ByVersionColumn {
+	/** Text fields that differ from the previous (older) version. */
+	changedFields: ListingTextField[];
+	/** Every measurement was matched to the version afterwards (estimated). */
+	inferred: boolean;
+	/** Version string, or UNKNOWN_VERSION_KEY. */
+	key: string;
+	listing: ListingText | null;
+	listings: ByVersionListing[];
+	measuredFrom: string;
+	measuredTo: string;
+	measurements: number;
+	releasedAt: string | null;
+	versionString: string | null;
+}
+
+export interface ByVersionCell {
+	best: number | null;
+	/** Positions gained vs the previous version (positive = up). */
+	delta: number | null;
+	/** Last position while the version was live; null = not in the top 50. */
+	last: number | null;
+	measurements: number;
+	ranked: number;
+}
+
+export interface ByVersionKeyword {
+	/** Keyed by ByVersionColumn.key; missing = not measured under it. */
+	cells: Record<string, ByVersionCell>;
+	keyword: string;
+	starred: boolean;
+	tracked: boolean;
+}
+
+export interface RankByVersion {
+	country: string;
+	keywords: ByVersionKeyword[];
+	/** Newest version first. */
+	versions: ByVersionColumn[];
 }
 
 // ============ Audit history ============

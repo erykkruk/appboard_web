@@ -55,6 +55,19 @@ export function useTrackingBoard(
 	});
 }
 
+/** Positions of one market per store version, newest version first. */
+export function useRankByVersion(
+	appId: string,
+	country: string,
+	options: { enabled?: boolean } = {},
+) {
+	return useQuery({
+		enabled: !!appId && !!country && (options.enabled ?? true),
+		queryFn: () => api.tracking.byVersion(appId, { country }),
+		queryKey: [...trackingKey(appId), "by-version", country],
+	});
+}
+
 /** Keyword ideas for one market; read from stored scores, never scored here. */
 export function useKeywordSuggestions(appId: string, country: string | null) {
 	return useQuery({

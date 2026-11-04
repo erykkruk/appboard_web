@@ -7,6 +7,16 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.28.0",
+    serverVersion: "0.28.0",
+    date: "2026-11-04",
+    changes: [
+      "Keywords & Rankings > Tracker has a new By version tab: one row per keyword, one column per store version (newest first), showing where the keyword stood while that version was live and how far it moved against the version before. Green means up, red means down, new and out mark a keyword coming into or falling out of the top 50",
+      "Click a version to see the title, subtitle (or short description on Google Play) and keyword field it shipped with, and which of them changed against the previous version",
+      "Every rank check now stores which store version was live and the listing text AppBoard last synced for that market. Older measurements were matched to versions from the store's version history: on the App Store that covers the latest releases, on Google Play only the version that is live now. Those columns are marked estimated, and anything older shows as Unknown version",
+    ],
+  },
+  {
     version: "0.23.0",
     serverVersion: "0.23.0",
     date: "2026-11-04",

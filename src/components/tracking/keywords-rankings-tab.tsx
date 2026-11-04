@@ -11,6 +11,7 @@ import { BoardRuns } from "@/components/tracking/board-runs";
 import { KeywordBoardTable } from "@/components/tracking/keyword-board-table";
 import { KeywordTimeline } from "@/components/tracking/keyword-timeline";
 import { MarketsOverview } from "@/components/tracking/markets-overview";
+import { RankByVersionTable } from "@/components/tracking/rank-by-version-table";
 import { RankCheckStatus } from "@/components/tracking/rank-check-status";
 import { TrackedKeywordGroups } from "@/components/tracking/tracked-keyword-groups";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -37,6 +38,7 @@ import { useApp } from "@/hooks/use-apps";
 import { useKeywordFilter } from "@/hooks/use-keyword-filter";
 import {
   useAddKeywords,
+  useRankByVersion,
   useRankCheckStatus,
   useRemoveKeyword,
   useRunRankCheck,
@@ -103,6 +105,11 @@ export function KeywordsRankingsTab({
         : (countriesUsed[0] ?? "us");
 
   const board = useTrackingBoard(appId, boardCountry);
+  const [trackerTab, setTrackerTab] = useState("keywords");
+  // Fetched only once the tab is opened: most visits never look at it.
+  const byVersion = useRankByVersion(appId, boardCountry, {
+    enabled: trackerTab === "versions",
+  });
 
   // One URL filter for both lists; without a choice each opens on Starred
   // once its own scope (the tracker's market, the whole list) has a star.
@@ -324,7 +331,7 @@ export function KeywordsRankingsTab({
           ) : (
             <>
               <BoardKpis stats={board.data.stats} />
-              <Tabs defaultValue="keywords">
+              <Tabs onValueChange={setTrackerTab} value={trackerTab}>
                 <TabsList>
                   <TabsTrigger value="keywords">Keywords</TabsTrigger>
                   <TabsTrigger value="timeline">Positions over time</TabsTrigger>
@@ -334,6 +341,7 @@ export function KeywordsRankingsTab({
                       ? ` (${board.data.movement.length})`
                       : ""}
                   </TabsTrigger>
+                  <TabsTrigger value="versions">By version</TabsTrigger>
                   <TabsTrigger value="metadata">Metadata vs ranking</TabsTrigger>
                   <TabsTrigger value="changes">Your changes</TabsTrigger>
                   <TabsTrigger value="runs">Measurements</TabsTrigger>
@@ -362,6 +370,23 @@ export function KeywordsRankingsTab({
                 </TabsContent>
                 <TabsContent className="pt-4" value="movement">
                   <BoardMovement movement={board.data.movement} />
+                </TabsContent>
+                <TabsContent className="pt-4" value="versions">
+                  {byVersion.isError ? (
+                    <p className="text-sm text-muted-foreground" role="status">
+                      Positions per version could not be loaded. They need
+                      server 0.28.0 or newer.
+                    </p>
+                  ) : byVersion.isLoading || !byVersion.data ? (
+                    <Skeleton className="h-48 w-full" />
+                  ) : (
+                    <RankByVersionTable
+                      data={byVersion.data}
+                      filter={boardFilter.filter}
+                      onFilterChange={boardFilter.setFilter}
+                      platform={app.data?.platform}
+                    />
+                  )}
                 </TabsContent>
                 <TabsContent className="pt-4" value="metadata">
                   <BoardMetadata
