@@ -7,6 +7,14 @@ export interface ChangelogEntry {
 
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    version: "0.21.1",
+    serverVersion: "0.21.0",
+    date: "2026-11-04",
+    changes: [
+      "Research reports mark the keywords you already track in that market as Tracked instead of offering Add again",
+    ],
+  },
+  {
     version: "0.21.0",
     serverVersion: "0.21.0",
     date: "2026-11-04",
