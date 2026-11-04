@@ -66,4 +66,26 @@ describe("RankCheckStatus", () => {
     );
     expect(screen.getByText(/stopped early/)).toBeDefined();
   });
+
+  test("shows a deferred check as deferred, not as an error", () => {
+    render(
+      <RankCheckStatus
+        run={{
+          ...RUN,
+          checked: 0,
+          error:
+            "Deferred: the store throttled the check before this one (3 throttle answers in 30 min), so this check was not started. Every keyword is measured at the next scheduled check",
+          measured: 0,
+          progress: 0,
+          status: "interrupted",
+        }}
+      />,
+    );
+    const status = screen.getByRole("status");
+    expect(status.textContent).toContain(
+      "The last rank check was deferred: the store throttled the check before this one",
+    );
+    expect(status.textContent).toContain("Positions from earlier checks are kept.");
+    expect(status.textContent).not.toContain("stopped early");
+  });
 });

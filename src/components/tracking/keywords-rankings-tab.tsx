@@ -49,6 +49,10 @@ import {
   useTrackingMarkets,
 } from "@/hooks/use-tracking";
 import { marketLabel, marketOptions } from "@/lib/markets";
+import {
+  rankCheckHours,
+  rankCheckTimesLabel,
+} from "@/lib/rank-schedule";
 import { isStarred } from "@/lib/starred-keywords";
 import { MAX_TRACKED_KEYWORDS_PER_LANGUAGE } from "@/lib/types";
 
@@ -61,6 +65,7 @@ export function KeywordsRankingsTab({
   initialCountry?: string | null;
 }) {
   const tracking = useTracking(appId);
+  const checkHours = rankCheckHours(tracking.data?.schedule);
   const addKeywords = useAddKeywords(appId);
   const removeKeyword = useRemoveKeyword(appId);
   const starKeyword = useStarKeyword(appId);
@@ -161,7 +166,7 @@ export function KeywordsRankingsTab({
         <CardTitle>Tracked keywords</CardTitle>
         <CardDescription>
           Track up to {MAX_TRACKED_KEYWORDS_PER_LANGUAGE} keywords per market.
-          Positions are measured daily at 00:00 and 12:00 (and whenever you hit
+          Positions are measured daily at {rankCheckTimesLabel(checkHours)} (and whenever you hit
           &quot;Check now&quot;).
         </CardDescription>
       </CardHeader>
@@ -355,6 +360,7 @@ export function KeywordsRankingsTab({
                     filter={boardFilter.filter}
                     keywords={board.data.keywords}
                     onFilterChange={boardFilter.setFilter}
+                    rankCheckHours={checkHours}
                     onToggleStar={(row) => {
                       if (!row.keywordId) return;
                       boardFilter.pin();
@@ -369,6 +375,7 @@ export function KeywordsRankingsTab({
                   <KeywordTimeline
                     changes={board.data.changes}
                     keywords={board.data.keywords}
+                    rankCheckHours={checkHours}
                   />
                 </TabsContent>
                 <TabsContent className="pt-4" value="movement">

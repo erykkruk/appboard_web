@@ -17,6 +17,16 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    version: "0.29.0",
+    serverVersion: "0.29.0",
+    date: "2026-11-04",
+    changes: [
+      "Google Play rankings are now checked once a day at 00:00 (App Store stays at 00:00 and 12:00), which keeps Google from blocking the checks. The tracker and automation settings show the check times of your app's store",
+      "Apps on the same Google Play keywords (phone and Android TV) share one search per keyword, so both get measured in one pass",
+      "A check that could not start because the store was busy now says 'Deferred' instead of showing as failed",
+    ],
+  },
+  {
     version: "0.28.1",
     serverVersion: "0.28.1",
     date: "2026-11-04",

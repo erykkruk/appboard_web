@@ -36,6 +36,7 @@ import { useKeywordFilter } from "@/hooks/use-keyword-filter";
 import {
   useKeywordDownloads,
   useStarKeyword,
+  useTracking,
   useTrackingBoard,
   useTrackingMarkets,
   useTrackingMarketsHistory,
@@ -58,6 +59,11 @@ import {
   toggleChartKeyword,
   unmeasuredKeywords,
 } from "@/lib/rank-dashboard";
+import {
+  rankCheckHours,
+  rankCheckSlotsLabel,
+  rankCheckTimesLabel,
+} from "@/lib/rank-schedule";
 import { formatKeywordPosition } from "@/lib/research";
 import { filterByStar, isStarred } from "@/lib/starred-keywords";
 import type { BoardChange, RankAnnotation } from "@/lib/types";
@@ -110,6 +116,9 @@ export function KeywordPositionsCard({
 }) {
   const markets = useTrackingMarkets(appId);
   const marketsHistory = useTrackingMarketsHistory(appId);
+  // Same query the audit card on the dashboard already loads.
+  const checkHours = rankCheckHours(useTracking(appId).data?.schedule);
+  const nextCheckHint = `Measured at the next check (${rankCheckSlotsLabel(checkHours)})`;
   const [pickedCountry, setPickedCountry] = useState<string | null>(null);
   const [showAllKeywords, setShowAllKeywords] = useState(false);
   const [picks, setPicks] = useState<Record<string, string[]>>({});
@@ -251,7 +260,7 @@ export function KeywordPositionsCard({
                 <p className="flex h-32 items-center justify-center rounded-md border border-dashed px-4 text-center text-sm text-muted-foreground">
                   History starts {formatDay(onlyDay)}. Positions are kept per
                   day, so lines appear once a second day is measured (checks
-                  run at 00:00 and 12:00). Today&apos;s positions are in the
+                  run at {rankCheckTimesLabel(checkHours)}). Today&apos;s positions are in the
                   table below.
                 </p>
               ) : selected.length ? (
@@ -283,8 +292,7 @@ export function KeywordPositionsCard({
               {notMeasured.length > 0 && (
                 <p className="text-xs text-muted-foreground">
                   Not measured yet, so not on the chart:{" "}
-                  {notMeasured.join(", ")}. Measured at the next check (00:00 /
-                  12:00).
+                  {notMeasured.join(", ")}. {nextCheckHint}.
                 </p>
               )}
             </div>
@@ -387,7 +395,7 @@ export function KeywordPositionsCard({
                           title={
                             k.measuredAt
                               ? undefined
-                              : "Measured at the next check (00:00 / 12:00)"
+                              : nextCheckHint
                           }
                         >
                           {position.label}

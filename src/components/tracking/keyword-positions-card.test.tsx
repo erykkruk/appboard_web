@@ -268,6 +268,32 @@ describe("KeywordPositionsCard", () => {
     expect(cell.textContent).toBe("Not checked");
   });
 
+  test("uses the check times of the app's store (Google Play: once a day)", async () => {
+    const boardFetch = globalThis.fetch;
+    globalThis.fetch = mock(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (new URL(url, "http://localhost").pathname.endsWith("/tracking")) {
+        return json({
+          config: null,
+          keywords: [],
+          positions: [],
+          schedule: {
+            autoResearchHour: 6,
+            nextAutoResearchAt: null,
+            rankCheckHours: [0],
+            scoreRefreshHour: 1,
+            timezone: "Europe/Warsaw",
+          },
+        });
+      }
+      return boardFetch(input);
+    }) as unknown as typeof fetch;
+
+    render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
+    const cell = await screen.findByTitle("Measured at the next check (00:00)");
+    expect(cell.textContent).toBe("Not checked");
+  });
+
   test("shows a strength table that ignores the brand's #1", async () => {
     render(<KeywordPositionsCard appId="app-1" homeCountry="us" />, { wrapper: Wrapper });
     const table = await screen.findByRole("table", { name: "Markets by strength" });

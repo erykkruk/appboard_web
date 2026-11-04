@@ -2,6 +2,10 @@
 
 import { KeywordRankChart } from "@/components/tracking/keyword-rank-chart";
 import { Card, CardContent } from "@/components/ui/card";
+import {
+  DEFAULT_RANK_CHECK_HOURS,
+  rankCheckFrequencyLabel,
+} from "@/lib/rank-schedule";
 import type { BoardChange, BoardKeyword } from "@/lib/types";
 
 /**
@@ -12,9 +16,12 @@ import type { BoardChange, BoardKeyword } from "@/lib/types";
 export function KeywordTimeline({
   changes,
   keywords,
+  rankCheckHours = DEFAULT_RANK_CHECK_HOURS,
 }: {
   changes: BoardChange[];
   keywords: BoardKeyword[];
+  /** Scheduled check hours of the app's store (`schedule.rankCheckHours`). */
+  rankCheckHours?: readonly number[];
 }) {
   // Terms the store has never shown us for have a flat, empty chart; the
   // ones we ranked for at some point are the ones worth the space.
@@ -26,7 +33,7 @@ export function KeywordTimeline({
     return (
       <p className="text-sm text-muted-foreground">
         No keyword has placed in the scanned results yet, so there is no line to
-        draw. Positions are measured twice a day.
+        draw. Positions are measured {rankCheckFrequencyLabel(rankCheckHours)}.
       </p>
     );
   }

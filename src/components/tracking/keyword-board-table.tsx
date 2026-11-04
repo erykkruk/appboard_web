@@ -34,6 +34,10 @@ import {
   keywordDownloadsHeaderTitle,
 } from "@/lib/keyword-downloads";
 import { CLASSIFICATION_META } from "@/lib/keyword-research";
+import {
+  DEFAULT_RANK_CHECK_HOURS,
+  rankCheckSlotsLabel,
+} from "@/lib/rank-schedule";
 import { formatKeywordPosition } from "@/lib/research";
 import {
   filterByStar,
@@ -86,6 +90,7 @@ export function KeywordBoardTable({
   keywords,
   onFilterChange,
   onToggleStar,
+  rankCheckHours = DEFAULT_RANK_CHECK_HOURS,
 }: {
   /** Downloads per keyword of the market; the column shows once it is loaded. */
   downloads?: KeywordDownloadsReport;
@@ -95,6 +100,8 @@ export function KeywordBoardTable({
   onFilterChange?: (next: KeywordFilter) => void;
   /** Star column shows when given. */
   onToggleStar?: (row: BoardKeyword) => void;
+  /** Scheduled check hours of the app's store (`schedule.rankCheckHours`). */
+  rankCheckHours?: readonly number[];
 }) {
   const [query, setQuery] = useState("");
   const [picksOnly, setPicksOnly] = useState(false);
@@ -241,7 +248,7 @@ export function KeywordBoardTable({
                     {row.delta !== null && <DeltaBadge delta={row.delta} />}
                     {!row.measuredAt && (
                       <span className="block text-xs text-muted-foreground">
-                        Measured at the next check (00:00 / 12:00)
+                        Measured at the next check ({rankCheckSlotsLabel(rankCheckHours)})
                       </span>
                     )}
                   </TableCell>
