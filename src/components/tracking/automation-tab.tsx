@@ -20,8 +20,11 @@ import {
 } from "@/components/ui/select";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
+import { useDailySummary } from "@/hooks/use-daily-summary";
 import { useTracking, useUpdateTrackingConfig } from "@/hooks/use-tracking";
 import type { AutoResearchFrequency, TrackingSchedule } from "@/lib/types";
+
+import { DailySummaryCard } from "./daily-summary-card";
 
 const DEFAULT_AUTO_RESEARCH_HOUR = 6;
 const DEFAULT_TIMEZONE = "Europe/Warsaw";
@@ -93,6 +96,7 @@ export function AutomationTab({ appId }: { appId: string }) {
   const update = useUpdateTrackingConfig(appId);
   const config = tracking.data?.config;
   const schedule = tracking.data?.schedule;
+  const summaryOn = useDailySummary().data?.enabled ?? false;
 
   if (tracking.isLoading || !config) {
     return <Skeleton className="h-64 w-full" />;
@@ -100,6 +104,8 @@ export function AutomationTab({ appId }: { appId: string }) {
 
   return (
     <div className="space-y-6">
+      <DailySummaryCard />
+
       <Card>
         <CardHeader>
           <CardTitle>Daily rank tracking</CardTitle>
@@ -122,7 +128,11 @@ export function AutomationTab({ appId }: { appId: string }) {
           </Row>
           <Row
             title="Email daily rank digest"
-            description="Send a summary email with positions + day-over-day changes."
+            description={
+              summaryOn
+                ? "Replaced by the daily summary for all apps while it is on."
+                : "Send a summary email with positions + day-over-day changes."
+            }
           >
             <Switch
               checked={config.emailRankDigest}
@@ -139,7 +149,10 @@ export function AutomationTab({ appId }: { appId: string }) {
             Runs at {formatHour(schedule?.autoResearchHour ?? DEFAULT_AUTO_RESEARCH_HOUR)}{" "}
             ({schedule?.timezone ?? DEFAULT_TIMEZONE}). Each run fully researches
             your home market (reviews, AI analysis, keyword positions) and
-            emails a report, then scores new keyword ideas in your other tracked
+            {summaryOn
+              ? " puts the result in the daily summary"
+              : " emails a report"}
+            , then scores new keyword ideas in your other tracked
             markets. A daily run spreads the markets over the week, so every
             market is covered at least once a week.
           </CardDescription>
